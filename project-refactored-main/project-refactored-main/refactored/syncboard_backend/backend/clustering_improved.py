@@ -7,46 +7,16 @@ IMPROVEMENTS over basic clustering.py:
 3. Better relationship detection between concepts
 4. Knowledge area identification
 5. Depth analysis per cluster
+6. SELF-LEARNING semantic dictionary that grows with user's content
 """
 
 import logging
 from typing import List, Dict, Optional, Set
 from collections import Counter
 from .models import Cluster, Concept
+from .semantic_dictionary import SemanticDictionaryManager
 
 logger = logging.getLogger(__name__)
-
-
-# Semantic concept mappings (expandable)
-CONCEPT_SYNONYMS = {
-    # AI/ML cluster
-    "ai": {"artificial intelligence", "machine learning", "ml", "deep learning", "neural network", "llm"},
-    "machine learning": {"ai", "ml", "artificial intelligence"},
-    "ml": {"ai", "machine learning", "artificial intelligence"},
-    "neural network": {"deep learning", "ai", "ml"},
-
-    # Web development
-    "javascript": {"js", "node", "nodejs", "react", "vue", "angular"},
-    "react": {"reactjs", "javascript", "frontend", "jsx"},
-    "frontend": {"web development", "ui", "user interface", "css", "html"},
-
-    # Backend/Infrastructure
-    "docker": {"container", "containerization", "kubernetes", "k8s"},
-    "kubernetes": {"k8s", "docker", "container orchestration", "devops"},
-    "api": {"rest", "restful", "graphql", "backend"},
-
-    # Databases
-    "sql": {"database", "mysql", "postgresql", "postgres"},
-    "nosql": {"mongodb", "database", "redis"},
-
-    # Cloud/DevOps
-    "aws": {"cloud", "amazon web services"},
-    "devops": {"ci/cd", "deployment", "infrastructure"},
-
-    # Data Science
-    "data science": {"analytics", "data analysis", "statistics"},
-    "python": {"programming", "data science", "backend"},
-}
 
 
 class ImprovedClusteringEngine:
@@ -57,29 +27,44 @@ class ImprovedClusteringEngine:
     - "AI" = "ML" = "machine learning"
     - "Docker" + "Kubernetes" = Container knowledge area
     - Related concepts should cluster together
+
+    SELF-LEARNING:
+    - Starts with 50+ concept seed dictionary
+    - Learns new relationships from user's content
+    - Persists to JSON (Docker-compatible)
     """
 
-    def __init__(self):
+    def __init__(self, semantic_dict: Optional[SemanticDictionaryManager] = None):
+        """
+        Initialize improved clustering engine.
+
+        Args:
+            semantic_dict: Semantic dictionary manager (creates default if None)
+        """
         self.similarity_threshold = 0.35  # Lower because semantic matching is better
         self.synonym_boost = 0.3  # Extra score for semantic matches
+
+        # Initialize or use provided semantic dictionary
+        if semantic_dict is None:
+            self.semantic_dict = SemanticDictionaryManager()
+        else:
+            self.semantic_dict = semantic_dict
+
+        stats = self.semantic_dict.get_stats()
+        logger.info(
+            f"ClusteringEngine initialized with semantic dictionary: "
+            f"{stats['seed_concepts']} seed + {stats['learned_concepts']} learned concepts"
+        )
 
     def _expand_concepts(self, concept_names: List[str]) -> Set[str]:
         """
         Expand concept names to include synonyms.
 
+        Uses self-learning semantic dictionary.
+
         Example: ["AI", "Docker"] -> {"AI", "ML", "machine learning", "Docker", "containers", ...}
         """
-        expanded = set()
-
-        for name in concept_names:
-            name_lower = name.lower()
-            expanded.add(name_lower)
-
-            # Add synonyms if this concept has them
-            if name_lower in CONCEPT_SYNONYMS:
-                expanded.update(CONCEPT_SYNONYMS[name_lower])
-
-        return expanded
+        return self.semantic_dict.expand_concepts(concept_names)
 
     def _semantic_similarity(
         self,
@@ -150,7 +135,7 @@ class ImprovedClusteringEngine:
 
     def _names_are_related(self, name_a: str, name_b: str) -> bool:
         """Check if two cluster names are semantically related."""
-        # Expand both names with synonyms
+        # Expand both names with synonyms using semantic dictionary
         expanded_a = self._expand_concepts([name_a])
         expanded_b = self._expand_concepts([name_b])
 
