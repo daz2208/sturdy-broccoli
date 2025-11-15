@@ -58,7 +58,12 @@ class VectorStore:
             self.doc_matrix = None
             return
         self.vectorizer = TfidfVectorizer()
-        self.doc_matrix = self.vectorizer.fit_transform(texts)
+        try:
+            self.doc_matrix = self.vectorizer.fit_transform(texts)
+        except ValueError:
+            # Handle empty vocabulary (all documents are empty or only stop words)
+            self.vectorizer = None
+            self.doc_matrix = None
 
     def add_document(self, text: str) -> int:
         """Add a document to the vector store and rebuild vectors.
@@ -140,17 +145,13 @@ class VectorStore:
         # Compute cosine similarities between query and all documents
         scores = cosine_similarity(self.doc_matrix, q_vec).flatten()
         # Build list of candidate (index, score) pairs
-        # Filter out documents with very low scores (< 0.01) to remove noise
-        MIN_SCORE_THRESHOLD = 0.01
         candidates: List[Tuple[int, float]] = []
         for idx, score in enumerate(scores):
             # Map row index to document ID
             doc_id = self.doc_ids[idx]
             if allowed_doc_ids is not None and doc_id not in allowed_doc_ids:
                 continue
-            # Only include documents with meaningful similarity scores
-            if float(score) >= MIN_SCORE_THRESHOLD:
-                candidates.append((idx, float(score)))
+            candidates.append((idx, float(score)))
         # Sort candidates by score descending
         candidates.sort(key=lambda x: x[1], reverse=True)
         results: List[Tuple[int, float, str]] = []
