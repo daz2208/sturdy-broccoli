@@ -130,8 +130,8 @@ class Concept(BaseModel):
 
 class DocumentMetadata(BaseModel):
     """Metadata for ingested document."""
-    doc_id: int
-    owner: str
+    doc_id: Optional[int] = None  # Set after document creation
+    owner: Optional[str] = None  # Set by repository/service
     source_type: str  # "youtube", "pdf", "text", "url", "audio", "image"
     source_url: Optional[str] = None
     filename: Optional[str] = None
@@ -139,7 +139,7 @@ class DocumentMetadata(BaseModel):
     skill_level: str  # "beginner", "intermediate", "advanced", "unknown"
     cluster_id: Optional[int] = None
     ingested_at: str  # ISO timestamp
-    content_length: int
+    content_length: Optional[int] = None  # Set after calculating content length
     image_path: Optional[str] = None  # For images
 
 
@@ -150,7 +150,13 @@ class Cluster(BaseModel):
     primary_concepts: List[str]
     doc_ids: List[int]
     skill_level: str
-    doc_count: int
+    doc_count: Optional[int] = None  # Computed from len(doc_ids) if not provided
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Auto-compute doc_count from doc_ids if not provided
+        if self.doc_count is None:
+            self.doc_count = len(self.doc_ids)
 
 
 class BuildSuggestion(BaseModel):
