@@ -17,9 +17,9 @@ from fastapi.security import OAuth2PasswordBearer
 from .models import User, DocumentMetadata, Cluster
 from .vector_store import VectorStore
 from .concept_extractor import ConceptExtractor
-from .clustering import ClusteringEngine
+from .clustering_improved import ImprovedClusteringEngine
 from .image_processor import ImageProcessor
-from .build_suggester import BuildSuggester
+from .build_suggester_improved import ImprovedBuildSuggester
 from .auth import decode_access_token
 from .constants import DEFAULT_VECTOR_DIM
 
@@ -50,9 +50,9 @@ storage_lock = asyncio.Lock()
 # =============================================================================
 
 concept_extractor = ConceptExtractor()
-clustering_engine = ClusteringEngine()
+clustering_engine = ImprovedClusteringEngine()
 image_processor = ImageProcessor()
-build_suggester = BuildSuggester()
+build_suggester = ImprovedBuildSuggester()
 
 # =============================================================================
 # Authentication Dependency
@@ -118,14 +118,14 @@ def get_concept_extractor() -> ConceptExtractor:
     """Get concept extractor instance."""
     return concept_extractor
 
-def get_clustering_engine() -> ClusteringEngine:
-    """Get clustering engine instance."""
+def get_clustering_engine() -> ImprovedClusteringEngine:
+    """Get improved clustering engine instance."""
     return clustering_engine
 
 def get_image_processor() -> ImageProcessor:
     """Get image processor instance."""
     return image_processor
 
-def get_build_suggester() -> BuildSuggester:
-    """Get build suggester instance."""
+def get_build_suggester() -> ImprovedBuildSuggester:
+    """Get improved build suggester instance."""
     return build_suggester
