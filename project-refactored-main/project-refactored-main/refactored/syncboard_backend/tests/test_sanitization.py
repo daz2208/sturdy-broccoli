@@ -256,7 +256,8 @@ class TestUsernameSanitization:
 
     def test_reserved_usernames(self):
         """Test that reserved usernames are blocked."""
-        reserved = ["admin", "root", "system", "test", "guest"]
+        # Must match reserved list in backend/sanitization.py
+        reserved = ["admin", "root", "system", "guest", "null", "undefined"]
         for username in reserved:
             with pytest.raises(HTTPException) as exc:
                 sanitize_username(username)

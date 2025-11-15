@@ -85,15 +85,17 @@ class TestAddRelationship:
         source_doc = sample_documents[0]
         target_doc = sample_documents[1]
 
-        # Mock document queries
-        mock_query = Mock()
-        mock_query.filter.return_value.first.side_effect = [source_doc, target_doc]
-        mock_db_session.query.return_value = mock_query
+        # Mock queries: 3 total - source_doc, target_doc, existing relationship
+        mock_source_query = Mock()
+        mock_source_query.filter.return_value.first.return_value = source_doc
 
-        # Mock existing relationship check (none exists)
+        mock_target_query = Mock()
+        mock_target_query.filter.return_value.first.return_value = target_doc
+
         mock_existing_query = Mock()
         mock_existing_query.filter.return_value.first.return_value = None
-        mock_db_session.query.return_value = mock_existing_query
+
+        mock_db_session.query.side_effect = [mock_source_query, mock_target_query, mock_existing_query]
 
         # Execute
         result = relationships_service.add_relationship(

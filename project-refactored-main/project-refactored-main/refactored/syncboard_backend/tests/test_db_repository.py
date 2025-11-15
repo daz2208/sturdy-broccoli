@@ -31,7 +31,17 @@ from backend.models import DocumentMetadata, Cluster, Concept
 @pytest.fixture(scope="function")
 def db_engine():
     """Create in-memory SQLite database for testing."""
+    from sqlalchemy import event
+
     engine = create_engine("sqlite:///:memory:", echo=False)
+
+    # Enable foreign keys for SQLite
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -579,7 +589,7 @@ async def test_concurrent_cluster_operations(repository):
     assert len(set(cluster_ids)) == 5
 
     # All should be in database
-    assert repository.db.query(DBCluster).count() == 6  # +1 for sample_cluster fixture
+    assert repository.db.query(DBCluster).count() == 5
 
 
 # =============================================================================

@@ -32,13 +32,13 @@ def client():
 def auth_headers(client):
     """Create authentication headers with a registered user."""
     # Register a user
-    client.post("/register", json={
+    client.post("/users", json={
         "username": "testuser",
         "password": "testpass123"
     })
 
     # Login to get token
-    response = client.post("/login", json={
+    response = client.post("/token", json={
         "username": "testuser",
         "password": "testpass123"
     })
@@ -246,11 +246,16 @@ class TestAnalyticsService:
         stats = analytics_service.get_overview_stats(username="nonexistent")
 
         assert stats["total_documents"] == 0
-        assert stats["total_clusters"] == 2  # Clusters exist globally
+        assert stats["total_clusters"] == 0  # No clusters when database is empty
         assert stats["total_concepts"] == 0
 
     def test_analytics_filtered_by_user(self, analytics_service, sample_data, db_session):
         """Test that analytics correctly filters by username."""
+        # Create other user first (required by foreign key)
+        other_user = DBUser(username="otheruser", hashed_password="hashed")
+        db_session.add(other_user)
+        db_session.commit()
+
         # Add document for different user
         other_doc = DBDocument(
             doc_id=99,

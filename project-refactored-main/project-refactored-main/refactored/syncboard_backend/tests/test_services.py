@@ -141,8 +141,8 @@ async def test_document_service_auto_clustering(document_service):
 
     # Verify cluster has both documents
     cluster = await document_service.repo.get_cluster(cluster1_id)
-    assert doc1_id in cluster.document_ids
-    assert doc2_id in cluster.document_ids
+    assert doc1_id in cluster.doc_ids
+    assert doc2_id in cluster.doc_ids
 
 
 # =============================================================================
@@ -230,7 +230,7 @@ async def test_cluster_service_get_details(cluster_service, document_service):
     assert details is not None
     assert details["id"] == cluster_id
     assert "name" in details
-    assert len(details["document_ids"]) > 0
+    assert len(details["doc_ids"]) > 0
 
 
 # =============================================================================
