@@ -39,12 +39,12 @@ async def find_duplicates(
     try:
         with get_db_context() as db:
             detector = DuplicateDetector(db, vector_store)
-            duplicates = detector.find_duplicates(
+            result = detector.find_duplicates(
                 username=current_user.username,
                 similarity_threshold=threshold,
                 limit=limit
             )
-            return {"duplicate_groups": duplicates}
+            return result
     except Exception as e:
         logger.error(f"Duplicate detection failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

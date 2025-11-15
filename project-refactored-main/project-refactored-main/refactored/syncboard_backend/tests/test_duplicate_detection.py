@@ -103,8 +103,10 @@ class TestFindDuplicates:
 
     def test_find_duplicates_basic(self, duplicate_detector, mock_db_session, mock_vector_store, sample_documents, sample_vector_documents):
         """Test basic duplicate detection functionality."""
-        # Setup
-        mock_db_session.query.return_value.filter.return_value.all.return_value = sample_documents
+        # Setup - create separate mocks for different query chains
+        mock_filter_result = Mock()
+        mock_filter_result.all.return_value = sample_documents
+        mock_db_session.query.return_value.filter.return_value = mock_filter_result
 
         # Mock vector store to return high similarity for doc 101 and 102
         def mock_search(doc_id, top_k):
@@ -116,14 +118,6 @@ class TestFindDuplicates:
                 return [(101, 0.15), (102, 0.15)]
 
         mock_vector_store.search_by_doc_id.side_effect = mock_search
-
-        # Mock vector document queries
-        def mock_vector_query(doc_id):
-            mock_result = Mock()
-            mock_result.first.return_value = sample_vector_documents.get(doc_id)
-            return mock_result
-
-        mock_db_session.query.return_value.filter.return_value = Mock(first=lambda: sample_vector_documents.get(101))
 
         # Execute
         result = duplicate_detector.find_duplicates(username="testuser", similarity_threshold=0.85)
@@ -160,7 +154,9 @@ class TestFindDuplicates:
     def test_find_duplicates_low_threshold(self, duplicate_detector, mock_db_session, mock_vector_store, sample_documents):
         """Test with low similarity threshold (50%)."""
         # Setup
-        mock_db_session.query.return_value.filter.return_value.all.return_value = sample_documents
+        mock_filter_result = Mock()
+        mock_filter_result.all.return_value = sample_documents
+        mock_db_session.query.return_value.filter.return_value = mock_filter_result
         mock_vector_store.search_by_doc_id.return_value = [(102, 0.55), (103, 0.52)]
 
         # Execute
@@ -263,21 +259,35 @@ class TestMergeDuplicates:
         """Test successfully merging duplicates."""
         # Setup
         keep_doc = Mock()
+        keep_doc.id = 1
         keep_doc.doc_id = 101
         keep_doc.owner_username = "testuser"
 
         delete_doc1 = Mock()
+        delete_doc1.id = 2
         delete_doc1.doc_id = 102
         delete_doc1.owner_username = "testuser"
 
         delete_doc2 = Mock()
+        delete_doc2.id = 3
         delete_doc2.doc_id = 103
         delete_doc2.owner_username = "testuser"
 
         # Mock document queries
+        # 1. Verify keep_doc
+        # 2. Verify delete_doc1 (ownership check)
+        # 3. Verify delete_doc2 (ownership check)
+        # 4. Get vector_doc for doc 102
+        # 5. Get vector_doc for doc 103
         mock_db_session.query.return_value.filter.return_value.first.side_effect = [
-            keep_doc, delete_doc1, delete_doc2
+            keep_doc,        # Verify keep doc
+            delete_doc1,     # Verify delete_doc1 ownership
+            delete_doc2,     # Verify delete_doc2 ownership
+            Mock(),          # Vector doc for 102
+            Mock()           # Vector doc for 103
         ]
+        # Mock concepts queries
+        mock_db_session.query.return_value.filter.return_value.all.return_value = []
 
         # Execute
         result = duplicate_detector.merge_duplicates(
@@ -344,16 +354,26 @@ class TestMergeDuplicates:
         """Test that database changes are committed."""
         # Setup
         keep_doc = Mock()
+        keep_doc.id = 1
         keep_doc.doc_id = 101
         keep_doc.owner_username = "testuser"
 
         delete_doc = Mock()
+        delete_doc.id = 2
         delete_doc.doc_id = 102
         delete_doc.owner_username = "testuser"
 
+        # Mock queries
+        # 1. Verify keep_doc
+        # 2. Verify delete_doc ownership
+        # 3. Get vector_doc for doc 102
         mock_db_session.query.return_value.filter.return_value.first.side_effect = [
-            keep_doc, delete_doc
+            keep_doc,     # Verify keep doc
+            delete_doc,   # Verify delete doc ownership
+            Mock()        # Vector doc for 102
         ]
+        # Mock concepts query
+        mock_db_session.query.return_value.filter.return_value.all.return_value = []
 
         # Execute
         duplicate_detector.merge_duplicates(101, [102], "testuser")
@@ -404,14 +424,21 @@ class TestEdgeCases:
         """Test merging large number of duplicates."""
         # Setup
         keep_doc = Mock()
+        keep_doc.id = 1
         keep_doc.doc_id = 1
         keep_doc.owner_username = "testuser"
 
         # Create 50 documents to delete
         delete_ids = list(range(2, 52))
-        delete_docs = [Mock(doc_id=i, owner_username="testuser") for i in delete_ids]
+        delete_docs = [Mock(id=i, doc_id=i, owner_username="testuser") for i in delete_ids]
 
-        mock_db_session.query.return_value.filter.return_value.first.side_effect = [keep_doc] + delete_docs
+        # Need: 1 for keep_doc, 50 for verify ownership, 50 for vector docs
+        vector_docs = [Mock() for _ in delete_ids]
+        mock_db_session.query.return_value.filter.return_value.first.side_effect = (
+            [keep_doc] + delete_docs + vector_docs
+        )
+        # Mock concepts query
+        mock_db_session.query.return_value.filter.return_value.all.return_value = []
 
         # Execute
         result = duplicate_detector.merge_duplicates(1, delete_ids, "testuser")
@@ -428,7 +455,9 @@ class TestIntegration:
     def test_find_and_merge_workflow(self, duplicate_detector, mock_db_session, mock_vector_store, sample_documents, sample_vector_documents):
         """Test complete workflow: find duplicates then merge them."""
         # Step 1: Find duplicates
-        mock_db_session.query.return_value.filter.return_value.all.return_value = sample_documents
+        mock_filter_result = Mock()
+        mock_filter_result.all.return_value = sample_documents
+        mock_db_session.query.return_value.filter.return_value = mock_filter_result
         mock_vector_store.search_by_doc_id.return_value = [(102, 0.92)]
 
         find_result = duplicate_detector.find_duplicates("testuser", 0.85)
@@ -438,14 +467,21 @@ class TestIntegration:
 
         # Step 2: Merge duplicates
         keep_doc = Mock()
+        keep_doc.id = 1
         keep_doc.doc_id = 101
         keep_doc.owner_username = "testuser"
 
         delete_doc = Mock()
+        delete_doc.id = 2
         delete_doc.doc_id = 102
         delete_doc.owner_username = "testuser"
 
-        mock_db_session.query.return_value.filter.return_value.first.side_effect = [keep_doc, delete_doc]
+        # Setup new mock for merge operation
+        # Need: verify keep, verify delete, get vector_doc
+        mock_filter_for_merge = Mock()
+        mock_filter_for_merge.first.side_effect = [keep_doc, delete_doc, Mock()]
+        mock_filter_for_merge.all.return_value = []
+        mock_db_session.query.return_value.filter.return_value = mock_filter_for_merge
 
         merge_result = duplicate_detector.merge_duplicates(101, [102], "testuser")
 
@@ -456,8 +492,8 @@ class TestIntegration:
     def test_compare_before_merge_workflow(self, duplicate_detector, mock_db_session, mock_vector_store, sample_vector_documents):
         """Test workflow: compare documents before merging."""
         # Step 1: Compare two documents
-        doc1 = Mock(doc_id=101, source_type="text", skill_level="beginner", cluster_id=1, owner_username="testuser")
-        doc2 = Mock(doc_id=102, source_type="text", skill_level="beginner", cluster_id=1, owner_username="testuser")
+        doc1 = Mock(id=1, doc_id=101, source_type="text", skill_level="beginner", cluster_id=1, owner_username="testuser")
+        doc2 = Mock(id=2, doc_id=102, source_type="text", skill_level="beginner", cluster_id=1, owner_username="testuser")
 
         mock_db_session.query.return_value.filter.return_value.first.side_effect = [doc1, doc2]
         mock_vector_store.search_by_doc_id.return_value = [(102, 0.92)]
@@ -469,7 +505,12 @@ class TestIntegration:
 
         # Step 2: Merge if similarity is high
         if compare_result["similarity_score"] >= 0.85:
-            mock_db_session.query.return_value.filter.return_value.first.side_effect = [doc1, doc2]
+            # Reset mock for merge operation
+            # Need: verify keep, verify delete, get vector_doc
+            mock_filter_for_merge = Mock()
+            mock_filter_for_merge.first.side_effect = [doc1, doc2, Mock()]
+            mock_filter_for_merge.all.return_value = []
+            mock_db_session.query.return_value.filter.return_value = mock_filter_for_merge
             merge_result = duplicate_detector.merge_duplicates(101, [102], "testuser")
             assert merge_result["status"] == "merged"
 

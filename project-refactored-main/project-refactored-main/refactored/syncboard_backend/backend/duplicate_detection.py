@@ -35,7 +35,7 @@ class DuplicateDetector:
         username: str,
         similarity_threshold: float = 0.85,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Find duplicate documents based on content similarity.
 
@@ -45,7 +45,7 @@ class DuplicateDetector:
             limit: Maximum number of duplicate groups to return
 
         Returns:
-            List of duplicate groups with similarity scores
+            Dictionary with duplicate_groups and total_duplicates_found
         """
         # Get user's documents
         user_docs = self.db.query(DBDocument).filter(
@@ -53,7 +53,7 @@ class DuplicateDetector:
         ).all()
 
         if len(user_docs) < 2:
-            return []
+            return {"duplicate_groups": [], "total_duplicates_found": 0}
 
         doc_ids = [doc.doc_id for doc in user_docs]
 
@@ -103,7 +103,7 @@ class DuplicateDetector:
                         "source_type": main_doc.source_type if main_doc else None,
                         "skill_level": main_doc.skill_level if main_doc else None,
                         "cluster_id": main_doc.cluster_id if main_doc else None,
-                        "created_at": main_doc.created_at.isoformat() if main_doc and main_doc.created_at else None
+                        "created_at": main_doc.ingested_at.isoformat() if main_doc and main_doc.ingested_at else None
                     },
                     "duplicates": [
                         {
@@ -122,7 +122,7 @@ class DuplicateDetector:
                                 None
                             ),
                             "created_at": next(
-                                (d.created_at.isoformat() for d in duplicate_docs_meta if d.doc_id == dup["doc_id"] and d.created_at),
+                                (d.ingested_at.isoformat() for d in duplicate_docs_meta if d.doc_id == dup["doc_id"] and d.ingested_at),
                                 None
                             )
                         }
@@ -140,7 +140,89 @@ class DuplicateDetector:
         # Sort by group size (largest groups first)
         duplicate_groups.sort(key=lambda g: g["group_size"], reverse=True)
 
-        return duplicate_groups
+        # Count total duplicates (not including primary docs)
+        total_duplicates = sum(len(g["duplicates"]) for g in duplicate_groups)
+
+        return {
+            "duplicate_groups": duplicate_groups,
+            "total_duplicates_found": total_duplicates
+        }
+
+    def compare_two_documents(
+        self,
+        doc_id1: int,
+        doc_id2: int,
+        username: str
+    ) -> Dict[str, Any]:
+        """
+        Compare two specific documents.
+
+        Args:
+            doc_id1: First document ID
+            doc_id2: Second document ID
+            username: Username for authorization check
+
+        Returns:
+            Dictionary with similarity_score, doc1, and doc2 info
+        """
+        # Verify both documents belong to user
+        doc1_meta = self.db.query(DBDocument).filter(
+            DBDocument.doc_id == doc_id1,
+            DBDocument.owner_username == username
+        ).first()
+
+        if not doc1_meta:
+            raise ValueError(f"Document not found")
+
+        doc2_meta = self.db.query(DBDocument).filter(
+            DBDocument.doc_id == doc_id2,
+            DBDocument.owner_username == username
+        ).first()
+
+        if not doc2_meta:
+            raise ValueError(f"Document not found")
+
+        # Same document check
+        if doc_id1 == doc_id2:
+            return {
+                "similarity_score": 1.0,
+                "doc1": {
+                    "doc_id": doc_id1,
+                    "source_type": doc1_meta.source_type,
+                    "skill_level": doc1_meta.skill_level,
+                    "cluster_id": doc1_meta.cluster_id
+                },
+                "doc2": {
+                    "doc_id": doc_id2,
+                    "source_type": doc2_meta.source_type,
+                    "skill_level": doc2_meta.skill_level,
+                    "cluster_id": doc2_meta.cluster_id
+                }
+            }
+
+        # Calculate similarity
+        similarity = 0.0
+        results = self.vector_store.search_by_doc_id(doc_id1, top_k=100)
+        for did, sim in results:
+            if did == doc_id2:
+                similarity = float(sim)
+                break
+
+        return {
+            "similarity_score": similarity,
+            "doc1": {
+                "doc_id": doc_id1,
+                "source_type": doc1_meta.source_type,
+                "skill_level": doc1_meta.skill_level,
+                "cluster_id": doc1_meta.cluster_id
+            },
+            "doc2": {
+                "doc_id": doc_id2,
+                "source_type": doc2_meta.source_type,
+                "skill_level": doc2_meta.skill_level,
+                "cluster_id": doc2_meta.cluster_id
+            }
+        }
 
     def get_duplicate_content(
         self,
@@ -189,7 +271,7 @@ class DuplicateDetector:
                 "source_type": doc1_meta.source_type if doc1_meta else None,
                 "skill_level": doc1_meta.skill_level if doc1_meta else None,
                 "cluster_id": doc1_meta.cluster_id if doc1_meta else None,
-                "created_at": doc1_meta.created_at.isoformat() if doc1_meta and doc1_meta.created_at else None
+                "created_at": doc1_meta.ingested_at.isoformat() if doc1_meta and doc1_meta.ingested_at else None
             },
             "doc2": {
                 "doc_id": doc_id2,
@@ -197,7 +279,7 @@ class DuplicateDetector:
                 "source_type": doc2_meta.source_type if doc2_meta else None,
                 "skill_level": doc2_meta.skill_level if doc2_meta else None,
                 "cluster_id": doc2_meta.cluster_id if doc2_meta else None,
-                "created_at": doc2_meta.created_at.isoformat() if doc2_meta and doc2_meta.created_at else None
+                "created_at": doc2_meta.ingested_at.isoformat() if doc2_meta and doc2_meta.ingested_at else None
             },
             "similarity": similarity
         }
@@ -219,52 +301,61 @@ class DuplicateDetector:
         Returns:
             Result dictionary with merge status
         """
-        # Verify ownership of all documents
-        all_doc_ids = [keep_doc_id] + delete_doc_ids
-
-        docs = self.db.query(DBDocument).filter(
-            DBDocument.doc_id.in_(all_doc_ids),
+        # Verify keep document exists and belongs to user
+        keep_doc = self.db.query(DBDocument).filter(
+            DBDocument.doc_id == keep_doc_id,
             DBDocument.owner_username == username
-        ).all()
+        ).first()
 
-        if len(docs) != len(all_doc_ids):
-            raise ValueError("One or more documents not found or not owned by user")
+        if not keep_doc:
+            raise ValueError(f"Document {keep_doc_id} not found")
 
-        # Delete the duplicate documents
-        deleted_count = 0
+        # Verify all delete documents exist and belong to user
+        delete_docs = []
         for doc_id in delete_doc_ids:
-            # Get the document to find its internal ID
             doc = self.db.query(DBDocument).filter(
-                DBDocument.doc_id == doc_id
+                DBDocument.doc_id == doc_id,
+                DBDocument.owner_username == username
             ).first()
 
             if not doc:
-                continue
+                raise ValueError(f"Document {doc_id} not found")
 
+            delete_docs.append(doc)
+
+        # Delete the duplicate documents
+        deleted_ids = []
+        for doc in delete_docs:
             # Delete from vector documents
-            self.db.query(DBVectorDocument).filter(
-                DBVectorDocument.doc_id == doc_id
-            ).delete()
+            vector_doc = self.db.query(DBVectorDocument).filter(
+                DBVectorDocument.doc_id == doc.doc_id
+            ).first()
+            if vector_doc:
+                self.db.delete(vector_doc)
 
-            # Delete concepts - FIXED: Use document_id (foreign key to documents.id)
+            # Delete concepts - Use document_id (foreign key to documents.id)
             from .db_models import DBConcept
-            self.db.query(DBConcept).filter(
-                DBConcept.document_id == doc.id  # FIX: document_id references documents.id, not doc_id
-            ).delete()
+            concepts = self.db.query(DBConcept).filter(
+                DBConcept.document_id == doc.id
+            ).all()
+            for concept in concepts:
+                self.db.delete(concept)
 
             # Delete document
-            self.db.query(DBDocument).filter(
-                DBDocument.doc_id == doc_id
-            ).delete()
+            self.db.delete(doc)
 
-            deleted_count += 1
+            # Remove from vector store
+            if self.vector_store:
+                self.vector_store.remove_document(doc.doc_id)
+
+            deleted_ids.append(doc.doc_id)
 
         self.db.commit()
 
-        logger.info(f"Merged duplicates: kept doc {keep_doc_id}, deleted {deleted_count} documents")
+        logger.info(f"Merged duplicates: kept doc {keep_doc_id}, deleted {len(deleted_ids)} documents")
 
         return {
+            "status": "merged",
             "kept_doc_id": keep_doc_id,
-            "deleted_count": deleted_count,
-            "deleted_doc_ids": delete_doc_ids
+            "deleted_doc_ids": deleted_ids
         }

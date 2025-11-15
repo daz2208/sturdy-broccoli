@@ -39,7 +39,7 @@ class TagsService:
                 "id": existing.id,
                 "name": existing.name,
                 "color": existing.color,
-                "created_at": existing.created_at.isoformat()
+                "created_at": existing.created_at.isoformat() if existing.created_at else None
             }
 
         tag = DBTag(name=name, owner_username=username, color=color)
@@ -52,7 +52,7 @@ class TagsService:
             "id": tag.id,
             "name": tag.name,
             "color": tag.color,
-            "created_at": tag.created_at.isoformat()
+            "created_at": tag.created_at.isoformat() if tag.created_at else None
         }
 
     def get_user_tags(self, username: str) -> List[Dict[str, Any]]:
@@ -198,7 +198,7 @@ class SavedSearchesService:
             "name": saved_search.name,
             "query": saved_search.query,
             "filters": saved_search.filters,
-            "created_at": saved_search.created_at.isoformat()
+            "created_at": saved_search.created_at.isoformat() if saved_search.created_at else None
         }
 
     def get_saved_searches(self, username: str) -> List[Dict[str, Any]]:
@@ -215,7 +215,7 @@ class SavedSearchesService:
                 "filters": search.filters,
                 "use_count": search.use_count,
                 "last_used_at": search.last_used_at.isoformat() if search.last_used_at else None,
-                "created_at": search.created_at.isoformat()
+                "created_at": search.created_at.isoformat() if search.created_at else None
             }
             for search in searches
         ]
