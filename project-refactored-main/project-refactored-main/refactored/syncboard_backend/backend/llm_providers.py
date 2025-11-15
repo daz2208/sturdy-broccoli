@@ -55,6 +55,24 @@ class LLMProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """
+        Generic chat completion for various tasks.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            temperature: Sampling temperature (0-1)
+
+        Returns:
+            Response text
+        """
+        pass
+
 
 class OpenAIProvider(LLMProvider):
     """OpenAI implementation of LLM provider."""
@@ -312,6 +330,33 @@ IMPORTANT:
             logger.error(f"Improved suggestion generation failed: {e}")
             return []
 
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """
+        Generic chat completion for various tasks.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            temperature: Sampling temperature (0-1)
+
+        Returns:
+            Response text
+        """
+        try:
+            response = await self._call_openai(
+                messages=messages,
+                model=self.concept_model,  # Use faster model for generic tasks
+                temperature=temperature,
+                max_tokens=500
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Chat completion failed: {e}")
+            raise
+
 
 class MockLLMProvider(LLMProvider):
     """
@@ -354,3 +399,11 @@ class MockLLMProvider(LLMProvider):
                 "file_structure": "test/\n  src/\n  tests/"
             }
         ]
+
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """Return mock chat completion."""
+        return '{"similar": true, "confidence": 0.8, "reason": "mock similarity"}'

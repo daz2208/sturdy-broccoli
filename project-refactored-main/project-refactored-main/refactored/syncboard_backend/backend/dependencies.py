@@ -20,6 +20,8 @@ from .concept_extractor import ConceptExtractor
 from .clustering_improved import ImprovedClusteringEngine
 from .image_processor import ImageProcessor
 from .build_suggester_improved import ImprovedBuildSuggester
+from .semantic_dictionary import SemanticDictionaryManager
+from .llm_providers import OpenAIProvider
 from .auth import decode_access_token
 from .constants import DEFAULT_VECTOR_DIM
 
@@ -49,8 +51,21 @@ storage_lock = asyncio.Lock()
 # Service Instances
 # =============================================================================
 
+# LLM Provider (optional - only for semantic learning)
+llm_provider = None
+try:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        llm_provider = OpenAIProvider(api_key=api_key)
+except Exception:
+    pass  # LLM provider is optional - system works without it
+
+# Semantic dictionary (with or without LLM learning)
+semantic_dictionary = SemanticDictionaryManager(llm_provider=llm_provider)
+
+# Core services
 concept_extractor = ConceptExtractor()
-clustering_engine = ImprovedClusteringEngine()
+clustering_engine = ImprovedClusteringEngine(semantic_dict=semantic_dictionary)
 image_processor = ImageProcessor()
 build_suggester = ImprovedBuildSuggester()
 
