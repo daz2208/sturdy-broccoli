@@ -219,6 +219,99 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             logger.error(f"Build suggestion generation failed: {e}")
             return []
 
+    async def generate_build_suggestions_improved(
+        self,
+        knowledge_summary: str,
+        knowledge_areas: List[Dict],
+        validation_info: Dict,
+        max_suggestions: int
+    ) -> List[Dict]:
+        """
+        Generate IMPROVED build suggestions with depth analysis.
+
+        Includes:
+        - Actual content snippets (not just concept names)
+        - Knowledge area detection
+        - Minimum threshold validation
+        - Feasibility checks
+        """
+        stats = validation_info["stats"]
+
+        # Build areas summary
+        areas_text = "\n".join([
+            f"- {area['name']}: {area['document_count']} docs, {len(area['core_concepts'])} concepts ({area['skill_level']})"
+            for area in knowledge_areas
+        ])
+
+        prompt = f"""Based on this VALIDATED knowledge bank, suggest {max_suggestions} practical projects.
+
+KNOWLEDGE VALIDATION:
+✅ {stats['total_documents']} documents analyzed
+✅ {stats['unique_concepts']} unique concepts extracted
+✅ {stats['total_clusters']} knowledge areas identified
+✅ Skill levels: {', '.join(f"{k}: {v}" for k, v in stats['skill_distribution'].items())}
+
+KNOWLEDGE AREAS:
+{areas_text}
+
+DETAILED KNOWLEDGE CONTENT:
+{knowledge_summary}
+
+Return ONLY a JSON array of REALISTIC suggestions:
+[
+  {{
+    "title": "Specific Project Name",
+    "description": "What they'll build and WHY (reference their actual knowledge)",
+    "feasibility": "high|medium|low",
+    "effort_estimate": "X hours/days",
+    "required_skills": ["skill1", "skill2"],
+    "missing_knowledge": ["specific gap 1", "specific gap 2"],
+    "relevant_clusters": [0, 1],
+    "starter_steps": ["concrete step 1", "concrete step 2", "concrete step 3"],
+    "file_structure": "project/\\n  src/\\n  tests/\\n  README.md",
+    "knowledge_coverage": "high|medium|low (how much of their knowledge applies)"
+  }}
+]
+
+IMPORTANT:
+- Reference ACTUAL content from their knowledge (concepts, code, examples)
+- Only suggest if they have ENOUGH depth (check knowledge_coverage)
+- Be SPECIFIC - not generic
+- Prioritize projects they can START TODAY with existing knowledge
+- Mark feasibility=LOW if knowledge gaps are significant"""
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert project advisor. Analyze knowledge depth and suggest REALISTIC projects based on ACTUAL content. Return only valid JSON."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.7,
+                max_tokens=2500
+            )
+
+            suggestions = json.loads(response)
+
+            # Filter out low-coverage suggestions
+            filtered = [
+                s for s in suggestions
+                if s.get("knowledge_coverage", "low") in ["high", "medium"]
+            ]
+
+            logger.info(f"Generated {len(filtered)} high-quality suggestions (filtered {len(suggestions) - len(filtered)})")
+            return filtered
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Improved suggestion generation failed: {e}")
+            return []
+
 
 class MockLLMProvider(LLMProvider):
     """
