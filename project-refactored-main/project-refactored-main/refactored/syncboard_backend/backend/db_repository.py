@@ -358,4 +358,6 @@ class DatabaseKnowledgeBankRepository:
         Returns:
             List of (doc_id, score) tuples
         """
-        return self.vector_store.search(query, top_k=top_k, allowed_ids=allowed_doc_ids)
+        # VectorStore.search returns (doc_id, score, snippet), but we only need (doc_id, score)
+        results = self.vector_store.search(query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
+        return [(doc_id, score) for doc_id, score, _ in results]
