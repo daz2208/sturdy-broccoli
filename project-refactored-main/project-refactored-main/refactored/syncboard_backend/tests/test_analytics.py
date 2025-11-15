@@ -4,6 +4,7 @@ Tests for analytics dashboard functionality (Phase 7.1).
 
 import pytest
 from datetime import datetime, timedelta
+from fastapi.testclient import TestClient
 from backend.analytics_service import AnalyticsService
 from backend.db_models import (
     DBDocument,
@@ -12,12 +13,38 @@ from backend.db_models import (
     DBUser,
     DBVectorDocument
 )
+from backend.main import app
 
 
 @pytest.fixture
 def analytics_service(db_session):
     """Create analytics service with test database."""
     return AnalyticsService(db_session)
+
+
+@pytest.fixture
+def client():
+    """Create FastAPI test client."""
+    return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(client):
+    """Create authentication headers with a registered user."""
+    # Register a user
+    client.post("/register", json={
+        "username": "testuser",
+        "password": "testpass123"
+    })
+
+    # Login to get token
+    response = client.post("/login", json={
+        "username": "testuser",
+        "password": "testpass123"
+    })
+
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -41,7 +68,7 @@ def sample_data(db_session):
             source_type="text",
             skill_level="beginner",
             cluster_id=1,
-            created_at=now
+            ingested_at=now
         ),
         DBDocument(
             doc_id=2,
@@ -49,7 +76,7 @@ def sample_data(db_session):
             source_type="url",
             skill_level="beginner",
             cluster_id=1,
-            created_at=now - timedelta(days=1)
+            ingested_at=now - timedelta(days=1)
         ),
         DBDocument(
             doc_id=3,
@@ -57,7 +84,7 @@ def sample_data(db_session):
             source_type="file",
             skill_level="intermediate",
             cluster_id=2,
-            created_at=now - timedelta(days=7)
+            ingested_at=now - timedelta(days=7)
         ),
         DBDocument(
             doc_id=4,
@@ -65,18 +92,19 @@ def sample_data(db_session):
             source_type="text",
             skill_level="intermediate",
             cluster_id=2,
-            created_at=now - timedelta(days=15)
+            ingested_at=now - timedelta(days=15)
         ),
     ]
     db_session.add_all(docs)
+    db_session.flush()  # Get auto-generated IDs
 
-    # Create concepts
+    # Create concepts (using document_id which is FK to documents.id)
     concepts = [
-        DBConcept(doc_id=1, concept_text="variables"),
-        DBConcept(doc_id=1, concept_text="functions"),
-        DBConcept(doc_id=2, concept_text="variables"),
-        DBConcept(doc_id=3, concept_text="html"),
-        DBConcept(doc_id=4, concept_text="css"),
+        DBConcept(document_id=docs[0].id, name="variables", category="concept", confidence=0.9),
+        DBConcept(document_id=docs[0].id, name="functions", category="concept", confidence=0.85),
+        DBConcept(document_id=docs[1].id, name="variables", category="concept", confidence=0.9),
+        DBConcept(document_id=docs[2].id, name="html", category="language", confidence=0.95),
+        DBConcept(document_id=docs[3].id, name="css", category="language", confidence=0.9),
     ]
     db_session.add_all(concepts)
 
@@ -189,7 +217,7 @@ class TestAnalyticsService:
         assert len(activity) == 4
         assert all("doc_id" in a for a in activity)
         assert all("source_type" in a for a in activity)
-        assert all("created_at" in a for a in activity)
+        assert all("ingested_at" in a for a in activity)
 
         # Should be sorted by most recent first
         assert activity[0]["doc_id"] == 1
@@ -230,7 +258,7 @@ class TestAnalyticsService:
             source_type="text",
             skill_level="beginner",
             cluster_id=1,
-            created_at=datetime.utcnow()
+            ingested_at=datetime.utcnow()
         )
         db_session.add(other_doc)
         db_session.commit()
