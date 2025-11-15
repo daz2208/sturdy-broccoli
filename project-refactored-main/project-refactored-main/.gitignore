@@ -75,6 +75,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+*.backup
 temp/
 tmp/
 
