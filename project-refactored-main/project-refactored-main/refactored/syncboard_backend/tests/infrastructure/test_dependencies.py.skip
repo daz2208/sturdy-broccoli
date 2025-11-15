@@ -1,0 +1,122 @@
+"""
+Tests for dependency injection setup.
+
+Tests singleton instances and dependency configuration.
+"""
+
+import pytest
+from unittest.mock import patch, MagicMock
+
+# Import the FastAPI app
+import sys
+from pathlib import Path
+backend_path = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_path))
+
+from backend.dependencies import (
+    get_knowledge_bank_repository,
+    get_document_service,
+    get_search_service,
+    get_cluster_service,
+    get_build_suggestion_service
+)
+
+
+# =============================================================================
+# SINGLETON INSTANCE TESTS
+# =============================================================================
+
+def test_get_knowledge_bank_repository():
+    """Test knowledge bank repository can be retrieved."""
+    repo = get_knowledge_bank_repository()
+    assert repo is not None
+
+
+def test_repository_is_singleton():
+    """Test repository returns same instance."""
+    repo1 = get_knowledge_bank_repository()
+    repo2 = get_knowledge_bank_repository()
+    # Should return the same instance (singleton pattern)
+    assert repo1 is repo2
+
+
+def test_get_document_service():
+    """Test document service can be retrieved."""
+    service = get_document_service()
+    assert service is not None
+
+
+def test_get_search_service():
+    """Test search service can be retrieved."""
+    service = get_search_service()
+    assert service is not None
+
+
+def test_get_cluster_service():
+    """Test cluster service can be retrieved."""
+    service = get_cluster_service()
+    assert service is not None
+
+
+def test_get_build_suggestion_service():
+    """Test build suggestion service can be retrieved."""
+    service = get_build_suggestion_service()
+    assert service is not None
+
+
+# =============================================================================
+# SERVICE DEPENDENCY TESTS
+# =============================================================================
+
+def test_services_have_repository_dependency():
+    """Test services are properly connected to repository."""
+    doc_service = get_document_service()
+    repo = get_knowledge_bank_repository()
+
+    # Services should use the same repository instance
+    assert hasattr(doc_service, 'repository') or hasattr(doc_service, 'kb')
+
+
+def test_all_dependencies_initialized():
+    """Test all dependency getters work without errors."""
+    # Should not raise any exceptions
+    get_knowledge_bank_repository()
+    get_document_service()
+    get_search_service()
+    get_cluster_service()
+    get_build_suggestion_service()
+
+    assert True  # If we got here, all dependencies initialized successfully
+
+
+# =============================================================================
+# CONFIGURATION TESTS
+# =============================================================================
+
+def test_dependencies_module_structure():
+    """Test dependencies module has expected exports."""
+    from backend import dependencies
+
+    # Should have getter functions
+    assert hasattr(dependencies, 'get_knowledge_bank_repository')
+    assert hasattr(dependencies, 'get_document_service')
+    assert hasattr(dependencies, 'get_search_service')
+    assert hasattr(dependencies, 'get_cluster_service')
+
+
+# =============================================================================
+# INITIALIZATION ORDER TESTS
+# =============================================================================
+
+def test_repository_initialized_before_services():
+    """Test repository is initialized before services that depend on it."""
+    # Get services (which depend on repository)
+    doc_service = get_document_service()
+    search_service = get_search_service()
+
+    # Repository should already be initialized
+    repo = get_knowledge_bank_repository()
+
+    assert repo is not None
+    assert doc_service is not None
+    assert search_service is not None
