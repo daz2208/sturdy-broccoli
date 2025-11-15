@@ -73,8 +73,11 @@ function showUploadType(type) {
         `;
     } else if (type === 'file') {
         forms.innerHTML = `
-            <input type="file" id="fileInput" accept=".pdf,.txt,.docx,.mp3,.wav">
+            <input type="file" id="fileInput" accept=".pdf,.txt,.md,.docx,.mp3,.wav,.m4a,.ogg,.flac,.ipynb,.py,.js,.ts,.java,.cpp,.c,.go,.rs,.html,.css,.json,.csv,.yaml,.yml,.sql,.sh,.xlsx,.xls,.pptx,.zip,.epub,.srt,.vtt">
             <button onclick="uploadFile()">Upload File</button>
+            <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">
+                Supports: PDFs, Jupyter notebooks, code files (40+ languages), Office docs (Excel, PowerPoint, Word), audio files, archives, and more
+            </p>
         `;
     } else if (type === 'image') {
         forms.innerHTML = `
