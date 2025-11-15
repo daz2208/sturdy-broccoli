@@ -223,11 +223,9 @@ def test_store_image_with_zero_doc_id(processor, sample_image_bytes, cleanup_ima
 
 def test_store_image_invalid_doc_id_negative(processor, sample_image_bytes):
     """Test store_image rejects negative doc_id."""
-    # The function uses abs(), so it will actually accept negative but convert to positive
-    # But let's test what happens
-    filepath = processor.store_image(sample_image_bytes, doc_id=-1)
-    # It uses abs(), so it becomes doc_1.png
-    assert "doc_1.png" in filepath or filepath == ""
+    # The function validates doc_id and raises ValueError for negative values
+    with pytest.raises(ValueError):
+        processor.store_image(sample_image_bytes, doc_id=-1)
 
 
 def test_store_image_invalid_doc_id_string(processor, sample_image_bytes):

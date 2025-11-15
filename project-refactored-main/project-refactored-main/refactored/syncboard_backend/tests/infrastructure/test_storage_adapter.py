@@ -82,6 +82,7 @@ def test_load_storage_from_db_with_data(mock_context, mock_vector_store, test_db
         skill_level="beginner"
     )
     test_db.add(doc)
+    test_db.flush()  # Flush to get the auto-generated ID
 
     concept = DBConcept(
         document_id=doc.id,

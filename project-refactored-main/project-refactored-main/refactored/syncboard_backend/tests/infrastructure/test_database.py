@@ -174,10 +174,11 @@ def test_sqlite_foreign_keys_enabled():
 
 def test_all_tables_created():
     """Test all expected tables are created after init_db."""
+    from sqlalchemy import inspect
     init_db()
 
     # Get list of tables
-    inspector = engine.dialect.get_inspector(engine)
+    inspector = inspect(engine)
     tables = inspector.get_table_names()
 
     # Expected tables from db_models.py
@@ -189,9 +190,10 @@ def test_all_tables_created():
 
 def test_tables_have_correct_structure():
     """Test tables have the expected columns."""
+    from sqlalchemy import inspect
     init_db()
 
-    inspector = engine.dialect.get_inspector(engine)
+    inspector = inspect(engine)
 
     # Check users table
     users_columns = [col['name'] for col in inspector.get_columns('users')]
@@ -202,8 +204,8 @@ def test_tables_have_correct_structure():
     # Check documents table
     docs_columns = [col['name'] for col in inspector.get_columns('documents')]
     assert 'id' in docs_columns
-    assert 'content' in docs_columns
-    assert 'user_id' in docs_columns
+    assert 'doc_id' in docs_columns
+    assert 'owner_username' in docs_columns
     assert 'cluster_id' in docs_columns
 
 
