@@ -1,6 +1,6 @@
 """Data models and schemas for SyncBoard 3.0 Knowledge Bank."""
 
-from pydantic import BaseModel, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -18,8 +18,11 @@ class DocumentUpload(BaseModel):
 
 
 class TextUpload(BaseModel):
-    """Schema for uploading raw text content directly."""
-    content: str
+    """Schema for uploading raw text content directly. Accepts both "content" and "text" field names."""
+    content: str = Field(..., alias="text")
+    
+    class Config:
+        populate_by_name = True  # Accept both "content" and "text"
 
 
 class FileBytesUpload(BaseModel):

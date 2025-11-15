@@ -6,6 +6,7 @@ Tests the DocumentService, SearchService, ClusterService, and BuildSuggestionSer
 
 import pytest
 import asyncio
+import json
 import tempfile
 import os
 from pathlib import Path
@@ -31,6 +32,9 @@ def temp_storage():
     """Create temporary storage file."""
     fd, path = tempfile.mkstemp(suffix='.json')
     os.close(fd)
+    # Initialize with empty JSON structure
+    with open(path, 'w') as f:
+        json.dump({"documents": [], "metadata": [], "clusters": [], "users": {}}, f)
     yield path
     # Cleanup
     if os.path.exists(path):
