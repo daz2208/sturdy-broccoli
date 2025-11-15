@@ -77,3 +77,10 @@ Thumbs.db
 *.bak
 temp/
 tmp/
+
+# Test artifacts and tokens
+token.json
+token.txt
+test_upload.json
+test_url.json
+server.log
