@@ -15,6 +15,7 @@ Each router handles a specific domain:
 - saved_searches: Saved searches (Phase 7.4)
 - relationships: Document relationships (Phase 7.5)
 - jobs: Background job status (Celery integration - Phase 2)
+- integrations: Cloud service integrations (Phase 5)
 """
 
 from . import (
@@ -30,5 +31,6 @@ from . import (
     tags,
     saved_searches,
     relationships,
-    jobs
+    jobs,
+    integrations
 )
