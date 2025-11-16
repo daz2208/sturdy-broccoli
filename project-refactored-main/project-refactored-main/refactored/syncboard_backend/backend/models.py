@@ -1,6 +1,6 @@
 """Data models and schemas for SyncBoard 3.0 Knowledge Bank."""
 
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 
@@ -19,10 +19,9 @@ class DocumentUpload(BaseModel):
 
 class TextUpload(BaseModel):
     """Schema for uploading raw text content directly. Accepts both "content" and "text" field names."""
+    model_config = ConfigDict(populate_by_name=True)  # Accept both "content" and "text"
+
     content: str = Field(..., alias="text")
-    
-    class Config:
-        populate_by_name = True  # Accept both "content" and "text"
 
 
 class FileBytesUpload(BaseModel):
@@ -69,7 +68,8 @@ class UserCreate(BaseModel):
     username: str
     password: str
 
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def username_valid(cls, v):
         """Validate username meets minimum requirements."""
         if len(v) < 3:
@@ -80,7 +80,8 @@ class UserCreate(BaseModel):
             raise ValueError('Username can only contain letters, numbers, underscores, and hyphens')
         return v
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def password_valid(cls, v):
         """Validate password meets security requirements."""
         if len(v) < 8:
@@ -202,6 +203,8 @@ class RelationshipCreate(BaseModel):
 
 class IntegrationToken(BaseModel):
     """Represents an OAuth token for a connected cloud service."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: Optional[int] = None
     user_id: str
     service: str  # "github", "google", "dropbox", "notion"
@@ -217,9 +220,6 @@ class IntegrationToken(BaseModel):
     last_used: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        from_attributes = True
 
 
 class IntegrationTokenCreate(BaseModel):
@@ -259,6 +259,8 @@ class IntegrationsStatus(BaseModel):
 
 class IntegrationImport(BaseModel):
     """Represents a cloud service import job."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: Optional[int] = None
     user_id: str
     service: str
@@ -274,9 +276,6 @@ class IntegrationImport(BaseModel):
     completed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        from_attributes = True
 
 
 class IntegrationImportCreate(BaseModel):
