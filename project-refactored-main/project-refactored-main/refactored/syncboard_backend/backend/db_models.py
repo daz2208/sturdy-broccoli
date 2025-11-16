@@ -224,3 +224,85 @@ class DBDocumentRelationship(Base):
 
     def __repr__(self):
         return f"<DBDocumentRelationship(source={self.source_doc_id}, target={self.target_doc_id}, type='{self.relationship_type}')>"
+
+
+# =============================================================================
+# Phase 5: Cloud Integrations
+# =============================================================================
+
+class DBIntegrationToken(Base):
+    """Stores encrypted OAuth tokens for cloud service integrations (Phase 5)."""
+    __tablename__ = "integration_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    service = Column(String(50), nullable=False, index=True)  # 'github', 'google', 'dropbox', 'notion'
+
+    # Encrypted tokens
+    access_token = Column(Text, nullable=False)  # Encrypted with Fernet
+    refresh_token = Column(Text, nullable=True)  # Encrypted (if provider supports refresh)
+
+    # Token metadata
+    token_type = Column(String(50), default="Bearer", nullable=False)
+    expires_at = Column(DateTime, nullable=True, index=True)  # For automatic refresh
+    scope = Column(Text, nullable=True)  # Granted OAuth scopes
+
+    # Provider user information
+    provider_user_id = Column(String(255), nullable=True)
+    provider_user_email = Column(String(255), nullable=True)
+    provider_user_name = Column(String(255), nullable=True)
+
+    # Timestamps
+    connected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_used = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Constraints: one connection per service per user
+    __table_args__ = (
+        Index('idx_integration_token_user_service', 'user_id', 'service', unique=True),
+        Index('idx_integration_token_expires', 'expires_at'),
+    )
+
+    def __repr__(self):
+        return f"<DBIntegrationToken(user='{self.user_id}', service='{self.service}')>"
+
+
+class DBIntegrationImport(Base):
+    """Tracks cloud service import jobs and provides audit history (Phase 5)."""
+    __tablename__ = "integration_imports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    service = Column(String(50), nullable=False, index=True)  # 'github', 'google', 'dropbox', 'notion'
+
+    # Job tracking
+    job_id = Column(String(255), unique=True, nullable=False, index=True)  # Celery task ID
+    status = Column(String(50), nullable=False, default="pending", index=True)  # pending, processing, completed, failed
+
+    # Import statistics
+    file_count = Column(Integer, nullable=True)
+    files_processed = Column(Integer, default=0, nullable=False)
+    files_failed = Column(Integer, default=0, nullable=False)
+    total_size_bytes = Column(Integer, nullable=True)
+
+    # Service-specific metadata (e.g., repo name, folder path)
+    import_metadata = Column(JSON, nullable=True)
+
+    # Error information
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('idx_integration_import_user_service', 'user_id', 'service'),
+        Index('idx_integration_import_status', 'status'),
+        Index('idx_integration_import_created', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<DBIntegrationImport(job='{self.job_id}', service='{self.service}', status='{self.status}')>"
