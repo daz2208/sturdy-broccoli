@@ -60,6 +60,8 @@ services:
 
       # Development: Mount code for hot reload (comment out for production)
       - ./backend:/app/backend
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
     ports:
       - "8000:8000"
     networks:
