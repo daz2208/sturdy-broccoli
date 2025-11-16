@@ -43,3 +43,8 @@ ebooklib  # EPUB books (.epub)
 # Image processing
 Pillow
 pytesseract
+
+# Background Task Queue (Phase 2: Celery Integration)
+celery[redis]  # Task queue with Redis support
+redis  # Message broker and cache
+flower  # Celery monitoring dashboard
