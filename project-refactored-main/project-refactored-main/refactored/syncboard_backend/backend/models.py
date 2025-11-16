@@ -194,3 +194,198 @@ class RelationshipCreate(BaseModel):
     target_doc_id: int
     relationship_type: str = "related"
     strength: Optional[float] = None
+
+
+# =============================================================================
+# Cloud Integration Models (Phase 5)
+# =============================================================================
+
+class IntegrationToken(BaseModel):
+    """Represents an OAuth token for a connected cloud service."""
+    id: Optional[int] = None
+    user_id: str
+    service: str  # "github", "google", "dropbox", "notion"
+    access_token: str  # Encrypted
+    refresh_token: Optional[str] = None  # Encrypted
+    token_type: str = "Bearer"
+    expires_at: Optional[datetime] = None
+    scope: Optional[str] = None
+    provider_user_id: Optional[str] = None
+    provider_user_email: Optional[str] = None
+    provider_user_name: Optional[str] = None
+    connected_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class IntegrationTokenCreate(BaseModel):
+    """Request model for creating a new integration token."""
+    user_id: str
+    service: str
+    access_token: str
+    refresh_token: Optional[str] = None
+    token_type: str = "Bearer"
+    expires_at: Optional[datetime] = None
+    scope: Optional[str] = None
+    provider_user_id: Optional[str] = None
+    provider_user_email: Optional[str] = None
+    provider_user_name: Optional[str] = None
+
+
+class IntegrationConnectionStatus(BaseModel):
+    """Status of a single service connection."""
+    connected: bool
+    user: Optional[str] = None  # Provider username
+    email: Optional[str] = None
+    connected_at: Optional[datetime] = None
+    last_sync: Optional[datetime] = None
+
+
+class IntegrationsStatus(BaseModel):
+    """Overall status of all integrations for a user."""
+    connections: dict = Field(
+        default_factory=lambda: {
+            "github": IntegrationConnectionStatus(connected=False),
+            "google": IntegrationConnectionStatus(connected=False),
+            "dropbox": IntegrationConnectionStatus(connected=False),
+            "notion": IntegrationConnectionStatus(connected=False),
+        }
+    )
+
+
+class IntegrationImport(BaseModel):
+    """Represents a cloud service import job."""
+    id: Optional[int] = None
+    user_id: str
+    service: str
+    job_id: str  # Celery task ID
+    status: str = "pending"  # "pending", "processing", "completed", "failed"
+    file_count: Optional[int] = None
+    files_processed: int = 0
+    files_failed: int = 0
+    total_size_bytes: Optional[int] = None
+    import_metadata: Optional[dict] = None  # Service-specific data
+    error_message: Optional[str] = None
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class IntegrationImportCreate(BaseModel):
+    """Request model for creating a new import job."""
+    user_id: str
+    service: str
+    job_id: str
+    file_count: Optional[int] = None
+    import_metadata: Optional[dict] = None
+
+
+class IntegrationImportUpdate(BaseModel):
+    """Update model for import job progress."""
+    status: Optional[str] = None
+    files_processed: Optional[int] = None
+    files_failed: Optional[int] = None
+    error_message: Optional[str] = None
+    completed_at: Optional[datetime] = None
+
+
+class GitHubRepository(BaseModel):
+    """Represents a GitHub repository."""
+    id: int
+    name: str
+    full_name: str
+    description: Optional[str] = None
+    private: bool
+    url: str
+    default_branch: str = "main"
+    size: int
+    language: Optional[str] = None
+    updated_at: datetime
+
+
+class GitHubFile(BaseModel):
+    """Represents a file in a GitHub repository."""
+    name: str
+    path: str
+    type: str  # "file" or "dir"
+    size: int
+    sha: Optional[str] = None
+    url: Optional[str] = None
+
+
+class GitHubImportRequest(BaseModel):
+    """Request to import files from GitHub."""
+    owner: str
+    repo: str
+    files: List[str]  # List of file paths
+    branch: str = "main"
+
+
+class GoogleDriveFile(BaseModel):
+    """Represents a Google Drive file or folder."""
+    id: str
+    name: str
+    mimeType: str
+    size: Optional[int] = None
+    modifiedTime: datetime
+    iconLink: Optional[str] = None
+    webViewLink: Optional[str] = None
+
+
+class GoogleDriveImportRequest(BaseModel):
+    """Request to import files from Google Drive."""
+    file_ids: List[str]
+
+
+class DropboxEntry(BaseModel):
+    """Represents a Dropbox file or folder."""
+    tag: str  # "file" or "folder"
+    name: str
+    path_lower: str
+    id: str
+    size: Optional[int] = None
+    server_modified: Optional[datetime] = None
+
+
+class DropboxImportRequest(BaseModel):
+    """Request to import files from Dropbox."""
+    paths: List[str]
+
+
+class NotionPage(BaseModel):
+    """Represents a Notion page or database."""
+    id: str
+    object: str  # "page" or "database"
+    created_time: datetime
+    last_edited_time: datetime
+    title: str
+    url: str
+
+
+class NotionImportRequest(BaseModel):
+    """Request to import pages from Notion."""
+    page_ids: List[str]
+    include_children: bool = False
+
+
+class OAuthState(BaseModel):
+    """Temporary OAuth state stored in Redis."""
+    user_id: str
+    service: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class OAuthCallbackParams(BaseModel):
+    """Query parameters received in OAuth callback."""
+    code: str
+    state: str
+    error: Optional[str] = None
+    error_description: Optional[str] = None

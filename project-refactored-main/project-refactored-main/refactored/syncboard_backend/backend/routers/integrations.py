@@ -28,15 +28,15 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..db_models import DBIntegrationToken, DBIntegrationImport
-from ..models.integrations import (
+from ..models import (
     IntegrationsStatus,
     IntegrationConnectionStatus,
     IntegrationToken,
+    User,
 )
-from ..models.auth import User
-from ..routers.auth import get_current_user
+from ..dependencies import get_current_user
 from ..utils.encryption import encrypt_token, decrypt_token
-from ..redis_client import get_redis_client
+from ..redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ def generate_oauth_state(user_id: str, service: str) -> str:
     Returns:
         str: State token
     """
-    redis_client = get_redis_client()
+    # redis_client is imported at module level
 
     # Generate cryptographically secure random state
     state = secrets.token_urlsafe(32)
@@ -173,7 +173,7 @@ def validate_oauth_state(state: str, expected_service: str) -> str:
     Raises:
         HTTPException: If state invalid or expired
     """
-    redis_client = get_redis_client()
+    # redis_client is imported at module level
 
     # Retrieve state data from Redis
     state_data_str = redis_client.get(f"oauth_state:{state}")
@@ -774,7 +774,7 @@ async def integration_health_check():
 
     # Check Redis connectivity
     try:
-        redis_client = get_redis_client()
+        # redis_client is imported at module level
         redis_client.ping()
         health["redis_connected"] = True
     except Exception as e:
