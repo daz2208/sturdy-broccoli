@@ -786,3 +786,352 @@ async def integration_health_check():
         health["healthy"] = False
 
     return health
+
+
+# =============================================================================
+# GitHub-Specific Endpoints
+# =============================================================================
+
+@router.get("/github/repos")
+async def list_github_repos(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(30, ge=1, le=100, description="Results per page"),
+    sort: str = Query("updated", description="Sort by: created, updated, pushed, full_name"),
+    direction: str = Query("desc", description="Sort direction: asc, desc"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    List GitHub repositories for the authenticated user.
+
+    Requires GitHub to be connected. Returns repositories with metadata
+    including name, description, language, size, and last updated time.
+
+    Args:
+        page: Page number (1-indexed)
+        per_page: Results per page (max 100)
+        sort: Sort field
+        direction: Sort direction
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        dict: Repositories list with pagination info
+    """
+    # Get GitHub token
+    token_record = get_integration_token(db, current_user.username, "github")
+
+    if not token_record:
+        raise HTTPException(
+            status_code=404,
+            detail="GitHub not connected. Please connect your GitHub account first."
+        )
+
+    # Fetch repositories from GitHub API
+    import requests
+
+    headers = {
+        "Authorization": f"Bearer {token_record.access_token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    params = {
+        "page": page,
+        "per_page": per_page,
+        "sort": sort,
+        "direction": direction,
+        "type": "all",  # all, owner, member
+        "affiliation": "owner,collaborator,organization_member"
+    }
+
+    try:
+        response = requests.get(
+            "https://api.github.com/user/repos",
+            headers=headers,
+            params=params,
+            timeout=10
+        )
+        response.raise_for_status()
+        repos = response.json()
+
+        # Transform to our model
+        repositories = []
+        for repo in repos:
+            repositories.append({
+                "id": repo["id"],
+                "name": repo["name"],
+                "full_name": repo["full_name"],
+                "description": repo.get("description"),
+                "private": repo["private"],
+                "url": repo["html_url"],
+                "default_branch": repo.get("default_branch", "main"),
+                "size": repo["size"],
+                "language": repo.get("language"),
+                "updated_at": repo["updated_at"],
+                "stargazers_count": repo.get("stargazers_count", 0),
+                "forks_count": repo.get("forks_count", 0),
+            })
+
+        # Get total count from Link header (GitHub pagination)
+        total_count = len(repositories)
+        link_header = response.headers.get("Link")
+        if link_header and "last" in link_header:
+            # Parse last page number from Link header
+            import re
+            match = re.search(r'page=(\d+)>; rel="last"', link_header)
+            if match:
+                last_page = int(match.group(1))
+                total_count = last_page * per_page
+
+        logger.info(f"Fetched {len(repositories)} GitHub repos for user {current_user.username}")
+
+        return {
+            "repositories": repositories,
+            "total_count": total_count,
+            "page": page,
+            "per_page": per_page,
+            "has_more": len(repositories) == per_page
+        }
+
+    except requests.HTTPError as e:
+        if e.response.status_code == 401:
+            raise HTTPException(
+                status_code=401,
+                detail="GitHub token expired or invalid. Please reconnect your GitHub account."
+            )
+        logger.error(f"GitHub API error: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"GitHub API error: {e.response.status_code}"
+        )
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch GitHub repos: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to communicate with GitHub API"
+        )
+
+
+@router.get("/github/repos/{owner}/{repo}/contents")
+async def browse_github_repo(
+    owner: str,
+    repo: str,
+    path: str = Query("", description="Path within repository"),
+    ref: str = Query("", description="Branch/tag/commit ref (default: default branch)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Browse files and folders in a GitHub repository.
+
+    Requires GitHub to be connected. Returns contents at the specified path.
+
+    Args:
+        owner: Repository owner
+        repo: Repository name
+        path: Path within repository (empty for root)
+        ref: Git ref (branch/tag/commit, empty for default branch)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        dict: Files and folders at the specified path
+    """
+    # Get GitHub token
+    token_record = get_integration_token(db, current_user.username, "github")
+
+    if not token_record:
+        raise HTTPException(
+            status_code=404,
+            detail="GitHub not connected. Please connect your GitHub account first."
+        )
+
+    # Fetch contents from GitHub API
+    import requests
+
+    headers = {
+        "Authorization": f"Bearer {token_record.access_token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # Build URL
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+
+    params = {}
+    if ref:
+        params["ref"] = ref
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=10
+        )
+        response.raise_for_status()
+        contents = response.json()
+
+        # Handle single file vs directory
+        if isinstance(contents, dict):
+            # Single file
+            files = [{
+                "name": contents["name"],
+                "path": contents["path"],
+                "type": "file",
+                "size": contents.get("size", 0),
+                "sha": contents.get("sha"),
+                "url": contents.get("html_url"),
+                "download_url": contents.get("download_url")
+            }]
+        else:
+            # Directory listing
+            files = []
+            for item in contents:
+                files.append({
+                    "name": item["name"],
+                    "path": item["path"],
+                    "type": item["type"],  # "file" or "dir"
+                    "size": item.get("size", 0),
+                    "sha": item.get("sha"),
+                    "url": item.get("html_url"),
+                    "download_url": item.get("download_url")
+                })
+
+        logger.info(f"Browsed GitHub repo {owner}/{repo} path '{path}' for user {current_user.username}")
+
+        return {
+            "path": path,
+            "ref": ref,
+            "files": files,
+            "repository": {
+                "owner": owner,
+                "name": repo,
+                "full_name": f"{owner}/{repo}"
+            }
+        }
+
+    except requests.HTTPError as e:
+        if e.response.status_code == 401:
+            raise HTTPException(
+                status_code=401,
+                detail="GitHub token expired or invalid. Please reconnect your GitHub account."
+            )
+        elif e.response.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Repository or path not found: {owner}/{repo}/{path}"
+            )
+        logger.error(f"GitHub API error: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"GitHub API error: {e.response.status_code}"
+        )
+    except requests.RequestException as e:
+        logger.error(f"Failed to browse GitHub repo: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to communicate with GitHub API"
+        )
+
+
+@router.post("/github/import")
+async def import_github_files(
+    import_request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Import selected files from a GitHub repository.
+
+    Queues a Celery background task to fetch and process files.
+    Returns a job_id for tracking progress.
+
+    Request body:
+    {
+        "owner": "username",
+        "repo": "repository-name",
+        "branch": "main",
+        "files": ["README.md", "docs/guide.md"]
+    }
+
+    Args:
+        import_request: Import configuration
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        dict: Job ID and import info
+    """
+    from ..tasks import import_github_files_task
+
+    # Validate request
+    owner = import_request.get("owner")
+    repo = import_request.get("repo")
+    branch = import_request.get("branch", "main")
+    files = import_request.get("files", [])
+
+    if not owner or not repo:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fields: owner, repo"
+        )
+
+    if not files:
+        raise HTTPException(
+            status_code=400,
+            detail="No files selected for import"
+        )
+
+    if len(files) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 100 files per import"
+        )
+
+    # Verify GitHub is connected
+    token_record = get_integration_token(db, current_user.username, "github", decrypt=False)
+
+    if not token_record:
+        raise HTTPException(
+            status_code=404,
+            detail="GitHub not connected. Please connect your GitHub account first."
+        )
+
+    # Queue Celery task
+    task = import_github_files_task.delay(
+        user_id=current_user.username,
+        owner=owner,
+        repo=repo,
+        branch=branch,
+        files=files
+    )
+
+    # Create import record
+    import_record = DBIntegrationImport(
+        user_id=current_user.username,
+        service="github",
+        job_id=task.id,
+        status="pending",
+        file_count=len(files),
+        import_metadata={
+            "owner": owner,
+            "repo": repo,
+            "branch": branch,
+            "files": files
+        }
+    )
+    db.add(import_record)
+    db.commit()
+
+    logger.info(
+        f"Queued GitHub import for user {current_user.username}: "
+        f"{owner}/{repo} ({len(files)} files), job_id={task.id}"
+    )
+
+    return {
+        "job_id": task.id,
+        "message": "Import queued",
+        "repository": f"{owner}/{repo}",
+        "branch": branch,
+        "file_count": len(files)
+    }

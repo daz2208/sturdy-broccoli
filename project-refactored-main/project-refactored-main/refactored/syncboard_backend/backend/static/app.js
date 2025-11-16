@@ -1097,11 +1097,13 @@ function showTab(tabName) {
     // Update tab buttons
     document.getElementById('searchTab').classList.remove('active');
     document.getElementById('analyticsTab').classList.remove('active');
+    document.getElementById('integrationsTab').classList.remove('active');
     document.getElementById('advancedTab').classList.remove('active');
 
     // Update content visibility
     document.getElementById('searchContent').classList.add('hidden');
     document.getElementById('analyticsContent').classList.add('hidden');
+    document.getElementById('integrationsContent').classList.add('hidden');
     document.getElementById('advancedContent').classList.add('hidden');
 
     if (tabName === 'search') {
@@ -1112,6 +1114,11 @@ function showTab(tabName) {
         document.getElementById('analyticsContent').classList.remove('hidden');
         // Load analytics when tab is shown
         loadAnalytics();
+    } else if (tabName === 'integrations') {
+        document.getElementById('integrationsTab').classList.add('active');
+        document.getElementById('integrationsContent').classList.remove('hidden');
+        // Load integrations when tab is shown
+        loadIntegrationStatus();
     } else if (tabName === 'advanced') {
         document.getElementById('advancedTab').classList.add('active');
         document.getElementById('advancedContent').classList.remove('hidden');
@@ -2387,4 +2394,486 @@ async function pollJobStatus(jobId, button = null, buttonDefaultText = 'Done') {
 function setButtonText(button, text) {
     if (!button) return;
     button.textContent = text;
+}
+
+// =============================================================================
+// CLOUD INTEGRATIONS (Phase 5)
+// =============================================================================
+
+/**
+ * Load integration connection status for all services.
+ * Displays service cards showing connected/disconnected state.
+ */
+async function loadIntegrationStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/integrations/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load integration status');
+
+        const data = await response.json();
+        displayIntegrationCards(data.connections);
+
+    } catch (e) {
+        console.error('Integration status error:', e);
+        showToast('Failed to load integrations: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Display integration service cards.
+ * Shows connection status and actions for each service.
+ */
+function displayIntegrationCards(connections) {
+    const container = document.getElementById('integrationCards');
+
+    const services = {
+        github: { icon: '🐙', name: 'GitHub', description: 'Import repositories and files' },
+        google: { icon: '📁', name: 'Google Drive', description: 'Import documents and files' },
+        dropbox: { icon: '📦', name: 'Dropbox', description: 'Import files and folders' },
+        notion: { icon: '📝', name: 'Notion', description: 'Import pages and databases' }
+    };
+
+    container.innerHTML = '';
+
+    for (const [service, info] of Object.entries(services)) {
+        const connection = connections[service];
+        const isConnected = connection.connected;
+
+        const card = document.createElement('div');
+        card.style.cssText = `
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid ${isConnected ? '#00ff88' : '#666'};
+        `;
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 2rem; margin-bottom: 5px;">${info.icon}</div>
+                    <h3 style="margin: 0; color: #e0e0e0;">${info.name}</h3>
+                </div>
+                <span style="
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 0.85rem;
+                    background: ${isConnected ? '#00ff8822' : '#66666622'};
+                    color: ${isConnected ? '#00ff88' : '#888'};
+                ">
+                    ${isConnected ? '✓ Connected' : 'Not Connected'}
+                </span>
+            </div>
+
+            <p style="color: #888; margin-bottom: 15px; font-size: 0.9rem;">${info.description}</p>
+
+            ${isConnected ? `
+                <div style="color: #888; font-size: 0.85rem; margin-bottom: 15px;">
+                    <div><strong>User:</strong> ${connection.user || 'Unknown'}</div>
+                    ${connection.email ? `<div><strong>Email:</strong> ${connection.email}</div>` : ''}
+                    ${connection.last_sync ? `<div><strong>Last sync:</strong> ${formatDate(connection.last_sync)}</div>` : ''}
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    ${service === 'github' ? `
+                        <button onclick="browseGitHub()" style="flex: 1;">Browse Repositories</button>
+                    ` : `
+                        <button style="flex: 1; opacity: 0.5;" disabled>Browse Files (Coming Soon)</button>
+                    `}
+                    <button onclick="disconnectService('${service}')" class="secondary">Disconnect</button>
+                </div>
+            ` : `
+                <button onclick="connectService('${service}')" style="width: 100%;">Connect ${info.name}</button>
+            `}
+        `;
+
+        container.appendChild(card);
+    }
+}
+
+/**
+ * Connect a cloud service via OAuth.
+ * Opens OAuth flow in a new window.
+ */
+function connectService(service) {
+    const authUrl = `${API_BASE}/integrations/${service}/authorize`;
+
+    // Open OAuth in new window
+    const width = 600;
+    const height = 700;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    const authWindow = window.open(
+        authUrl,
+        `${service}_oauth`,
+        `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    // Poll for window close (user completed OAuth)
+    const pollTimer = setInterval(() => {
+        if (authWindow.closed) {
+            clearInterval(pollTimer);
+            // Reload integration status
+            setTimeout(() => loadIntegrationStatus(), 1000);
+        }
+    }, 500);
+}
+
+/**
+ * Disconnect a cloud service.
+ * Removes OAuth token from backend.
+ */
+async function disconnectService(service) {
+    if (!confirm(`Disconnect ${service}? You'll need to reconnect to import files again.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/integrations/${service}/disconnect`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to disconnect');
+
+        showToast(`${service} disconnected successfully`, 'success');
+        loadIntegrationStatus();
+
+    } catch (e) {
+        console.error('Disconnect error:', e);
+        showToast('Failed to disconnect: ' + e.message, 'error');
+    }
+}
+
+// =============================================================================
+// GitHub Integration
+// =============================================================================
+
+let githubRepos = [];
+let selectedGitHubFiles = [];
+let currentRepo = null;
+let currentPath = '';
+
+/**
+ * Browse GitHub repositories.
+ * Opens modal showing user's repositories.
+ */
+async function browseGitHub() {
+    try {
+        const response = await fetch(`${API_BASE}/integrations/github/repos?per_page=50`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                showToast('GitHub not connected. Please connect first.', 'error');
+                return;
+            }
+            throw new Error('Failed to load repositories');
+        }
+
+        const data = await response.json();
+        githubRepos = data.repositories;
+
+        showGitHubReposModal(githubRepos);
+
+    } catch (e) {
+        console.error('GitHub repos error:', e);
+        showToast('Failed to load repositories: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Show GitHub repositories modal.
+ */
+function showGitHubReposModal(repos) {
+    const modal = document.createElement('div');
+    modal.id = 'githubModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 20px;
+    `;
+
+    modal.innerHTML = `
+        <div style="
+            background: #1a1a1a;
+            border-radius: 12px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        ">
+            <div style="padding: 20px; border-bottom: 2px solid #333;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin: 0;">🐙 GitHub Repositories</h2>
+                    <button onclick="closeGitHubModal()" class="secondary">✕ Close</button>
+                </div>
+            </div>
+
+            <div id="githubReposList" style="flex: 1; overflow-y: auto; padding: 20px;">
+                ${repos.map(repo => `
+                    <div style="
+                        background: #2a2a2a;
+                        padding: 15px;
+                        border-radius: 8px;
+                        margin-bottom: 15px;
+                        border-left: 3px solid ${repo.private ? '#ff9900' : '#00d4ff'};
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 5px 0;">${repo.name}</h3>
+                                <p style="color: #888; font-size: 0.9rem; margin: 0 0 10px 0;">${repo.description || 'No description'}</p>
+                                <div style="display: flex; gap: 15px; font-size: 0.85rem; color: #888;">
+                                    <span>${repo.private ? '🔒 Private' : '🌐 Public'}</span>
+                                    ${repo.language ? `<span>💻 ${repo.language}</span>` : ''}
+                                    <span>⭐ ${repo.stargazers_count}</span>
+                                    <span>📦 ${(repo.size / 1024).toFixed(1)} MB</span>
+                                </div>
+                            </div>
+                            <button onclick='browseGitHubRepo(${JSON.stringify(repo)})' style="margin-left: 15px;">
+                                Browse Files
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+/**
+ * Browse files in a GitHub repository.
+ */
+async function browseGitHubRepo(repo) {
+    currentRepo = repo;
+    currentPath = '';
+    selectedGitHubFiles = [];
+
+    await loadGitHubRepoContents(repo.owner.login || repo.full_name.split('/')[0], repo.name, '');
+}
+
+/**
+ * Load contents of a GitHub repository path.
+ */
+async function loadGitHubRepoContents(owner, repo, path) {
+    try {
+        const pathParam = path ? `?path=${encodeURIComponent(path)}` : '';
+        const response = await fetch(
+            `${API_BASE}/integrations/github/repos/${owner}/${repo}/contents${pathParam}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) throw new Error('Failed to load repository contents');
+
+        const data = await response.json();
+        showGitHubFileBrowser(owner, repo, path, data.files);
+
+    } catch (e) {
+        console.error('GitHub contents error:', e);
+        showToast('Failed to load repository contents: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Show GitHub file browser modal.
+ */
+function showGitHubFileBrowser(owner, repo, path, files) {
+    currentPath = path;
+
+    const modal = document.getElementById('githubModal');
+    if (!modal) return;
+
+    const content = modal.querySelector('#githubReposList');
+    if (!content) return;
+
+    content.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin: 0;">${owner}/${repo}</h3>
+                    <p style="color: #888; font-size: 0.9rem; margin: 5px 0 0 0;">
+                        Path: /${path || 'root'}
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    ${path ? `<button onclick="goUpDirectory('${owner}', '${repo}', '${path}')" class="secondary">⬆️ Up</button>` : ''}
+                    <button onclick="browseGitHub()" class="secondary">⬅️ Back to Repos</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px; color: #888;">
+                Selected: <strong>${selectedGitHubFiles.length}</strong> files
+                ${selectedGitHubFiles.length > 0 ? `
+                    <button onclick="importGitHubFiles('${owner}', '${repo}')" style="margin-left: 10px;">
+                        Import Selected (${selectedGitHubFiles.length})
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+
+        <div>
+            ${files.map(file => `
+                <div style="
+                    background: #2a2a2a;
+                    padding: 12px 15px;
+                    border-radius: 6px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                ">
+                    ${file.type === 'file' ? `
+                        <input
+                            type="checkbox"
+                            id="file_${file.path.replace(/[^a-zA-Z0-9]/g, '_')}"
+                            ${selectedGitHubFiles.includes(file.path) ? 'checked' : ''}
+                            onchange="toggleFileSelection('${file.path}')"
+                            style="width: 18px; height: 18px; cursor: pointer;"
+                        >
+                    ` : '<div style="width: 18px;"></div>'}
+
+                    <div style="flex: 1; cursor: ${file.type === 'dir' ? 'pointer' : 'default'};"
+                         onclick="${file.type === 'dir' ? `loadGitHubRepoContents('${owner}', '${repo}', '${file.path}')` : ''}">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">${file.type === 'dir' ? '📁' : '📄'}</span>
+                            <span>${file.name}</span>
+                        </div>
+                        ${file.type === 'file' ? `<div style="color: #666; font-size: 0.85rem;">${formatFileSize(file.size)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Go up one directory level.
+ */
+function goUpDirectory(owner, repo, currentPath) {
+    const parts = currentPath.split('/');
+    parts.pop();
+    const newPath = parts.join('/');
+    loadGitHubRepoContents(owner, repo, newPath);
+}
+
+/**
+ * Toggle file selection for import.
+ */
+function toggleFileSelection(filePath) {
+    const index = selectedGitHubFiles.indexOf(filePath);
+    if (index === -1) {
+        selectedGitHubFiles.push(filePath);
+    } else {
+        selectedGitHubFiles.splice(index, 1);
+    }
+
+    // Refresh the display to update selected count
+    const owner = currentRepo.owner.login || currentRepo.full_name.split('/')[0];
+    loadGitHubRepoContents(owner, currentRepo.name, currentPath);
+}
+
+/**
+ * Import selected GitHub files.
+ */
+async function importGitHubFiles(owner, repo) {
+    if (selectedGitHubFiles.length === 0) {
+        showToast('No files selected', 'warning');
+        return;
+    }
+
+    if (selectedGitHubFiles.length > 100) {
+        showToast('Maximum 100 files per import', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/integrations/github/import`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                owner,
+                repo,
+                branch: currentRepo.default_branch || 'main',
+                files: selectedGitHubFiles
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to queue import');
+
+        const data = await response.json();
+
+        showToast(`📤 Import queued: ${data.file_count} files`, 'info');
+        closeGitHubModal();
+
+        // Poll for job status
+        pollJobStatus(data.job_id, null, null);
+
+    } catch (e) {
+        console.error('GitHub import error:', e);
+        showToast('Failed to import files: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Close GitHub modal.
+ */
+function closeGitHubModal() {
+    const modal = document.getElementById('githubModal');
+    if (modal) {
+        modal.remove();
+    }
+    selectedGitHubFiles = [];
+    currentRepo = null;
+    currentPath = '';
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Format file size in bytes to human-readable.
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+/**
+ * Format date to relative time.
+ */
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
 }
