@@ -101,6 +101,7 @@ celery_app.conf.update(
 celery_app.conf.task_routes = {
     "backend.tasks.process_file_upload": {"queue": "uploads"},
     "backend.tasks.process_youtube_url": {"queue": "uploads"},
+    "backend.tasks.import_github_files_task": {"queue": "uploads"},  # Phase 5: GitHub import
     "backend.tasks.find_duplicates_background": {"queue": "analysis"},
     "backend.tasks.generate_build_suggestions": {"queue": "analysis"},
     "backend.tasks.generate_analytics": {"queue": "low_priority"},

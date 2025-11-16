@@ -685,3 +685,282 @@ def generate_build_suggestions(
             }
         )
         raise
+
+
+# =============================================================================
+# GitHub Import Task (Phase 5)
+# =============================================================================
+
+@celery_app.task(bind=True, name="backend.tasks.import_github_files_task")
+def import_github_files_task(
+    self: Task,
+    user_id: str,
+    owner: str,
+    repo: str,
+    branch: str,
+    files: List[str]
+) -> Dict:
+    """
+    Import files from a GitHub repository in background.
+
+    Progress stages:
+    1. Fetching GitHub token (0%)
+    2. Downloading files from GitHub (20-80%)
+    3. Processing files through ingestion pipeline (80-100%)
+
+    Args:
+        self: Celery task instance
+        user_id: User ID who initiated import
+        owner: GitHub repository owner
+        repo: GitHub repository name
+        branch: Git branch to import from
+        files: List of file paths to import
+
+    Returns:
+        dict: Import results with doc_ids
+    """
+    try:
+        logger.info(
+            f"Starting GitHub import task for user {user_id}: "
+            f"{owner}/{repo}, {len(files)} files"
+        )
+
+        # Update state: Fetching token
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "Fetching GitHub token",
+                "message": "Retrieving GitHub access token...",
+                "percent": 0,
+                "files_processed": 0,
+                "files_failed": 0,
+                "total_files": len(files)
+            }
+        )
+
+        # Get GitHub token from database
+        from .database import get_db_context
+        from .db_models import DBIntegrationToken, DBIntegrationImport
+        from .utils.encryption import decrypt_token
+
+        with get_db_context() as db:
+            token_record = db.query(DBIntegrationToken).filter_by(
+                user_id=user_id,
+                service="github"
+            ).first()
+
+            if not token_record:
+                raise ValueError("GitHub not connected")
+
+            # Decrypt token
+            access_token = decrypt_token(token_record.access_token)
+
+            # Update import record status
+            import_record = db.query(DBIntegrationImport).filter_by(
+                job_id=self.request.id
+            ).first()
+
+            if import_record:
+                import_record.status = "processing"
+                db.commit()
+
+        # GitHub API headers
+        import requests
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+        # Process each file
+        imported_docs = []
+        failed_files = []
+        files_processed = 0
+
+        for idx, file_path in enumerate(files):
+            try:
+                # Calculate progress (20% to 80% for downloading)
+                download_progress = 20 + int((idx / len(files)) * 60)
+
+                self.update_state(
+                    state="PROCESSING",
+                    meta={
+                        "stage": "Downloading files",
+                        "message": f"Downloading {file_path}...",
+                        "percent": download_progress,
+                        "files_processed": files_processed,
+                        "files_failed": len(failed_files),
+                        "total_files": len(files),
+                        "current_file": file_path
+                    }
+                )
+
+                # Fetch file content from GitHub
+                file_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}"
+                params = {"ref": branch}
+
+                response = requests.get(
+                    file_url,
+                    headers=headers,
+                    params=params,
+                    timeout=30
+                )
+                response.raise_for_status()
+                file_data = response.json()
+
+                # GitHub returns base64-encoded content
+                if file_data.get("encoding") == "base64":
+                    content_base64 = file_data["content"]
+                    # Remove newlines from GitHub's base64 encoding
+                    content_base64 = content_base64.replace("\n", "")
+                    file_content = base64.b64decode(content_base64).decode('utf-8', errors='ignore')
+                else:
+                    # Direct content (for small files)
+                    file_content = file_data.get("content", "")
+
+                # Update progress: Processing file
+                process_progress = 80 + int((idx / len(files)) * 20)
+
+                self.update_state(
+                    state="PROCESSING",
+                    meta={
+                        "stage": "Processing files",
+                        "message": f"Processing {file_path}...",
+                        "percent": process_progress,
+                        "files_processed": files_processed,
+                        "files_failed": len(failed_files),
+                        "total_files": len(files),
+                        "current_file": file_path
+                    }
+                )
+
+                # Extract concepts
+                concepts_list = concept_extractor.extract_concepts(file_content)
+
+                # Ingest file
+                doc_id = ingest.ingest_text(
+                    content=file_content,
+                    user_id=user_id,
+                    source_type="github",
+                    source_url=file_data.get("html_url"),
+                    filename=file_path,
+                    vector_store=vector_store,
+                    documents=documents
+                )
+
+                # Determine skill level
+                skill_level = concept_extractor.determine_skill_level(file_content)
+
+                # Suggest cluster name
+                suggested_cluster = clustering_engine.suggest_cluster_name(concepts_list)
+
+                # Find or create cluster
+                cluster_id = find_or_create_cluster_sync(
+                    doc_id=doc_id,
+                    suggested_cluster=suggested_cluster,
+                    concepts_list=concepts_list,
+                    skill_level=skill_level
+                )
+
+                # Store metadata
+                doc_metadata = DocumentMetadata(
+                    doc_id=doc_id,
+                    owner_username=user_id,
+                    source_type="github",
+                    source_url=file_data.get("html_url"),
+                    filename=file_path,
+                    cluster_id=cluster_id,
+                    skill_level=skill_level,
+                    content_length=len(file_content),
+                    ingested_at=datetime.utcnow()
+                )
+                metadata[doc_id] = doc_metadata
+
+                # Track imported doc
+                imported_docs.append({
+                    "doc_id": doc_id,
+                    "file_path": file_path,
+                    "cluster_id": cluster_id,
+                    "skill_level": skill_level,
+                    "size": len(file_content)
+                })
+
+                files_processed += 1
+
+                logger.info(
+                    f"GitHub import: Imported {file_path} → doc_id={doc_id}, "
+                    f"cluster_id={cluster_id}"
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to import {file_path}: {e}", exc_info=True)
+                failed_files.append({
+                    "file_path": file_path,
+                    "error": str(e)
+                })
+
+        # Save to database
+        try:
+            save_storage_to_db(documents, metadata, clusters, users)
+            logger.info(f"GitHub import: Saved {files_processed} files to database")
+        except Exception as e:
+            logger.error(f"Failed to save GitHub import to database: {e}")
+
+        # Update import record
+        with get_db_context() as db:
+            import_record = db.query(DBIntegrationImport).filter_by(
+                job_id=self.request.id
+            ).first()
+
+            if import_record:
+                import_record.status = "completed" if not failed_files else "completed"
+                import_record.files_processed = files_processed
+                import_record.files_failed = len(failed_files)
+                import_record.completed_at = datetime.utcnow()
+                db.commit()
+
+        # Final success message
+        result = {
+            "imported_docs": imported_docs,
+            "files_processed": files_processed,
+            "files_failed": len(failed_files),
+            "failed_files": failed_files,
+            "repository": f"{owner}/{repo}",
+            "branch": branch
+        }
+
+        logger.info(
+            f"GitHub import completed: {files_processed} succeeded, "
+            f"{len(failed_files)} failed for user {user_id}"
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"GitHub import task failed: {e}", exc_info=True)
+
+        # Update import record status
+        try:
+            from .database import get_db_context
+            from .db_models import DBIntegrationImport
+
+            with get_db_context() as db:
+                import_record = db.query(DBIntegrationImport).filter_by(
+                    job_id=self.request.id
+                ).first()
+
+                if import_record:
+                    import_record.status = "failed"
+                    import_record.error_message = str(e)
+                    import_record.completed_at = datetime.utcnow()
+                    db.commit()
+        except Exception as db_error:
+            logger.error(f"Failed to update import record: {db_error}")
+
+        self.update_state(
+            state="FAILURE",
+            meta={
+                "error": str(e),
+                "message": f"GitHub import failed: {str(e)}"
+            }
+        )
+        raise
