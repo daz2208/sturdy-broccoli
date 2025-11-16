@@ -1,4 +1,7 @@
-const API_BASE = 'http://localhost:8000';
+// Use current origin for Docker compatibility, fallback to localhost for development
+const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    ? window.location.origin
+    : (window.location.origin || 'http://localhost:8000');
 let token = null;
 
 // =============================================================================
