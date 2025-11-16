@@ -250,7 +250,7 @@ class SearchService:
                 "doc_id": doc_id,
                 "score": score,
                 "content": content,
-                "metadata": metadata.dict(),
+                "metadata": metadata.model_dump(),
                 "cluster": cluster_info
             })
 
@@ -304,7 +304,7 @@ class ClusterService:
         if not cluster:
             return None
 
-        return cluster.dict()
+        return cluster.model_dump()
 
 
 class BuildSuggestionService:
@@ -359,6 +359,6 @@ class BuildSuggestionService:
         }
 
         return {
-            "suggestions": [s.dict() for s in suggestions],
+            "suggestions": [s.model_dump() for s in suggestions],
             "knowledge_summary": summary
         }

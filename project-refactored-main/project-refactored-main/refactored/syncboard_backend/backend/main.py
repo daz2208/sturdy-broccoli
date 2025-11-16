@@ -13,6 +13,7 @@ import uuid
 import logging
 from pathlib import Path
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -57,6 +58,67 @@ STORAGE_PATH = os.environ.get('SYNCBOARD_STORAGE_PATH', DEFAULT_STORAGE_PATH)
 ALLOWED_ORIGINS = os.environ.get('SYNCBOARD_ALLOWED_ORIGINS', '*')
 TESTING = os.environ.get('TESTING') == 'true'
 
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Lifespan Event Handler
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan event handler for FastAPI application.
+    Handles startup and shutdown events.
+    """
+    # Startup: Initialize database and load data
+    try:
+        init_db()
+        logger.info("✅ Database initialized")
+
+        # Load from database
+        docs, meta, clusts, usrs = load_storage_from_db(dependencies.vector_store)
+
+        # Update global state
+        dependencies.documents.update(docs)
+        dependencies.metadata.update(meta)
+        dependencies.clusters.update(clusts)
+        dependencies.users.update(usrs)
+
+        logger.info(f"Loaded from database: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
+    except Exception as e:
+        logger.warning(f"Database load failed: {e}. Falling back to file storage.")
+        # Fallback to file storage
+        docs, meta, clusts, usrs = load_storage(STORAGE_PATH, dependencies.vector_store)
+
+        # Update global state
+        dependencies.documents.update(docs)
+        dependencies.metadata.update(meta)
+        dependencies.clusters.update(clusts)
+        dependencies.users.update(usrs)
+
+        logger.info(f"Loaded from file: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
+
+    # Create default test user if none exist
+    if not dependencies.users:
+        dependencies.users['test'] = hash_password('test123')
+        try:
+            save_storage_to_db(
+                dependencies.documents,
+                dependencies.metadata,
+                dependencies.clusters,
+                dependencies.users
+            )
+            logger.info("Created default test user in database")
+        except Exception as e:
+            logger.warning(f"Database save failed: {e}")
+
+    yield  # Application runs here
+
+    # Shutdown: cleanup code goes here (if needed)
+    logger.info("Application shutting down")
+
 # =============================================================================
 # FastAPI Application
 # =============================================================================
@@ -64,12 +126,9 @@ TESTING = os.environ.get('TESTING') == 'true'
 app = FastAPI(
     title="SyncBoard Knowledge Bank",
     description="AI-powered knowledge management with auto-clustering",
-    version="3.0.0"
+    version="3.0.0",
+    lifespan=lifespan
 )
-
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Rate limiting (disabled in test mode)
 if not TESTING:
@@ -132,55 +191,6 @@ async def add_request_id(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
 
     return response
-
-# =============================================================================
-# Startup Event
-# =============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database and load data on startup."""
-    # Initialize database
-    try:
-        init_db()
-        logger.info("✅ Database initialized")
-
-        # Load from database
-        docs, meta, clusts, usrs = load_storage_from_db(dependencies.vector_store)
-        
-        # Update global state
-        dependencies.documents.update(docs)
-        dependencies.metadata.update(meta)
-        dependencies.clusters.update(clusts)
-        dependencies.users.update(usrs)
-        
-        logger.info(f"Loaded from database: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
-    except Exception as e:
-        logger.warning(f"Database load failed: {e}. Falling back to file storage.")
-        # Fallback to file storage
-        docs, meta, clusts, usrs = load_storage(STORAGE_PATH, dependencies.vector_store)
-        
-        # Update global state
-        dependencies.documents.update(docs)
-        dependencies.metadata.update(meta)
-        dependencies.clusters.update(clusts)
-        dependencies.users.update(usrs)
-        
-        logger.info(f"Loaded from file: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
-
-    # Create default test user if none exist
-    if not dependencies.users:
-        dependencies.users['test'] = hash_password('test123')
-        try:
-            save_storage_to_db(
-                dependencies.documents,
-                dependencies.metadata,
-                dependencies.clusters,
-                dependencies.users
-            )
-            logger.info("Created default test user in database")
-        except Exception as e:
-            logger.warning(f"Database save failed: {e}")
 
 # =============================================================================
 # Mount Routers

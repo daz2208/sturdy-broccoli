@@ -101,8 +101,8 @@ def save_storage(
     """
     data = {
         'documents': [documents[idx] for idx in sorted(documents.keys())],
-        'metadata': [meta.dict() for meta in metadata.values()],
-        'clusters': [cluster.dict() for cluster in clusters.values()],
+        'metadata': [meta.model_dump() for meta in metadata.values()],
+        'clusters': [cluster.model_dump() for cluster in clusters.values()],
         'users': users,
     }
 

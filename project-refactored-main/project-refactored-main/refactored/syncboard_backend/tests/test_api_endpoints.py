@@ -144,7 +144,7 @@ def test_unauthorized_access(client):
 # UPLOAD TESTS
 # =============================================================================
 
-async def test_upload_text(client, auth_headers):
+def test_upload_text(client, auth_headers):
     """Test text upload endpoint."""
 
     response = client.post(
@@ -170,5 +170,19 @@ def test_upload_text_empty_content(client, auth_headers):
     assert response.status_code == 400
 
 
-async def test_upload_url(client, auth_headers):
-    """Test URL upload endpoint."""
+def test_upload_url(client, auth_headers):
+    """Test URL upload endpoint (Celery background processing)."""
+    # Mock Celery task to avoid actual background processing
+    with patch('backend.routers.uploads.process_url_upload.delay') as mock_task:
+        mock_task.return_value.id = "test-job-id-123"
+
+        response = client.post(
+            "/upload",
+            headers=auth_headers,
+            json={"url": "https://example.com/python-tutorial"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "job_id" in data
+        assert data["message"] == "URL queued for processing"
