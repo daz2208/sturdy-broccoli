@@ -198,16 +198,19 @@ async function uploadUrl(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! Doc ${data.document_id} → Cluster ${data.cluster_id}`);
+            // URL queued for background processing
+            showToast(`🌐 URL queued: ${url.substring(0, 50)}...`, 'info');
             document.getElementById('urlInput').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload URL');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload URL');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload URL');
     }
 }
@@ -240,16 +243,19 @@ async function uploadFile(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! Doc ${data.document_id} → Cluster ${data.cluster_id}`);
+            // File queued for background processing
+            showToast(`📤 File queued: ${file.name}`, 'info');
             document.getElementById('fileInput').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload File');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload File');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload File');
     }
 }
@@ -284,17 +290,20 @@ async function uploadImage(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! OCR extracted ${data.ocr_text_length} chars`);
+            // Image queued for OCR processing
+            showToast(`📸 Image queued: ${file.name}`, 'info');
             document.getElementById('imageInput').value = '';
             document.getElementById('imageDesc').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload Image');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload Image');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload Image');
     }
 }
@@ -2264,4 +2273,118 @@ function showKeyboardShortcutsHelp() {
             modal.remove();
         }
     });
+}
+
+// =============================================================================
+// CELERY JOB POLLING
+// =============================================================================
+
+/**
+ * Poll Celery job status for background tasks.
+ *
+ * @param {string} jobId - Celery task ID
+ * @param {HTMLElement|null} button - Button to update with progress
+ * @param {string} buttonDefaultText - Text to show when job completes
+ */
+async function pollJobStatus(jobId, button = null, buttonDefaultText = 'Done') {
+    const pollInterval = 1000; // Poll every second
+    const maxAttempts = 300; // Max 5 minutes of polling
+    let attempts = 0;
+
+    const interval = setInterval(async () => {
+        attempts++;
+
+        // Timeout after max attempts
+        if (attempts > maxAttempts) {
+            clearInterval(interval);
+            showToast('⏱️ Job timeout - check back later', 'warning');
+            if (button) setButtonLoading(button, false, buttonDefaultText);
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/jobs/${jobId}/status`, {
+                headers: {'Authorization': `Bearer ${token}`}
+            });
+
+            if (!res.ok) {
+                clearInterval(interval);
+                showToast('❌ Failed to check job status', 'error');
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+                return;
+            }
+
+            const data = await res.json();
+            const {state, meta, result} = data;
+
+            // Update button with progress
+            if (button && meta && meta.message) {
+                const progressText = meta.percent !== undefined
+                    ? `${meta.message} ${meta.percent}%`
+                    : meta.message;
+                setButtonText(button, progressText);
+            }
+
+            // Handle different states
+            if (state === 'PENDING') {
+                // Task waiting in queue
+                if (button) setButtonText(button, '⏳ Queued...');
+            }
+            else if (state === 'PROCESSING') {
+                // Task is running - progress shown above
+                // Keep polling
+            }
+            else if (state === 'SUCCESS') {
+                // Task completed successfully
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+
+                // Show success message
+                if (result && result.doc_id) {
+                    showToast(
+                        `✅ Uploaded! Doc ${result.doc_id} → Cluster ${result.cluster_id}`,
+                        'success'
+                    );
+                } else {
+                    showToast('✅ Processing complete!', 'success');
+                }
+
+                // Refresh clusters
+                loadClusters();
+            }
+            else if (state === 'FAILURE') {
+                // Task failed
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+
+                const errorMsg = meta && meta.error ? meta.error : 'Unknown error';
+                showToast(`❌ Processing failed: ${errorMsg}`, 'error');
+            }
+            else if (state === 'RETRY') {
+                // Task is being retried
+                if (button) setButtonText(button, '🔄 Retrying...');
+            }
+            else if (state === 'REVOKED') {
+                // Task was cancelled
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+                showToast('🚫 Task cancelled', 'warning');
+            }
+
+        } catch (e) {
+            console.error('Job polling error:', e);
+            // Continue polling - might be transient network issue
+        }
+    }, pollInterval);
+}
+
+/**
+ * Helper to update button text without changing loading state.
+ *
+ * @param {HTMLElement} button - Button element
+ * @param {string} text - New text
+ */
+function setButtonText(button, text) {
+    if (!button) return;
+    button.textContent = text;
 }
