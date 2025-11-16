@@ -338,8 +338,11 @@ function displayClusters(clusters) {
     list.innerHTML = clusters.map(c => `
         <div class="cluster-card">
             <div onclick="loadCluster(${c.id})" style="cursor: pointer;">
-                <h3>${c.name}</h3>
-                <p>${c.doc_count} documents • ${c.skill_level}</p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <h3 style="margin: 0;">${c.name}</h3>
+                    <button onclick="event.stopPropagation(); editCluster(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${c.skill_level}')" title="Edit Cluster" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0;">✏️</button>
+                </div>
+                <p style="margin-top: 8px;">${c.doc_count} documents • ${c.skill_level}</p>
                 <div class="concepts-list">
                     ${c.primary_concepts.slice(0, 3).map(concept =>
                         `<span class="concept-tag">${concept}</span>`
@@ -356,13 +359,13 @@ function displayClusters(clusters) {
 
 async function loadCluster(clusterId) {
     const query = document.getElementById('searchQuery').value || '*';
-    
+
     try {
         const res = await fetch(
             `${API_BASE}/search_full?q=${encodeURIComponent(query)}&cluster_id=${clusterId}&top_k=20`,
             {headers: {'Authorization': `Bearer ${token}`}}
         );
-        
+
         if (res.ok) {
             const data = await res.json();
             displaySearchResults(data.results);
@@ -372,31 +375,146 @@ async function loadCluster(clusterId) {
     }
 }
 
+async function editCluster(clusterId, currentName, currentSkillLevel) {
+    /**
+     * Edit cluster name and skill level.
+     * Uses existing PUT /clusters/{id} endpoint.
+     */
+    // Show modal with form
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+    modal.innerHTML = `
+        <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+            <h3 style="margin-top: 0;">Edit Cluster</h3>
+
+            <label style="display: block; margin-top: 15px;">
+                Cluster Name:
+                <input type="text" id="editClusterName" value="${currentName}"
+                       style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </label>
+
+            <label style="display: block; margin-top: 15px;">
+                Skill Level:
+                <select id="editClusterSkillLevel" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="beginner" ${currentSkillLevel === 'beginner' ? 'selected' : ''}>Beginner</option>
+                    <option value="intermediate" ${currentSkillLevel === 'intermediate' ? 'selected' : ''}>Intermediate</option>
+                    <option value="advanced" ${currentSkillLevel === 'advanced' ? 'selected' : ''}>Advanced</option>
+                </select>
+            </label>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
+                <button onclick="this.closest('div').parentElement.parentElement.remove()"
+                        style="padding: 10px 20px; background: #555; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button onclick="saveClusterChanges(${clusterId}, this.closest('div').parentElement.parentElement)"
+                        style="padding: 10px 20px; background: #00d4ff; border: none; color: #000; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function saveClusterChanges(clusterId, modalElement) {
+    /**
+     * Save edited cluster information.
+     */
+    const name = document.getElementById('editClusterName').value.trim();
+    const skillLevel = document.getElementById('editClusterSkillLevel').value;
+
+    if (!name) {
+        showToast('Cluster name cannot be empty', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/clusters/${clusterId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                name: name,
+                skill_level: skillLevel
+            })
+        });
+
+        if (res.ok) {
+            showToast('Cluster updated successfully!', 'success');
+            modalElement.remove();
+            loadClusters(); // Refresh cluster list
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+        }
+    } catch (e) {
+        showToast('Update failed: ' + e.message, 'error');
+    }
+}
+
 // =============================================================================
 // SEARCH (FULL CONTENT)
 // =============================================================================
 
 async function searchKnowledge() {
     const query = document.getElementById('searchQuery').value;
-    
+
     if (!query.trim()) {
         showToast('Enter a search query', 'error');
         return;
     }
-    
+
+    // Build query with optional filters
+    const params = new URLSearchParams({
+        q: query,
+        top_k: '20',
+        full_content: 'true'
+    });
+
+    // Add optional filters if they exist in the UI
+    const sourceTypeFilter = document.getElementById('filterSourceType')?.value;
+    if (sourceTypeFilter) params.append('source_type', sourceTypeFilter);
+
+    const skillLevelFilter = document.getElementById('filterSkillLevel')?.value;
+    if (skillLevelFilter) params.append('skill_level', skillLevelFilter);
+
+    const dateFromFilter = document.getElementById('filterDateFrom')?.value;
+    if (dateFromFilter) params.append('date_from', dateFromFilter);
+
+    const dateToFilter = document.getElementById('filterDateTo')?.value;
+    if (dateToFilter) params.append('date_to', dateToFilter);
+
+    const clusterFilter = document.getElementById('filterClusterId')?.value;
+    if (clusterFilter) params.append('cluster_id', clusterFilter);
+
     try {
         const res = await fetch(
-            `${API_BASE}/search_full?q=${encodeURIComponent(query)}&top_k=20&full_content=true`,
+            `${API_BASE}/search_full?${params.toString()}`,
             {headers: {'Authorization': `Bearer ${token}`}}
         );
-        
+
         if (res.ok) {
             const data = await res.json();
-            displaySearchResults(data.results);
+            displaySearchResults(data.results, query);
         }
     } catch (e) {
         showToast('Search failed', 'error');
     }
+}
+
+function clearSearchFilters() {
+    /**
+     * Clear all search filter values.
+     */
+    const filterIds = ['filterSourceType', 'filterSkillLevel', 'filterDateFrom', 'filterDateTo', 'filterClusterId'];
+    filterIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    showToast('Filters cleared', 'info');
 }
 
 function displaySearchResults(results, searchQuery = '') {
@@ -414,6 +532,7 @@ function displaySearchResults(results, searchQuery = '') {
                     <strong>Doc ${r.doc_id}</strong>
                     <div style="display: flex; gap: 8px;">
                         <span style="color: #888;">Score: ${r.score.toFixed(3)}</span>
+                        <button class="icon-btn" onclick="editDocumentMetadata(${r.doc_id})" title="Edit Document" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">✏️</button>
                         <button class="icon-btn" onclick="showTagMenuForDocument(${r.doc_id})" title="Add Tag" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">🏷️</button>
                         <button class="icon-btn" onclick="deleteDocument(${r.doc_id})" title="Delete" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">🗑️</button>
                     </div>
@@ -486,6 +605,122 @@ async function deleteDocument(docId) {
         }
     } catch (e) {
         showToast('Delete failed: ' + e.message, 'error');
+    }
+}
+
+async function editDocumentMetadata(docId) {
+    /**
+     * Edit document metadata (topic, skill level, cluster).
+     * Uses existing PUT /documents/{id}/metadata endpoint.
+     */
+    try {
+        // First, get current document data
+        const getRes = await fetch(`${API_BASE}/documents/${docId}`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+
+        if (!getRes.ok) {
+            showToast('Failed to load document', 'error');
+            return;
+        }
+
+        const docData = await getRes.json();
+
+        // Get list of clusters for dropdown
+        const clustersRes = await fetch(`${API_BASE}/clusters`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+        const {clusters} = await clustersRes.json();
+
+        // Show modal with form
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+        modal.innerHTML = `
+            <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+                <h3 style="margin-top: 0;">Edit Document ${docId}</h3>
+
+                <label style="display: block; margin-top: 15px;">
+                    Primary Topic:
+                    <input type="text" id="editTopic" value="${docData.metadata.primary_topic || ''}"
+                           style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                </label>
+
+                <label style="display: block; margin-top: 15px;">
+                    Skill Level:
+                    <select id="editSkillLevel" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <option value="beginner" ${docData.metadata.skill_level === 'beginner' ? 'selected' : ''}>Beginner</option>
+                        <option value="intermediate" ${docData.metadata.skill_level === 'intermediate' ? 'selected' : ''}>Intermediate</option>
+                        <option value="advanced" ${docData.metadata.skill_level === 'advanced' ? 'selected' : ''}>Advanced</option>
+                    </select>
+                </label>
+
+                <label style="display: block; margin-top: 15px;">
+                    Cluster:
+                    <select id="editCluster" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        ${clusters.map(c =>
+                            `<option value="${c.id}" ${c.id === docData.metadata.cluster_id ? 'selected' : ''}>${c.name}</option>`
+                        ).join('')}
+                    </select>
+                </label>
+
+                <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()"
+                            style="padding: 10px 20px; background: #555; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                        Cancel
+                    </button>
+                    <button onclick="saveDocumentMetadata(${docId}, this.closest('div').parentElement.parentElement)"
+                            style="padding: 10px 20px; background: #00d4ff; border: none; color: #000; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (e) {
+        showToast('Error loading document: ' + e.message, 'error');
+    }
+}
+
+async function saveDocumentMetadata(docId, modalElement) {
+    /**
+     * Save edited document metadata.
+     */
+    const topic = document.getElementById('editTopic').value.trim();
+    const skillLevel = document.getElementById('editSkillLevel').value;
+    const clusterId = parseInt(document.getElementById('editCluster').value);
+
+    try {
+        const res = await fetch(`${API_BASE}/documents/${docId}/metadata`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                primary_topic: topic,
+                skill_level: skillLevel,
+                cluster_id: clusterId
+            })
+        });
+
+        if (res.ok) {
+            showToast('Document updated successfully!', 'success');
+            modalElement.remove();
+
+            // Refresh current view
+            const query = document.getElementById('searchQuery').value;
+            if (query.trim()) {
+                searchKnowledge();
+            } else {
+                loadClusters();
+            }
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+        }
+    } catch (e) {
+        showToast('Update failed: ' + e.message, 'error');
     }
 }
 
@@ -1264,8 +1499,12 @@ function renderDuplicateGroups(groups) {
                         </details>
                     </div>
                 `).join('')}
-                <div style="margin-top: 10px;">
-                    <button onclick="mergeDuplicateGroup(${idx}, ${JSON.stringify(group.documents.map(d => d.doc_id))})" style="background: #f59e0b; padding: 8px 16px;">
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    ${group.documents.length === 2 ?
+                        `<button onclick="compareDuplicates(${group.documents[0].doc_id}, ${group.documents[1].doc_id})" style="background: #00d4ff; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                            📊 Compare Side-by-Side
+                        </button>` : ''}
+                    <button onclick="mergeDuplicateGroup(${idx}, ${JSON.stringify(group.documents.map(d => d.doc_id))})" style="background: #f59e0b; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
                         Merge Group (Keep First, Delete Others)
                     </button>
                 </div>
@@ -1308,6 +1547,90 @@ async function mergeDuplicateGroup(groupIdx, docIds) {
 
     } catch (error) {
         showToast('Failed to merge duplicates: ' + error.message, 'error');
+    }
+}
+
+async function compareDuplicates(docId1, docId2) {
+    /**
+     * Show side-by-side comparison of two duplicate documents.
+     * Uses existing GET /duplicates/{id1}/{id2} endpoint.
+     */
+    try {
+        const response = await fetch(`${API_BASE}/duplicates/${docId1}/${docId2}`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+
+        if (!response.ok) {
+            const errorMsg = await getErrorMessage(response);
+            showToast(errorMsg, 'error');
+            return;
+        }
+
+        const data = await response.json();
+
+        // Show comparison modal
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; overflow: auto;';
+        modal.innerHTML = `
+            <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 1200px; width: 100%; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Duplicate Comparison</h3>
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #555; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        Close
+                    </button>
+                </div>
+
+                <div style="background: #2a2a3e; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <h4 style="margin: 0 0 5px 0; color: #00d4ff;">Similarity Score: ${(data.similarity * 100).toFixed(1)}%</h4>
+                    <p style="margin: 0; color: #888; font-size: 0.9rem;">Higher score = more similar content</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Document 1 -->
+                    <div>
+                        <h4 style="margin-top: 0; color: #4ade80;">Document ${docId1}</h4>
+                        <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="font-size: 0.85rem; color: #888;">
+                                <strong>Type:</strong> ${data.metadata_1.source_type}<br>
+                                <strong>Skill Level:</strong> ${data.metadata_1.skill_level}<br>
+                                <strong>Cluster:</strong> ${data.metadata_1.cluster_id || 'None'}<br>
+                                <strong>Length:</strong> ${data.content_1.length} chars
+                            </div>
+                        </div>
+                        <div style="background: #0a0a0a; padding: 15px; border-radius: 4px; max-height: 400px; overflow-y: auto;">
+                            <pre style="white-space: pre-wrap; margin: 0; font-size: 0.85rem;">${escapeHtml(data.content_1)}</pre>
+                        </div>
+                    </div>
+
+                    <!-- Document 2 -->
+                    <div>
+                        <h4 style="margin-top: 0; color: #f59e0b;">Document ${docId2}</h4>
+                        <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="font-size: 0.85rem; color: #888;">
+                                <strong>Type:</strong> ${data.metadata_2.source_type}<br>
+                                <strong>Skill Level:</strong> ${data.metadata_2.skill_level}<br>
+                                <strong>Cluster:</strong> ${data.metadata_2.cluster_id || 'None'}<br>
+                                <strong>Length:</strong> ${data.content_2.length} chars
+                            </div>
+                        </div>
+                        <div style="background: #0a0a0a; padding: 15px; border-radius: 4px; max-height: 400px; overflow-y: auto;">
+                            <pre style="white-space: pre-wrap; margin: 0; font-size: 0.85rem;">${escapeHtml(data.content_2)}</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="this.closest('div').parentElement.parentElement.remove(); mergeDuplicateGroup(0, [${docId1}, ${docId2}])"
+                            style="background: #f59e0b; border: none; color: #fff; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                        Merge (Keep Doc ${docId1}, Delete Doc ${docId2})
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (error) {
+        showToast('Failed to load comparison: ' + error.message, 'error');
     }
 }
 
@@ -1829,4 +2152,116 @@ async function deleteRelationship(sourceDocId, targetDocId) {
     } catch (error) {
         showToast('Failed to delete relationship: ' + error.message, 'error');
     }
+}
+
+// =============================================================================
+// KEYBOARD SHORTCUTS
+// =============================================================================
+
+/**
+ * Global keyboard shortcuts for power users.
+ * 
+ * Shortcuts:
+ * - Ctrl/Cmd + K: Focus search input
+ * - Ctrl/Cmd + U: Switch to upload tab
+ * - Ctrl/Cmd + B: Trigger "What Can I Build?"
+ * - Ctrl/Cmd + /: Show keyboard shortcuts help
+ * - Escape: Close modals (handled by modal close buttons)
+ */
+document.addEventListener('keydown', (e) => {
+    // Ctrl+K or Cmd+K: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchQuery');
+        if (searchInput) {
+            showTab('search');
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+
+    // Ctrl+U or Cmd+U: Open upload tab
+    if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+        e.preventDefault();
+        showTab('upload');
+    }
+
+    // Ctrl+B or Cmd+B: What Can I Build?
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        showTab('search');
+        whatCanIBuild();
+    }
+
+    // Ctrl+/ or Cmd+/: Show keyboard shortcuts help
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        showKeyboardShortcutsHelp();
+    }
+});
+
+function showKeyboardShortcutsHelp() {
+    /**
+     * Display keyboard shortcuts help modal.
+     */
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+    modal.innerHTML = `
+        <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+            <h3 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+                ⌨️ Keyboard Shortcuts
+                <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #555; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                    Close
+                </button>
+            </h3>
+
+            <div style="margin-top: 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">K</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Focus Search</div>
+                        </div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">U</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Open Upload Tab</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">B</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">What Can I Build?</div>
+                        </div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">/</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Show This Help</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 12px; background: #2a2a3e; border-radius: 6px; border-left: 4px solid #00d4ff;">
+                <div style="font-weight: bold; margin-bottom: 4px;">💡 Pro Tip</div>
+                <div style="color: #aaa; font-size: 0.9rem;">
+                    Press <kbd style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">Esc</kbd> to close any modal dialog.
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Also allow Escape to close this modal
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            modal.remove();
+        }
+    });
 }
