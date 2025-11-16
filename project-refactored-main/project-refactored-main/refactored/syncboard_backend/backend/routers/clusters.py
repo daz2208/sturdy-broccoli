@@ -257,7 +257,7 @@ async def export_all(
                 md_content += f"## Document {doc['doc_id']}\n\n"
                 if meta:
                     md_content += f"**Topic:** {meta.get('primary_topic', 'N/A')}\n"
-                md_content += f"{doc['content'][:500]}...\n\n"
+                md_content += f"{doc['content']}\n\n"
                 md_content += "---\n\n"
         
         return JSONResponse({

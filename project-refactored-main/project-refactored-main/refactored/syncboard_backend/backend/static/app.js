@@ -326,13 +326,17 @@ async function loadClusters() {
         const res = await fetch(`${API_BASE}/clusters`, {
             headers: {'Authorization': `Bearer ${token}`}
         });
-        
+
         if (res.ok) {
             const data = await res.json();
             displayClusters(data.clusters);
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
         }
     } catch (e) {
         console.error('Failed to load clusters:', e);
+        showToast('Failed to load clusters: ' + e.message, 'error');
     }
 }
 
@@ -1133,7 +1137,7 @@ async function loadAnalytics() {
     const timePeriod = document.getElementById('timePeriodSelect').value;
 
     try {
-        const response = await fetch(`http://localhost:8000/analytics?time_period=${timePeriod}`, {
+        const response = await fetch(`${API_BASE}/analytics?time_period=${timePeriod}`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
