@@ -36,7 +36,8 @@ from slowapi.errors import RateLimitExceeded
 # Import routers
 from .routers import (
     auth, uploads, search, clusters, documents, build_suggestions,
-    analytics, ai_generation, duplicates, tags, saved_searches, relationships
+    analytics, ai_generation, duplicates, tags, saved_searches, relationships, jobs,
+    integrations
 )
 
 # Import dependencies and shared state
@@ -220,6 +221,12 @@ app.include_router(saved_searches.router)
 
 # Phase 7.5: Document relationships endpoints
 app.include_router(relationships.router)
+
+# Phase 2 (Celery): Background job status endpoints
+app.include_router(jobs.router)
+
+# Phase 5: Cloud service integrations endpoints
+app.include_router(integrations.router)
 
 # =============================================================================
 # Health Check Endpoint

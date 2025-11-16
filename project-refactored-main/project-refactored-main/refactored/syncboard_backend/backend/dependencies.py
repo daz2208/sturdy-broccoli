@@ -67,7 +67,7 @@ semantic_dictionary = SemanticDictionaryManager(llm_provider=llm_provider)
 concept_extractor = ConceptExtractor()
 clustering_engine = ImprovedClusteringEngine(semantic_dict=semantic_dictionary)
 image_processor = ImageProcessor()
-build_suggester = ImprovedBuildSuggester()
+build_suggester = ImprovedBuildSuggester(llm_provider=llm_provider)
 
 # =============================================================================
 # Authentication Dependency

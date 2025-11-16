@@ -1,4 +1,7 @@
-const API_BASE = 'http://localhost:8000';
+// Use current origin for Docker compatibility, fallback to localhost for development
+const API_BASE = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    ? window.location.origin
+    : (window.location.origin || 'http://localhost:8000');
 let token = null;
 
 // =============================================================================
@@ -195,16 +198,19 @@ async function uploadUrl(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! Doc ${data.document_id} → Cluster ${data.cluster_id}`);
+            // URL queued for background processing
+            showToast(`🌐 URL queued: ${url.substring(0, 50)}...`, 'info');
             document.getElementById('urlInput').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload URL');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload URL');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload URL');
     }
 }
@@ -237,16 +243,19 @@ async function uploadFile(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! Doc ${data.document_id} → Cluster ${data.cluster_id}`);
+            // File queued for background processing
+            showToast(`📤 File queued: ${file.name}`, 'info');
             document.getElementById('fileInput').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload File');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload File');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload File');
     }
 }
@@ -281,17 +290,20 @@ async function uploadImage(event) {
 
         if (res.ok) {
             const data = await res.json();
-            showToast(`Uploaded! OCR extracted ${data.ocr_text_length} chars`);
+            // Image queued for OCR processing
+            showToast(`📸 Image queued: ${file.name}`, 'info');
             document.getElementById('imageInput').value = '';
             document.getElementById('imageDesc').value = '';
-            loadClusters();
+
+            // Poll for job status
+            pollJobStatus(data.job_id, button, 'Upload Image');
         } else {
             const errorMsg = await getErrorMessage(res);
             showToast(errorMsg, 'error');
+            if (button) setButtonLoading(button, false, 'Upload Image');
         }
     } catch (e) {
         showToast('Upload error: ' + e.message, 'error');
-    } finally {
         if (button) setButtonLoading(button, false, 'Upload Image');
     }
 }
@@ -335,8 +347,11 @@ function displayClusters(clusters) {
     list.innerHTML = clusters.map(c => `
         <div class="cluster-card">
             <div onclick="loadCluster(${c.id})" style="cursor: pointer;">
-                <h3>${c.name}</h3>
-                <p>${c.doc_count} documents • ${c.skill_level}</p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <h3 style="margin: 0;">${c.name}</h3>
+                    <button onclick="event.stopPropagation(); editCluster(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${c.skill_level}')" title="Edit Cluster" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0;">✏️</button>
+                </div>
+                <p style="margin-top: 8px;">${c.doc_count} documents • ${c.skill_level}</p>
                 <div class="concepts-list">
                     ${c.primary_concepts.slice(0, 3).map(concept =>
                         `<span class="concept-tag">${concept}</span>`
@@ -353,13 +368,13 @@ function displayClusters(clusters) {
 
 async function loadCluster(clusterId) {
     const query = document.getElementById('searchQuery').value || '*';
-    
+
     try {
         const res = await fetch(
             `${API_BASE}/search_full?q=${encodeURIComponent(query)}&cluster_id=${clusterId}&top_k=20`,
             {headers: {'Authorization': `Bearer ${token}`}}
         );
-        
+
         if (res.ok) {
             const data = await res.json();
             displaySearchResults(data.results);
@@ -369,31 +384,146 @@ async function loadCluster(clusterId) {
     }
 }
 
+async function editCluster(clusterId, currentName, currentSkillLevel) {
+    /**
+     * Edit cluster name and skill level.
+     * Uses existing PUT /clusters/{id} endpoint.
+     */
+    // Show modal with form
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+    modal.innerHTML = `
+        <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+            <h3 style="margin-top: 0;">Edit Cluster</h3>
+
+            <label style="display: block; margin-top: 15px;">
+                Cluster Name:
+                <input type="text" id="editClusterName" value="${currentName}"
+                       style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+            </label>
+
+            <label style="display: block; margin-top: 15px;">
+                Skill Level:
+                <select id="editClusterSkillLevel" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                    <option value="beginner" ${currentSkillLevel === 'beginner' ? 'selected' : ''}>Beginner</option>
+                    <option value="intermediate" ${currentSkillLevel === 'intermediate' ? 'selected' : ''}>Intermediate</option>
+                    <option value="advanced" ${currentSkillLevel === 'advanced' ? 'selected' : ''}>Advanced</option>
+                </select>
+            </label>
+
+            <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
+                <button onclick="this.closest('div').parentElement.parentElement.remove()"
+                        style="padding: 10px 20px; background: #555; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button onclick="saveClusterChanges(${clusterId}, this.closest('div').parentElement.parentElement)"
+                        style="padding: 10px 20px; background: #00d4ff; border: none; color: #000; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function saveClusterChanges(clusterId, modalElement) {
+    /**
+     * Save edited cluster information.
+     */
+    const name = document.getElementById('editClusterName').value.trim();
+    const skillLevel = document.getElementById('editClusterSkillLevel').value;
+
+    if (!name) {
+        showToast('Cluster name cannot be empty', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/clusters/${clusterId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                name: name,
+                skill_level: skillLevel
+            })
+        });
+
+        if (res.ok) {
+            showToast('Cluster updated successfully!', 'success');
+            modalElement.remove();
+            loadClusters(); // Refresh cluster list
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+        }
+    } catch (e) {
+        showToast('Update failed: ' + e.message, 'error');
+    }
+}
+
 // =============================================================================
 // SEARCH (FULL CONTENT)
 // =============================================================================
 
 async function searchKnowledge() {
     const query = document.getElementById('searchQuery').value;
-    
+
     if (!query.trim()) {
         showToast('Enter a search query', 'error');
         return;
     }
-    
+
+    // Build query with optional filters
+    const params = new URLSearchParams({
+        q: query,
+        top_k: '20',
+        full_content: 'true'
+    });
+
+    // Add optional filters if they exist in the UI
+    const sourceTypeFilter = document.getElementById('filterSourceType')?.value;
+    if (sourceTypeFilter) params.append('source_type', sourceTypeFilter);
+
+    const skillLevelFilter = document.getElementById('filterSkillLevel')?.value;
+    if (skillLevelFilter) params.append('skill_level', skillLevelFilter);
+
+    const dateFromFilter = document.getElementById('filterDateFrom')?.value;
+    if (dateFromFilter) params.append('date_from', dateFromFilter);
+
+    const dateToFilter = document.getElementById('filterDateTo')?.value;
+    if (dateToFilter) params.append('date_to', dateToFilter);
+
+    const clusterFilter = document.getElementById('filterClusterId')?.value;
+    if (clusterFilter) params.append('cluster_id', clusterFilter);
+
     try {
         const res = await fetch(
-            `${API_BASE}/search_full?q=${encodeURIComponent(query)}&top_k=20&full_content=true`,
+            `${API_BASE}/search_full?${params.toString()}`,
             {headers: {'Authorization': `Bearer ${token}`}}
         );
-        
+
         if (res.ok) {
             const data = await res.json();
-            displaySearchResults(data.results);
+            displaySearchResults(data.results, query);
         }
     } catch (e) {
         showToast('Search failed', 'error');
     }
+}
+
+function clearSearchFilters() {
+    /**
+     * Clear all search filter values.
+     */
+    const filterIds = ['filterSourceType', 'filterSkillLevel', 'filterDateFrom', 'filterDateTo', 'filterClusterId'];
+    filterIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    showToast('Filters cleared', 'info');
 }
 
 function displaySearchResults(results, searchQuery = '') {
@@ -411,6 +541,7 @@ function displaySearchResults(results, searchQuery = '') {
                     <strong>Doc ${r.doc_id}</strong>
                     <div style="display: flex; gap: 8px;">
                         <span style="color: #888;">Score: ${r.score.toFixed(3)}</span>
+                        <button class="icon-btn" onclick="editDocumentMetadata(${r.doc_id})" title="Edit Document" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">✏️</button>
                         <button class="icon-btn" onclick="showTagMenuForDocument(${r.doc_id})" title="Add Tag" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">🏷️</button>
                         <button class="icon-btn" onclick="deleteDocument(${r.doc_id})" title="Delete" style="background: none; border: none; cursor: pointer; font-size: 1.2rem;">🗑️</button>
                     </div>
@@ -483,6 +614,122 @@ async function deleteDocument(docId) {
         }
     } catch (e) {
         showToast('Delete failed: ' + e.message, 'error');
+    }
+}
+
+async function editDocumentMetadata(docId) {
+    /**
+     * Edit document metadata (topic, skill level, cluster).
+     * Uses existing PUT /documents/{id}/metadata endpoint.
+     */
+    try {
+        // First, get current document data
+        const getRes = await fetch(`${API_BASE}/documents/${docId}`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+
+        if (!getRes.ok) {
+            showToast('Failed to load document', 'error');
+            return;
+        }
+
+        const docData = await getRes.json();
+
+        // Get list of clusters for dropdown
+        const clustersRes = await fetch(`${API_BASE}/clusters`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+        const {clusters} = await clustersRes.json();
+
+        // Show modal with form
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+        modal.innerHTML = `
+            <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+                <h3 style="margin-top: 0;">Edit Document ${docId}</h3>
+
+                <label style="display: block; margin-top: 15px;">
+                    Primary Topic:
+                    <input type="text" id="editTopic" value="${docData.metadata.primary_topic || ''}"
+                           style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                </label>
+
+                <label style="display: block; margin-top: 15px;">
+                    Skill Level:
+                    <select id="editSkillLevel" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        <option value="beginner" ${docData.metadata.skill_level === 'beginner' ? 'selected' : ''}>Beginner</option>
+                        <option value="intermediate" ${docData.metadata.skill_level === 'intermediate' ? 'selected' : ''}>Intermediate</option>
+                        <option value="advanced" ${docData.metadata.skill_level === 'advanced' ? 'selected' : ''}>Advanced</option>
+                    </select>
+                </label>
+
+                <label style="display: block; margin-top: 15px;">
+                    Cluster:
+                    <select id="editCluster" style="width: 100%; margin-top: 5px; padding: 8px; background: #2a2a3e; border: 1px solid #444; color: #fff; border-radius: 4px;">
+                        ${clusters.map(c =>
+                            `<option value="${c.id}" ${c.id === docData.metadata.cluster_id ? 'selected' : ''}>${c.name}</option>`
+                        ).join('')}
+                    </select>
+                </label>
+
+                <div style="display: flex; gap: 10px; margin-top: 25px; justify-content: flex-end;">
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()"
+                            style="padding: 10px 20px; background: #555; border: none; color: #fff; border-radius: 4px; cursor: pointer;">
+                        Cancel
+                    </button>
+                    <button onclick="saveDocumentMetadata(${docId}, this.closest('div').parentElement.parentElement)"
+                            style="padding: 10px 20px; background: #00d4ff; border: none; color: #000; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (e) {
+        showToast('Error loading document: ' + e.message, 'error');
+    }
+}
+
+async function saveDocumentMetadata(docId, modalElement) {
+    /**
+     * Save edited document metadata.
+     */
+    const topic = document.getElementById('editTopic').value.trim();
+    const skillLevel = document.getElementById('editSkillLevel').value;
+    const clusterId = parseInt(document.getElementById('editCluster').value);
+
+    try {
+        const res = await fetch(`${API_BASE}/documents/${docId}/metadata`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                primary_topic: topic,
+                skill_level: skillLevel,
+                cluster_id: clusterId
+            })
+        });
+
+        if (res.ok) {
+            showToast('Document updated successfully!', 'success');
+            modalElement.remove();
+
+            // Refresh current view
+            const query = document.getElementById('searchQuery').value;
+            if (query.trim()) {
+                searchKnowledge();
+            } else {
+                loadClusters();
+            }
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+        }
+    } catch (e) {
+        showToast('Update failed: ' + e.message, 'error');
     }
 }
 
@@ -850,11 +1097,13 @@ function showTab(tabName) {
     // Update tab buttons
     document.getElementById('searchTab').classList.remove('active');
     document.getElementById('analyticsTab').classList.remove('active');
+    document.getElementById('integrationsTab').classList.remove('active');
     document.getElementById('advancedTab').classList.remove('active');
 
     // Update content visibility
     document.getElementById('searchContent').classList.add('hidden');
     document.getElementById('analyticsContent').classList.add('hidden');
+    document.getElementById('integrationsContent').classList.add('hidden');
     document.getElementById('advancedContent').classList.add('hidden');
 
     if (tabName === 'search') {
@@ -865,6 +1114,11 @@ function showTab(tabName) {
         document.getElementById('analyticsContent').classList.remove('hidden');
         // Load analytics when tab is shown
         loadAnalytics();
+    } else if (tabName === 'integrations') {
+        document.getElementById('integrationsTab').classList.add('active');
+        document.getElementById('integrationsContent').classList.remove('hidden');
+        // Load integrations when tab is shown
+        loadIntegrationStatus();
     } else if (tabName === 'advanced') {
         document.getElementById('advancedTab').classList.add('active');
         document.getElementById('advancedContent').classList.remove('hidden');
@@ -1261,8 +1515,12 @@ function renderDuplicateGroups(groups) {
                         </details>
                     </div>
                 `).join('')}
-                <div style="margin-top: 10px;">
-                    <button onclick="mergeDuplicateGroup(${idx}, ${JSON.stringify(group.documents.map(d => d.doc_id))})" style="background: #f59e0b; padding: 8px 16px;">
+                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                    ${group.documents.length === 2 ?
+                        `<button onclick="compareDuplicates(${group.documents[0].doc_id}, ${group.documents[1].doc_id})" style="background: #00d4ff; color: #000; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                            📊 Compare Side-by-Side
+                        </button>` : ''}
+                    <button onclick="mergeDuplicateGroup(${idx}, ${JSON.stringify(group.documents.map(d => d.doc_id))})" style="background: #f59e0b; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
                         Merge Group (Keep First, Delete Others)
                     </button>
                 </div>
@@ -1305,6 +1563,90 @@ async function mergeDuplicateGroup(groupIdx, docIds) {
 
     } catch (error) {
         showToast('Failed to merge duplicates: ' + error.message, 'error');
+    }
+}
+
+async function compareDuplicates(docId1, docId2) {
+    /**
+     * Show side-by-side comparison of two duplicate documents.
+     * Uses existing GET /duplicates/{id1}/{id2} endpoint.
+     */
+    try {
+        const response = await fetch(`${API_BASE}/duplicates/${docId1}/${docId2}`, {
+            headers: {'Authorization': `Bearer ${token}`}
+        });
+
+        if (!response.ok) {
+            const errorMsg = await getErrorMessage(response);
+            showToast(errorMsg, 'error');
+            return;
+        }
+
+        const data = await response.json();
+
+        // Show comparison modal
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; overflow: auto;';
+        modal.innerHTML = `
+            <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 1200px; width: 100%; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Duplicate Comparison</h3>
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #555; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        Close
+                    </button>
+                </div>
+
+                <div style="background: #2a2a3e; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                    <h4 style="margin: 0 0 5px 0; color: #00d4ff;">Similarity Score: ${(data.similarity * 100).toFixed(1)}%</h4>
+                    <p style="margin: 0; color: #888; font-size: 0.9rem;">Higher score = more similar content</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Document 1 -->
+                    <div>
+                        <h4 style="margin-top: 0; color: #4ade80;">Document ${docId1}</h4>
+                        <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="font-size: 0.85rem; color: #888;">
+                                <strong>Type:</strong> ${data.metadata_1.source_type}<br>
+                                <strong>Skill Level:</strong> ${data.metadata_1.skill_level}<br>
+                                <strong>Cluster:</strong> ${data.metadata_1.cluster_id || 'None'}<br>
+                                <strong>Length:</strong> ${data.content_1.length} chars
+                            </div>
+                        </div>
+                        <div style="background: #0a0a0a; padding: 15px; border-radius: 4px; max-height: 400px; overflow-y: auto;">
+                            <pre style="white-space: pre-wrap; margin: 0; font-size: 0.85rem;">${escapeHtml(data.content_1)}</pre>
+                        </div>
+                    </div>
+
+                    <!-- Document 2 -->
+                    <div>
+                        <h4 style="margin-top: 0; color: #f59e0b;">Document ${docId2}</h4>
+                        <div style="background: #1a1a1a; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="font-size: 0.85rem; color: #888;">
+                                <strong>Type:</strong> ${data.metadata_2.source_type}<br>
+                                <strong>Skill Level:</strong> ${data.metadata_2.skill_level}<br>
+                                <strong>Cluster:</strong> ${data.metadata_2.cluster_id || 'None'}<br>
+                                <strong>Length:</strong> ${data.content_2.length} chars
+                            </div>
+                        </div>
+                        <div style="background: #0a0a0a; padding: 15px; border-radius: 4px; max-height: 400px; overflow-y: auto;">
+                            <pre style="white-space: pre-wrap; margin: 0; font-size: 0.85rem;">${escapeHtml(data.content_2)}</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="this.closest('div').parentElement.parentElement.remove(); mergeDuplicateGroup(0, [${docId1}, ${docId2}])"
+                            style="background: #f59e0b; border: none; color: #fff; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                        Merge (Keep Doc ${docId1}, Delete Doc ${docId2})
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (error) {
+        showToast('Failed to load comparison: ' + error.message, 'error');
     }
 }
 
@@ -1826,4 +2168,712 @@ async function deleteRelationship(sourceDocId, targetDocId) {
     } catch (error) {
         showToast('Failed to delete relationship: ' + error.message, 'error');
     }
+}
+
+// =============================================================================
+// KEYBOARD SHORTCUTS
+// =============================================================================
+
+/**
+ * Global keyboard shortcuts for power users.
+ * 
+ * Shortcuts:
+ * - Ctrl/Cmd + K: Focus search input
+ * - Ctrl/Cmd + U: Switch to upload tab
+ * - Ctrl/Cmd + B: Trigger "What Can I Build?"
+ * - Ctrl/Cmd + /: Show keyboard shortcuts help
+ * - Escape: Close modals (handled by modal close buttons)
+ */
+document.addEventListener('keydown', (e) => {
+    // Ctrl+K or Cmd+K: Focus search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchQuery');
+        if (searchInput) {
+            showTab('search');
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+
+    // Ctrl+U or Cmd+U: Open upload tab
+    if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+        e.preventDefault();
+        showTab('upload');
+    }
+
+    // Ctrl+B or Cmd+B: What Can I Build?
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        showTab('search');
+        whatCanIBuild();
+    }
+
+    // Ctrl+/ or Cmd+/: Show keyboard shortcuts help
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        showKeyboardShortcutsHelp();
+    }
+});
+
+function showKeyboardShortcutsHelp() {
+    /**
+     * Display keyboard shortcuts help modal.
+     */
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+    modal.innerHTML = `
+        <div style="background: #1e1e2e; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+            <h3 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+                ⌨️ Keyboard Shortcuts
+                <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #555; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                    Close
+                </button>
+            </h3>
+
+            <div style="margin-top: 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">K</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Focus Search</div>
+                        </div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">U</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Open Upload Tab</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">B</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">What Can I Build?</div>
+                        </div>
+                        <div style="background: #2a2a3e; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div style="font-weight: bold; color: #00d4ff; margin-bottom: 4px;">
+                                <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">Ctrl/Cmd</kbd> + <kbd style="background: #1a1a1a; padding: 4px 8px; border-radius: 4px;">/</kbd>
+                            </div>
+                            <div style="color: #aaa; font-size: 0.9rem;">Show This Help</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; padding: 12px; background: #2a2a3e; border-radius: 6px; border-left: 4px solid #00d4ff;">
+                <div style="font-weight: bold; margin-bottom: 4px;">💡 Pro Tip</div>
+                <div style="color: #aaa; font-size: 0.9rem;">
+                    Press <kbd style="background: #1a1a1a; padding: 2px 6px; border-radius: 3px;">Esc</kbd> to close any modal dialog.
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Also allow Escape to close this modal
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            modal.remove();
+        }
+    });
+}
+
+// =============================================================================
+// CELERY JOB POLLING
+// =============================================================================
+
+/**
+ * Poll Celery job status for background tasks.
+ *
+ * @param {string} jobId - Celery task ID
+ * @param {HTMLElement|null} button - Button to update with progress
+ * @param {string} buttonDefaultText - Text to show when job completes
+ */
+async function pollJobStatus(jobId, button = null, buttonDefaultText = 'Done') {
+    const pollInterval = 1000; // Poll every second
+    const maxAttempts = 300; // Max 5 minutes of polling
+    let attempts = 0;
+
+    const interval = setInterval(async () => {
+        attempts++;
+
+        // Timeout after max attempts
+        if (attempts > maxAttempts) {
+            clearInterval(interval);
+            showToast('⏱️ Job timeout - check back later', 'warning');
+            if (button) setButtonLoading(button, false, buttonDefaultText);
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/jobs/${jobId}/status`, {
+                headers: {'Authorization': `Bearer ${token}`}
+            });
+
+            if (!res.ok) {
+                clearInterval(interval);
+                showToast('❌ Failed to check job status', 'error');
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+                return;
+            }
+
+            const data = await res.json();
+            const {state, meta, result} = data;
+
+            // Update button with progress
+            if (button && meta && meta.message) {
+                const progressText = meta.percent !== undefined
+                    ? `${meta.message} ${meta.percent}%`
+                    : meta.message;
+                setButtonText(button, progressText);
+            }
+
+            // Handle different states
+            if (state === 'PENDING') {
+                // Task waiting in queue
+                if (button) setButtonText(button, '⏳ Queued...');
+            }
+            else if (state === 'PROCESSING') {
+                // Task is running - progress shown above
+                // Keep polling
+            }
+            else if (state === 'SUCCESS') {
+                // Task completed successfully
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+
+                // Show success message
+                if (result && result.doc_id) {
+                    showToast(
+                        `✅ Uploaded! Doc ${result.doc_id} → Cluster ${result.cluster_id}`,
+                        'success'
+                    );
+                } else {
+                    showToast('✅ Processing complete!', 'success');
+                }
+
+                // Refresh clusters
+                loadClusters();
+            }
+            else if (state === 'FAILURE') {
+                // Task failed
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+
+                const errorMsg = meta && meta.error ? meta.error : 'Unknown error';
+                showToast(`❌ Processing failed: ${errorMsg}`, 'error');
+            }
+            else if (state === 'RETRY') {
+                // Task is being retried
+                if (button) setButtonText(button, '🔄 Retrying...');
+            }
+            else if (state === 'REVOKED') {
+                // Task was cancelled
+                clearInterval(interval);
+                if (button) setButtonLoading(button, false, buttonDefaultText);
+                showToast('🚫 Task cancelled', 'warning');
+            }
+
+        } catch (e) {
+            console.error('Job polling error:', e);
+            // Continue polling - might be transient network issue
+        }
+    }, pollInterval);
+}
+
+/**
+ * Helper to update button text without changing loading state.
+ *
+ * @param {HTMLElement} button - Button element
+ * @param {string} text - New text
+ */
+function setButtonText(button, text) {
+    if (!button) return;
+    button.textContent = text;
+}
+
+// =============================================================================
+// CLOUD INTEGRATIONS (Phase 5)
+// =============================================================================
+
+/**
+ * Load integration connection status for all services.
+ * Displays service cards showing connected/disconnected state.
+ */
+async function loadIntegrationStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/integrations/status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to load integration status');
+
+        const data = await response.json();
+        displayIntegrationCards(data.connections);
+
+    } catch (e) {
+        console.error('Integration status error:', e);
+        showToast('Failed to load integrations: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Display integration service cards.
+ * Shows connection status and actions for each service.
+ */
+function displayIntegrationCards(connections) {
+    const container = document.getElementById('integrationCards');
+
+    const services = {
+        github: { icon: '🐙', name: 'GitHub', description: 'Import repositories and files' },
+        google: { icon: '📁', name: 'Google Drive', description: 'Import documents and files' },
+        dropbox: { icon: '📦', name: 'Dropbox', description: 'Import files and folders' },
+        notion: { icon: '📝', name: 'Notion', description: 'Import pages and databases' }
+    };
+
+    container.innerHTML = '';
+
+    for (const [service, info] of Object.entries(services)) {
+        const connection = connections[service];
+        const isConnected = connection.connected;
+
+        const card = document.createElement('div');
+        card.style.cssText = `
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid ${isConnected ? '#00ff88' : '#666'};
+        `;
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 2rem; margin-bottom: 5px;">${info.icon}</div>
+                    <h3 style="margin: 0; color: #e0e0e0;">${info.name}</h3>
+                </div>
+                <span style="
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 0.85rem;
+                    background: ${isConnected ? '#00ff8822' : '#66666622'};
+                    color: ${isConnected ? '#00ff88' : '#888'};
+                ">
+                    ${isConnected ? '✓ Connected' : 'Not Connected'}
+                </span>
+            </div>
+
+            <p style="color: #888; margin-bottom: 15px; font-size: 0.9rem;">${info.description}</p>
+
+            ${isConnected ? `
+                <div style="color: #888; font-size: 0.85rem; margin-bottom: 15px;">
+                    <div><strong>User:</strong> ${connection.user || 'Unknown'}</div>
+                    ${connection.email ? `<div><strong>Email:</strong> ${connection.email}</div>` : ''}
+                    ${connection.last_sync ? `<div><strong>Last sync:</strong> ${formatDate(connection.last_sync)}</div>` : ''}
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    ${service === 'github' ? `
+                        <button onclick="browseGitHub()" style="flex: 1;">Browse Repositories</button>
+                    ` : `
+                        <button style="flex: 1; opacity: 0.5;" disabled>Browse Files (Coming Soon)</button>
+                    `}
+                    <button onclick="disconnectService('${service}')" class="secondary">Disconnect</button>
+                </div>
+            ` : `
+                <button onclick="connectService('${service}')" style="width: 100%;">Connect ${info.name}</button>
+            `}
+        `;
+
+        container.appendChild(card);
+    }
+}
+
+/**
+ * Connect a cloud service via OAuth.
+ * Opens OAuth flow in a new window.
+ */
+function connectService(service) {
+    const authUrl = `${API_BASE}/integrations/${service}/authorize`;
+
+    // Open OAuth in new window
+    const width = 600;
+    const height = 700;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    const authWindow = window.open(
+        authUrl,
+        `${service}_oauth`,
+        `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    // Poll for window close (user completed OAuth)
+    const pollTimer = setInterval(() => {
+        if (authWindow.closed) {
+            clearInterval(pollTimer);
+            // Reload integration status
+            setTimeout(() => loadIntegrationStatus(), 1000);
+        }
+    }, 500);
+}
+
+/**
+ * Disconnect a cloud service.
+ * Removes OAuth token from backend.
+ */
+async function disconnectService(service) {
+    if (!confirm(`Disconnect ${service}? You'll need to reconnect to import files again.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/integrations/${service}/disconnect`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Failed to disconnect');
+
+        showToast(`${service} disconnected successfully`, 'success');
+        loadIntegrationStatus();
+
+    } catch (e) {
+        console.error('Disconnect error:', e);
+        showToast('Failed to disconnect: ' + e.message, 'error');
+    }
+}
+
+// =============================================================================
+// GitHub Integration
+// =============================================================================
+
+let githubRepos = [];
+let selectedGitHubFiles = [];
+let currentRepo = null;
+let currentPath = '';
+
+/**
+ * Browse GitHub repositories.
+ * Opens modal showing user's repositories.
+ */
+async function browseGitHub() {
+    try {
+        const response = await fetch(`${API_BASE}/integrations/github/repos?per_page=50`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                showToast('GitHub not connected. Please connect first.', 'error');
+                return;
+            }
+            throw new Error('Failed to load repositories');
+        }
+
+        const data = await response.json();
+        githubRepos = data.repositories;
+
+        showGitHubReposModal(githubRepos);
+
+    } catch (e) {
+        console.error('GitHub repos error:', e);
+        showToast('Failed to load repositories: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Show GitHub repositories modal.
+ */
+function showGitHubReposModal(repos) {
+    const modal = document.createElement('div');
+    modal.id = 'githubModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 20px;
+    `;
+
+    modal.innerHTML = `
+        <div style="
+            background: #1a1a1a;
+            border-radius: 12px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        ">
+            <div style="padding: 20px; border-bottom: 2px solid #333;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin: 0;">🐙 GitHub Repositories</h2>
+                    <button onclick="closeGitHubModal()" class="secondary">✕ Close</button>
+                </div>
+            </div>
+
+            <div id="githubReposList" style="flex: 1; overflow-y: auto; padding: 20px;">
+                ${repos.map(repo => `
+                    <div style="
+                        background: #2a2a2a;
+                        padding: 15px;
+                        border-radius: 8px;
+                        margin-bottom: 15px;
+                        border-left: 3px solid ${repo.private ? '#ff9900' : '#00d4ff'};
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 5px 0;">${repo.name}</h3>
+                                <p style="color: #888; font-size: 0.9rem; margin: 0 0 10px 0;">${repo.description || 'No description'}</p>
+                                <div style="display: flex; gap: 15px; font-size: 0.85rem; color: #888;">
+                                    <span>${repo.private ? '🔒 Private' : '🌐 Public'}</span>
+                                    ${repo.language ? `<span>💻 ${repo.language}</span>` : ''}
+                                    <span>⭐ ${repo.stargazers_count}</span>
+                                    <span>📦 ${(repo.size / 1024).toFixed(1)} MB</span>
+                                </div>
+                            </div>
+                            <button onclick='browseGitHubRepo(${JSON.stringify(repo)})' style="margin-left: 15px;">
+                                Browse Files
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+/**
+ * Browse files in a GitHub repository.
+ */
+async function browseGitHubRepo(repo) {
+    currentRepo = repo;
+    currentPath = '';
+    selectedGitHubFiles = [];
+
+    await loadGitHubRepoContents(repo.owner.login || repo.full_name.split('/')[0], repo.name, '');
+}
+
+/**
+ * Load contents of a GitHub repository path.
+ */
+async function loadGitHubRepoContents(owner, repo, path) {
+    try {
+        const pathParam = path ? `?path=${encodeURIComponent(path)}` : '';
+        const response = await fetch(
+            `${API_BASE}/integrations/github/repos/${owner}/${repo}/contents${pathParam}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) throw new Error('Failed to load repository contents');
+
+        const data = await response.json();
+        showGitHubFileBrowser(owner, repo, path, data.files);
+
+    } catch (e) {
+        console.error('GitHub contents error:', e);
+        showToast('Failed to load repository contents: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Show GitHub file browser modal.
+ */
+function showGitHubFileBrowser(owner, repo, path, files) {
+    currentPath = path;
+
+    const modal = document.getElementById('githubModal');
+    if (!modal) return;
+
+    const content = modal.querySelector('#githubReposList');
+    if (!content) return;
+
+    content.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin: 0;">${owner}/${repo}</h3>
+                    <p style="color: #888; font-size: 0.9rem; margin: 5px 0 0 0;">
+                        Path: /${path || 'root'}
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    ${path ? `<button onclick="goUpDirectory('${owner}', '${repo}', '${path}')" class="secondary">⬆️ Up</button>` : ''}
+                    <button onclick="browseGitHub()" class="secondary">⬅️ Back to Repos</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px; color: #888;">
+                Selected: <strong>${selectedGitHubFiles.length}</strong> files
+                ${selectedGitHubFiles.length > 0 ? `
+                    <button onclick="importGitHubFiles('${owner}', '${repo}')" style="margin-left: 10px;">
+                        Import Selected (${selectedGitHubFiles.length})
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+
+        <div>
+            ${files.map(file => `
+                <div style="
+                    background: #2a2a2a;
+                    padding: 12px 15px;
+                    border-radius: 6px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                ">
+                    ${file.type === 'file' ? `
+                        <input
+                            type="checkbox"
+                            id="file_${file.path.replace(/[^a-zA-Z0-9]/g, '_')}"
+                            ${selectedGitHubFiles.includes(file.path) ? 'checked' : ''}
+                            onchange="toggleFileSelection('${file.path}')"
+                            style="width: 18px; height: 18px; cursor: pointer;"
+                        >
+                    ` : '<div style="width: 18px;"></div>'}
+
+                    <div style="flex: 1; cursor: ${file.type === 'dir' ? 'pointer' : 'default'};"
+                         onclick="${file.type === 'dir' ? `loadGitHubRepoContents('${owner}', '${repo}', '${file.path}')` : ''}">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">${file.type === 'dir' ? '📁' : '📄'}</span>
+                            <span>${file.name}</span>
+                        </div>
+                        ${file.type === 'file' ? `<div style="color: #666; font-size: 0.85rem;">${formatFileSize(file.size)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Go up one directory level.
+ */
+function goUpDirectory(owner, repo, currentPath) {
+    const parts = currentPath.split('/');
+    parts.pop();
+    const newPath = parts.join('/');
+    loadGitHubRepoContents(owner, repo, newPath);
+}
+
+/**
+ * Toggle file selection for import.
+ */
+function toggleFileSelection(filePath) {
+    const index = selectedGitHubFiles.indexOf(filePath);
+    if (index === -1) {
+        selectedGitHubFiles.push(filePath);
+    } else {
+        selectedGitHubFiles.splice(index, 1);
+    }
+
+    // Refresh the display to update selected count
+    const owner = currentRepo.owner.login || currentRepo.full_name.split('/')[0];
+    loadGitHubRepoContents(owner, currentRepo.name, currentPath);
+}
+
+/**
+ * Import selected GitHub files.
+ */
+async function importGitHubFiles(owner, repo) {
+    if (selectedGitHubFiles.length === 0) {
+        showToast('No files selected', 'warning');
+        return;
+    }
+
+    if (selectedGitHubFiles.length > 100) {
+        showToast('Maximum 100 files per import', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/integrations/github/import`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                owner,
+                repo,
+                branch: currentRepo.default_branch || 'main',
+                files: selectedGitHubFiles
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to queue import');
+
+        const data = await response.json();
+
+        showToast(`📤 Import queued: ${data.file_count} files`, 'info');
+        closeGitHubModal();
+
+        // Poll for job status
+        pollJobStatus(data.job_id, null, null);
+
+    } catch (e) {
+        console.error('GitHub import error:', e);
+        showToast('Failed to import files: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Close GitHub modal.
+ */
+function closeGitHubModal() {
+    const modal = document.getElementById('githubModal');
+    if (modal) {
+        modal.remove();
+    }
+    selectedGitHubFiles = [];
+    currentRepo = null;
+    currentPath = '';
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Format file size in bytes to human-readable.
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+/**
+ * Format date to relative time.
+ */
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
 }
