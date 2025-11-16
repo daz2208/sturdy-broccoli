@@ -46,6 +46,8 @@ from ..sanitization import (
 from ..constants import MAX_UPLOAD_SIZE_BYTES
 from .. import ingest
 from ..db_storage_adapter import save_storage_to_db
+from ..redis_client import increment_user_job_count, get_user_job_count
+from ..tasks import process_file_upload, process_url_upload, process_image_upload
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -178,7 +180,7 @@ async def upload_text_content(
         }
 
 # =============================================================================
-# URL Upload Endpoint
+# URL Upload Endpoint (Celery)
 # =============================================================================
 
 @router.post("/upload")
@@ -189,77 +191,60 @@ async def upload_url(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload document via URL (YouTube, web article, etc).
-    
+    Upload document via URL (YouTube, web article, etc) - Background processing with Celery.
+
     Rate limited to 5 uploads per minute.
-    
+
     Args:
         doc: Document upload request with URL
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+
     Returns:
-        Document ID, cluster ID, and extracted concepts
+        Job ID for polling status
+
+    Response:
+        {
+            "job_id": "abc123-def456",
+            "message": "URL queued for processing",
+            "url": "https://example.com"
+        }
+
+    Poll /jobs/{job_id}/status for progress and results.
     """
     # Validate URL to prevent SSRF attacks
     url = validate_url(str(doc.url))
-    
-    try:
-        document_text = ingest.download_url(url)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to ingest URL: {exc}")
-    
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    vector_store = get_vector_store()
-    storage_lock = get_storage_lock()
-    concept_extractor = get_concept_extractor()
-    
-    async with storage_lock:
-        # Extract concepts
-        extraction = await concept_extractor.extract(document_text, "url")
-        
-        # Add to vector store
-        doc_id = vector_store.add_document(document_text)
-        documents[doc_id] = document_text
-        
-        # Create metadata
-        meta = DocumentMetadata(
-            doc_id=doc_id,
-            owner=current_user.username,
-            source_type="url",
-            source_url=url,
-            concepts=[Concept(**c) for c in extraction.get("concepts", [])],
-            skill_level=extraction.get("skill_level", "unknown"),
-            cluster_id=None,
-            ingested_at=datetime.utcnow().isoformat(),
-            content_length=len(document_text)
+
+    # Rate limit: Check concurrent job count
+    user_job_count = get_user_job_count(current_user.username)
+    if user_job_count >= 10:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
-        metadata[doc_id] = meta
-        
-        # Cluster
-        cluster_id = await find_or_create_cluster(
-            doc_id=doc_id,
-            suggested_cluster=extraction.get("suggested_cluster", "General"),
-            concepts=extraction.get("concepts", [])
-        )
-        metadata[doc_id].cluster_id = cluster_id
-        
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
-        
-        logger.info(f"User {current_user.username} uploaded URL as doc {doc_id}")
-        
-        return {
-            "document_id": doc_id,
-            "cluster_id": cluster_id,
-            "concepts": extraction.get("concepts", [])
-        }
+
+    # Queue Celery task
+    task = process_url_upload.delay(
+        user_id=current_user.username,
+        url=url
+    )
+
+    # Increment job count
+    increment_user_job_count(current_user.username)
+
+    logger.info(
+        f"[{request.state.request_id}] User {current_user.username} queued URL upload: "
+        f"{url} (job_id: {task.id})"
+    )
+
+    return {
+        "job_id": task.id,
+        "message": "URL queued for processing",
+        "url": url
+    }
 
 # =============================================================================
-# File Upload Endpoint
+# File Upload Endpoint (Celery)
 # =============================================================================
 
 @router.post("/upload_file")
@@ -270,88 +255,75 @@ async def upload_file(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload file (PDF, audio, etc) as base64.
-    
+    Upload file (PDF, audio, etc) as base64 - Background processing with Celery.
+
     Rate limited to 5 uploads per minute.
-    
+
     Args:
         req: File upload request
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+
     Returns:
-        Document ID, cluster ID, and extracted concepts
+        Job ID for polling status
+
+    Response:
+        {
+            "job_id": "abc123-def456",
+            "message": "File queued for processing",
+            "filename": "document.pdf"
+        }
+
+    Poll /jobs/{job_id}/status for progress and results.
     """
     # Sanitize filename to prevent path traversal attacks
     filename = sanitize_filename(req.filename)
-    
+
     try:
+        # Validate base64 and file size early
         file_bytes = base64.b64decode(req.content)
-        
-        # Validate file size
+
         if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(
                 status_code=413,
                 detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE_BYTES / (1024*1024):.0f}MB"
             )
-        
-        document_text = ingest.ingest_upload_file(filename, file_bytes)
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {exc}")
-    
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    vector_store = get_vector_store()
-    storage_lock = get_storage_lock()
-    concept_extractor = get_concept_extractor()
-    
-    async with storage_lock:
-        # Extract concepts
-        extraction = await concept_extractor.extract(document_text, "file")
-        
-        # Add to vector store
-        doc_id = vector_store.add_document(document_text)
-        documents[doc_id] = document_text
-        
-        # Create metadata
-        meta = DocumentMetadata(
-            doc_id=doc_id,
-            owner=current_user.username,
-            source_type="file",
-            filename=filename,
-            concepts=[Concept(**c) for c in extraction.get("concepts", [])],
-            skill_level=extraction.get("skill_level", "unknown"),
-            cluster_id=None,
-            ingested_at=datetime.utcnow().isoformat(),
-            content_length=len(document_text)
+        raise HTTPException(status_code=400, detail=f"Invalid base64 content: {exc}")
+
+    # Rate limit: Check concurrent job count
+    user_job_count = get_user_job_count(current_user.username)
+    if user_job_count >= 10:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
-        metadata[doc_id] = meta
-        
-        # Cluster
-        cluster_id = await find_or_create_cluster(
-            doc_id=doc_id,
-            suggested_cluster=extraction.get("suggested_cluster", "General"),
-            concepts=extraction.get("concepts", [])
-        )
-        metadata[doc_id].cluster_id = cluster_id
-        
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
-        
-        logger.info(f"User {current_user.username} uploaded file {filename} as doc {doc_id}")
-        
-        return {
-            "document_id": doc_id,
-            "cluster_id": cluster_id,
-            "concepts": extraction.get("concepts", [])
-        }
+
+    # Queue Celery task
+    task = process_file_upload.delay(
+        user_id=current_user.username,
+        filename=filename,
+        content_base64=req.content  # Pass original base64 to avoid re-encoding
+    )
+
+    # Increment job count
+    increment_user_job_count(current_user.username)
+
+    logger.info(
+        f"[{request.state.request_id}] User {current_user.username} queued file upload: "
+        f"{filename} (job_id: {task.id})"
+    )
+
+    return {
+        "job_id": task.id,
+        "message": "File queued for processing",
+        "filename": filename
+    }
 
 # =============================================================================
-# Image Upload Endpoint
+# Image Upload Endpoint (Celery)
 # =============================================================================
 
 @router.post("/upload_image")
@@ -362,28 +334,37 @@ async def upload_image(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload and process image with OCR.
-    
+    Upload and process image with OCR - Background processing with Celery.
+
     Rate limited to 10 uploads per minute.
-    
+
     Args:
         req: Image upload request
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+
     Returns:
-        Document ID, cluster ID, OCR text length, image path, and concepts
+        Job ID for polling status
+
+    Response:
+        {
+            "job_id": "abc123-def456",
+            "message": "Image queued for OCR processing",
+            "filename": "screenshot.png"
+        }
+
+    Poll /jobs/{job_id}/status for progress and results.
     """
     # Sanitize filename to prevent path traversal attacks
     filename = sanitize_filename(req.filename)
-    
+
     # Sanitize optional description
-    description = sanitize_description(req.description)
-    
+    description = sanitize_description(req.description) if req.description else None
+
     try:
+        # Validate base64 and file size early
         image_bytes = base64.b64decode(req.content)
-        
-        # Validate file size
+
         if len(image_bytes) > MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(
                 status_code=413,
@@ -393,76 +374,33 @@ async def upload_image(
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64: {e}")
-    
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    vector_store = get_vector_store()
-    storage_lock = get_storage_lock()
-    concept_extractor = get_concept_extractor()
-    image_processor = get_image_processor()
-    
-    async with storage_lock:
-        # Extract text via OCR
-        extracted_text = image_processor.extract_text_from_image(image_bytes)
-        
-        # Get image metadata
-        img_meta = image_processor.get_image_metadata(image_bytes)
-        
-        # Combine description + OCR text
-        full_content = ""
-        if description:
-            full_content += f"Description: {description}\n\n"
-        if extracted_text:
-            full_content += f"Extracted text: {extracted_text}\n\n"
-        full_content += f"Image metadata: {img_meta}"
-        
-        # Add to vector store
-        doc_id = vector_store.add_document(full_content)
-        documents[doc_id] = full_content
-        
-        # Save physical image
-        image_path = image_processor.store_image(image_bytes, doc_id)
-        
-        # Extract concepts
-        extraction = await concept_extractor.extract(full_content, "image")
-        
-        # Create metadata
-        meta = DocumentMetadata(
-            doc_id=doc_id,
-            owner=current_user.username,
-            source_type="image",
-            filename=filename,
-            concepts=[Concept(**c) for c in extraction.get("concepts", [])],
-            skill_level=extraction.get("skill_level", "unknown"),
-            cluster_id=None,
-            ingested_at=datetime.utcnow().isoformat(),
-            content_length=len(full_content),
-            image_path=image_path
+
+    # Rate limit: Check concurrent job count
+    user_job_count = get_user_job_count(current_user.username)
+    if user_job_count >= 10:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
-        metadata[doc_id] = meta
-        
-        # Cluster
-        cluster_id = await find_or_create_cluster(
-            doc_id=doc_id,
-            suggested_cluster=extraction.get("suggested_cluster", "Images"),
-            concepts=extraction.get("concepts", [])
-        )
-        metadata[doc_id].cluster_id = cluster_id
-        
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
-        
-        logger.info(
-            f"User {current_user.username} uploaded image {filename} as doc {doc_id} "
-            f"(OCR: {len(extracted_text)} chars)"
-        )
-        
-        return {
-            "document_id": doc_id,
-            "cluster_id": cluster_id,
-            "ocr_text_length": len(extracted_text),
-            "image_path": image_path,
-            "concepts": extraction.get("concepts", [])
-        }
+
+    # Queue Celery task
+    task = process_image_upload.delay(
+        user_id=current_user.username,
+        filename=filename,
+        content_base64=req.content,
+        description=description
+    )
+
+    # Increment job count
+    increment_user_job_count(current_user.username)
+
+    logger.info(
+        f"[{request.state.request_id}] User {current_user.username} queued image upload: "
+        f"{filename} (job_id: {task.id})"
+    )
+
+    return {
+        "job_id": task.id,
+        "message": "Image queued for OCR processing",
+        "filename": filename
+    }
