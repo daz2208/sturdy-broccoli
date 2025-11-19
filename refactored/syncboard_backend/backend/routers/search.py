@@ -19,7 +19,14 @@ from ..dependencies import (
     get_metadata,
     get_clusters,
     get_vector_store,
+    get_kb_documents,
+    get_kb_metadata,
+    get_kb_clusters,
+    get_user_default_kb_id,
 )
+from ..database import get_db
+from sqlalchemy.orm import Session
+from fastapi import Query
 from ..sanitization import validate_positive_integer
 from ..constants import DEFAULT_TOP_K, MAX_TOP_K, SNIPPET_LENGTH
 
@@ -52,22 +59,23 @@ async def search_full_content(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     request: Request = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Search documents with optional filters.
-    
+
     Rate limited to 30 searches per minute.
-    
+
     Filters:
     - source_type: Filter by source (text, url, pdf, etc.)
     - skill_level: Filter by skill level (beginner, intermediate, advanced)
     - date_from/date_to: Filter by ingestion date (ISO format)
     - cluster_id: Filter by cluster
     - full_content: Return full content or 500-char snippet
-    
+
     By default returns 500-char snippets for performance.
-    
+
     Args:
         q: Search query
         top_k: Number of results to return (max 50)
@@ -79,23 +87,28 @@ async def search_full_content(
         date_to: Optional end date filter (ISO format)
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+        db: Database session
+
     Returns:
         Search results with metadata and cluster information
     """
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Get KB-scoped storage
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+    kb_clusters = get_kb_clusters(kb_id)
     vector_store = get_vector_store()
-    
+
     # Validate top_k parameter
     top_k = validate_positive_integer(top_k, "top_k", max_value=MAX_TOP_K)
     if top_k < 1:
         top_k = DEFAULT_TOP_K
-    
-    # Get user's documents
+
+    # Get user's documents (all docs in user's KB)
     user_doc_ids = [
-        doc_id for doc_id, meta in metadata.items()
+        doc_id for doc_id, meta in kb_metadata.items()
         if meta.owner == current_user.username
     ]
     
@@ -104,54 +117,54 @@ async def search_full_content(
     
     # Apply filters
     filtered_ids = user_doc_ids.copy()
-    
+
     # Filter by cluster
     if cluster_id is not None:
         filtered_ids = [
             doc_id for doc_id in filtered_ids
-            if metadata[doc_id].cluster_id == cluster_id
+            if kb_metadata[doc_id].cluster_id == cluster_id
         ]
-    
+
     # Filter by source type
     if source_type:
         filtered_ids = [
             doc_id for doc_id in filtered_ids
-            if metadata[doc_id].source_type == source_type
+            if kb_metadata[doc_id].source_type == source_type
         ]
-    
+
     # Filter by skill level
     if skill_level:
         filtered_ids = [
             doc_id for doc_id in filtered_ids
-            if metadata[doc_id].skill_level == skill_level
+            if kb_metadata[doc_id].skill_level == skill_level
         ]
-    
+
     # Filter by date range
     if date_from or date_to:
         date_filtered = []
         for doc_id in filtered_ids:
-            meta = metadata[doc_id]
+            meta = kb_metadata[doc_id]
             if not meta.ingested_at:
                 continue
-            
+
             try:
                 doc_date = datetime.fromisoformat(meta.ingested_at.replace('Z', '+00:00'))
-                
+
                 if date_from:
                     from_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
                     if doc_date < from_date:
                         continue
-                
+
                 if date_to:
                     to_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
                     if doc_date > to_date:
                         continue
-                
+
                 date_filtered.append(doc_id)
             except:
                 # Skip documents with invalid dates
                 continue
-        
+
         filtered_ids = date_filtered
     
     if not filtered_ids:
@@ -173,15 +186,15 @@ async def search_full_content(
     # Build response with metadata
     results = []
     cluster_groups = {}
-    
+
     for doc_id, score, snippet in search_results:
-        meta = metadata[doc_id]
-        cluster = clusters.get(meta.cluster_id) if meta.cluster_id else None
+        meta = kb_metadata[doc_id]
+        cluster = kb_clusters.get(meta.cluster_id) if meta.cluster_id else None
 
         # Return full content or snippet based on parameter
         # Always return full content for now (snippets can be confusing)
-        content = documents[doc_id]
-        
+        content = kb_documents[doc_id]
+
         results.append({
             "doc_id": doc_id,
             "score": score,
@@ -189,13 +202,13 @@ async def search_full_content(
             "metadata": meta.dict(),
             "cluster": cluster.dict() if cluster else None
         })
-        
+
         # Group by cluster
         if meta.cluster_id:
             if meta.cluster_id not in cluster_groups:
                 cluster_groups[meta.cluster_id] = []
             cluster_groups[meta.cluster_id].append(doc_id)
-    
+
     return {
         "results": results,
         "grouped_by_cluster": cluster_groups,
@@ -206,5 +219,6 @@ async def search_full_content(
             "date_to": date_to,
             "cluster_id": cluster_id
         },
-        "total_results": len(results)
+        "total_results": len(results),
+        "knowledge_base_id": kb_id
     }

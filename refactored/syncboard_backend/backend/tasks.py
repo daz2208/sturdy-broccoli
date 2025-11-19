@@ -30,6 +30,10 @@ from .dependencies import (
     clustering_engine,
     image_processor,
     build_suggester,
+    get_kb_documents,
+    get_kb_metadata,
+    get_kb_clusters,
+    ensure_kb_exists,
 )
 from .sanitization import sanitize_filename, sanitize_text_content, validate_url
 from .constants import MAX_UPLOAD_SIZE_BYTES
@@ -56,9 +60,13 @@ def reload_cache_from_db():
         docs, meta, clusts, usrs = load_storage_from_db(vector_store)
 
         # FIX: Reset _next_id to prevent doc_id collisions
-        # Find the max doc_id and set _next_id to max + 1
-        if docs:
-            max_doc_id = max(docs.keys())
+        # Find the max doc_id across all KBs and set _next_id to max + 1
+        all_doc_ids = []
+        for kb_docs in docs.values():
+            all_doc_ids.extend(kb_docs.keys())
+
+        if all_doc_ids:
+            max_doc_id = max(all_doc_ids)
             vector_store._next_id = max_doc_id + 1
         else:
             vector_store._next_id = 0
@@ -71,7 +79,10 @@ def reload_cache_from_db():
         clusters.update(clusts)
         users.clear()
         users.update(usrs)
-        logger.debug(f"Cache reloaded: {len(docs)} documents, {len(clusts)} clusters, next_id={vector_store._next_id}")
+
+        total_docs = sum(len(d) for d in docs.values())
+        total_clusters = sum(len(c) for c in clusts.values())
+        logger.debug(f"Cache reloaded: {total_docs} documents in {len(docs)} KBs, {total_clusters} clusters, next_id={vector_store._next_id}")
     except Exception as e:
         logger.error(f"Failed to reload cache from database: {e}")
 
@@ -79,7 +90,8 @@ def find_or_create_cluster_sync(
     doc_id: int,
     suggested_cluster: str,
     concepts_list: List[Dict],
-    skill_level: str
+    skill_level: str,
+    kb_id: str
 ) -> int:
     """
     Synchronous version of find_or_create_cluster for Celery tasks.
@@ -89,29 +101,36 @@ def find_or_create_cluster_sync(
         suggested_cluster: Suggested cluster name
         concepts_list: List of concept dictionaries
         skill_level: Document skill level
+        kb_id: Knowledge base ID
 
     Returns:
         Cluster ID
     """
-    # Try to find existing cluster
+    # Get KB-scoped clusters
+    kb_clusters = get_kb_clusters(kb_id)
+
+    # Try to find existing cluster in this KB
     cluster_id = clustering_engine.find_best_cluster(
         doc_concepts=concepts_list,
         suggested_name=suggested_cluster,
-        existing_clusters=clusters
+        existing_clusters=kb_clusters
     )
 
     if cluster_id is not None:
-        clustering_engine.add_to_cluster(cluster_id, doc_id, clusters)
+        clustering_engine.add_to_cluster(cluster_id, doc_id, kb_clusters)
         return cluster_id
 
-    # Create new cluster
+    # Create new cluster in this KB
     cluster_id = clustering_engine.create_cluster(
         doc_id=doc_id,
         name=suggested_cluster,
         concepts=concepts_list,
         skill_level=skill_level,
-        existing_clusters=clusters
+        existing_clusters=kb_clusters
     )
+
+    # Set knowledge_base_id on the cluster
+    kb_clusters[cluster_id].knowledge_base_id = kb_id
 
     return cluster_id
 
@@ -139,7 +158,8 @@ def process_file_upload(
     self: Task,
     user_id: str,
     filename: str,
-    content_base64: str
+    content_base64: str,
+    kb_id: str
 ) -> Dict:
     """
     Process file upload in background.
@@ -156,13 +176,16 @@ def process_file_upload(
         user_id: Username of uploader
         filename: Original filename
         content_base64: Base64-encoded file content
+        kb_id: Knowledge base ID
 
     Returns:
-        dict: {doc_id, cluster_id, concepts, filename}
+        dict: {doc_id, cluster_id, concepts, filename, knowledge_base_id}
 
     Raises:
         Exception: If processing fails at any stage
     """
+    # Ensure KB exists in memory
+    ensure_kb_exists(kb_id)
     try:
         # Stage 1: Decode file
         self.update_state(
@@ -228,9 +251,13 @@ def process_file_upload(
             }
         )
 
+        # Get KB-scoped storage
+        kb_documents = get_kb_documents(kb_id)
+        kb_metadata = get_kb_metadata(kb_id)
+
         # Add to vector store
         doc_id = vector_store.add_document(document_text)
-        documents[doc_id] = document_text
+        kb_documents[doc_id] = document_text
 
         # Create metadata
         meta = DocumentMetadata(
@@ -241,19 +268,21 @@ def process_file_upload(
             concepts=[Concept(**c) for c in extraction.get("concepts", [])],
             skill_level=extraction.get("skill_level", "unknown"),
             cluster_id=None,
+            knowledge_base_id=kb_id,
             ingested_at=datetime.utcnow().isoformat(),
             content_length=len(document_text)
         )
-        metadata[doc_id] = meta
+        kb_metadata[doc_id] = meta
 
         # Find or create cluster
         cluster_id = find_or_create_cluster_sync(
             doc_id=doc_id,
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
-            skill_level=meta.skill_level
+            skill_level=meta.skill_level,
+            kb_id=kb_id
         )
-        metadata[doc_id].cluster_id = cluster_id
+        kb_metadata[doc_id].cluster_id = cluster_id
 
         # Stage 5: Save to database
         self.update_state(
@@ -271,7 +300,7 @@ def process_file_upload(
 
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
-            f"(cluster: {cluster_id})"
+            f"to KB {kb_id} (cluster: {cluster_id})"
         )
 
         # Return success result
@@ -280,7 +309,8 @@ def process_file_upload(
             "cluster_id": cluster_id,
             "concepts": extraction.get("concepts", []),
             "filename": filename_safe,
-            "user_id": user_id
+            "user_id": user_id,
+            "knowledge_base_id": kb_id
         }
 
     except Exception as e:
@@ -303,7 +333,8 @@ def process_file_upload(
 def process_url_upload(
     self: Task,
     user_id: str,
-    url: str
+    url: str,
+    kb_id: str
 ) -> Dict:
     """
     Process URL/YouTube upload in background.
@@ -319,10 +350,13 @@ def process_url_upload(
         self: Celery task instance
         user_id: Username
         url: URL to ingest
+        kb_id: Knowledge base ID
 
     Returns:
-        dict: {doc_id, cluster_id, concepts, url}
+        dict: {doc_id, cluster_id, concepts, url, knowledge_base_id}
     """
+    # Ensure KB exists in memory
+    ensure_kb_exists(kb_id)
     try:
         # Stage 1: Download
         self.update_state(
@@ -368,9 +402,13 @@ def process_url_upload(
             }
         )
 
+        # Get KB-scoped storage
+        kb_documents = get_kb_documents(kb_id)
+        kb_metadata = get_kb_metadata(kb_id)
+
         # Add to vector store
         doc_id = vector_store.add_document(document_text)
-        documents[doc_id] = document_text
+        kb_documents[doc_id] = document_text
 
         # Create metadata
         meta = DocumentMetadata(
@@ -381,19 +419,21 @@ def process_url_upload(
             concepts=[Concept(**c) for c in extraction.get("concepts", [])],
             skill_level=extraction.get("skill_level", "unknown"),
             cluster_id=None,
+            knowledge_base_id=kb_id,
             ingested_at=datetime.utcnow().isoformat(),
             content_length=len(document_text)
         )
-        metadata[doc_id] = meta
+        kb_metadata[doc_id] = meta
 
         # Find or create cluster
         cluster_id = find_or_create_cluster_sync(
             doc_id=doc_id,
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
-            skill_level=meta.skill_level
+            skill_level=meta.skill_level,
+            kb_id=kb_id
         )
-        metadata[doc_id].cluster_id = cluster_id
+        kb_metadata[doc_id].cluster_id = cluster_id
 
         # Stage 4: Save
         self.update_state(
@@ -409,14 +449,15 @@ def process_url_upload(
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
-        logger.info(f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id}")
+        logger.info(f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id}")
 
         return {
             "doc_id": doc_id,
             "cluster_id": cluster_id,
             "concepts": extraction.get("concepts", []),
             "url": url_safe,
-            "user_id": user_id
+            "user_id": user_id,
+            "knowledge_base_id": kb_id
         }
 
     except Exception as e:
@@ -441,7 +482,8 @@ def process_image_upload(
     user_id: str,
     filename: str,
     content_base64: str,
-    description: Optional[str] = None
+    description: Optional[str] = None,
+    kb_id: str = None
 ) -> Dict:
     """
     Process image upload with OCR in background.
@@ -452,10 +494,14 @@ def process_image_upload(
         filename: Original filename
         content_base64: Base64-encoded image
         description: Optional description
+        kb_id: Knowledge base ID
 
     Returns:
-        dict: {doc_id, cluster_id, concepts, image_path, ocr_length}
+        dict: {doc_id, cluster_id, concepts, image_path, ocr_length, knowledge_base_id}
     """
+    # Ensure KB exists in memory
+    if kb_id:
+        ensure_kb_exists(kb_id)
     try:
         # Stage 1: Decode image
         self.update_state(
@@ -512,9 +558,19 @@ def process_image_upload(
             concept_extractor.extract(combined_text, "image")
         )
 
+        # Get KB-scoped storage (use default if kb_id not provided for backward compat)
+        if kb_id:
+            kb_documents = get_kb_documents(kb_id)
+            kb_metadata = get_kb_metadata(kb_id)
+        else:
+            # Fallback for backward compatibility
+            kb_documents = get_kb_documents("default")
+            kb_metadata = get_kb_metadata("default")
+            kb_id = "default"
+
         # Add to vector store
         doc_id = vector_store.add_document(combined_text)
-        documents[doc_id] = combined_text
+        kb_documents[doc_id] = combined_text
 
         # Store image file
         image_path = image_processor.store_image(image_bytes, doc_id, filename_safe)
@@ -529,10 +585,11 @@ def process_image_upload(
             concepts=[Concept(**c) for c in extraction.get("concepts", [])],
             skill_level=extraction.get("skill_level", "unknown"),
             cluster_id=None,
+            knowledge_base_id=kb_id,
             ingested_at=datetime.utcnow().isoformat(),
             content_length=len(combined_text)
         )
-        metadata[doc_id] = meta
+        kb_metadata[doc_id] = meta
 
         # Clustering
         self.update_state(
@@ -548,16 +605,17 @@ def process_image_upload(
             doc_id=doc_id,
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
-            skill_level=meta.skill_level
+            skill_level=meta.skill_level,
+            kb_id=kb_id
         )
-        metadata[doc_id].cluster_id = cluster_id
+        kb_metadata[doc_id].cluster_id = cluster_id
 
         # Save
         save_storage_to_db(documents, metadata, clusters, users)
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
-        logger.info(f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id}")
+        logger.info(f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id}")
 
         return {
             "doc_id": doc_id,
@@ -565,7 +623,8 @@ def process_image_upload(
             "concepts": extraction.get("concepts", []),
             "image_path": image_path,
             "ocr_text_length": len(ocr_text),
-            "user_id": user_id
+            "user_id": user_id,
+            "knowledge_base_id": kb_id
         }
 
     except Exception as e:

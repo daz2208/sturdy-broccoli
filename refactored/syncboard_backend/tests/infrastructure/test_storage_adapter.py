@@ -99,18 +99,23 @@ def test_load_storage_from_db_with_data(mock_context, mock_vector_store, test_db
 
     documents, metadata, clusters, users = load_storage_from_db(mock_vector_store)
 
-    assert len(documents) == 1
-    assert 0 in documents
-    assert documents[0] == "Test document content"
+    # Documents, metadata, clusters are now nested by kb_id
+    # Default kb_id is "default" when knowledge_base_id is NULL
+    assert len(documents) == 1  # 1 KB
+    assert "default" in documents
+    assert 0 in documents["default"]
+    assert documents["default"][0] == "Test document content"
 
-    assert len(metadata) == 1
-    assert 0 in metadata
-    assert metadata[0].owner == "testuser"
-    assert metadata[0].cluster_id == 0
+    assert len(metadata) == 1  # 1 KB
+    assert "default" in metadata
+    assert 0 in metadata["default"]
+    assert metadata["default"][0].owner == "testuser"
+    assert metadata["default"][0].cluster_id == 0
 
-    assert len(clusters) == 1
-    assert 0 in clusters
-    assert clusters[0].name == "Test Cluster"
+    assert len(clusters) == 1  # 1 KB
+    assert "default" in clusters
+    assert 0 in clusters["default"]
+    assert clusters["default"][0].name == "Test Cluster"
 
     assert len(users) == 1
     assert "testuser" in users
@@ -153,34 +158,42 @@ def test_save_storage_to_db_with_data(mock_context, test_db):
     mock_context.return_value.__enter__ = MagicMock(return_value=test_db)
     mock_context.return_value.__exit__ = MagicMock(return_value=False)
 
-    # Prepare data
-    documents = {0: "Test document content"}
+    # Prepare data with nested structure by kb_id
+    documents = {
+        "default": {
+            0: "Test document content"
+        }
+    }
 
     metadata = {
-        0: DocumentMetadata(
-            doc_id=0,
-            owner="testuser",
-            source_type="text",
-            source_url=None,
-            filename=None,
-            image_path=None,
-            concepts=[Concept(name="Test", category="test", confidence=0.9)],
-            skill_level="beginner",
-            cluster_id=0,
-            ingested_at="2024-01-01T00:00:00",
-            content_length=20
-        )
+        "default": {
+            0: DocumentMetadata(
+                doc_id=0,
+                owner="testuser",
+                source_type="text",
+                source_url=None,
+                filename=None,
+                image_path=None,
+                concepts=[Concept(name="Test", category="test", confidence=0.9)],
+                skill_level="beginner",
+                cluster_id=0,
+                ingested_at="2024-01-01T00:00:00",
+                content_length=20
+            )
+        }
     }
 
     clusters = {
-        0: Cluster(
-            id=0,
-            name="Test Cluster",
-            doc_ids=[0],
-            primary_concepts=["test"],
-            skill_level="beginner",
-            doc_count=1
-        )
+        "default": {
+            0: Cluster(
+                id=0,
+                name="Test Cluster",
+                doc_ids=[0],
+                primary_concepts=["test"],
+                skill_level="beginner",
+                doc_count=1
+            )
+        }
     }
 
     users = {"testuser": "hashed123"}
@@ -234,11 +247,20 @@ def test_save_storage_handles_errors(mock_context):
 @patch('backend.db_storage_adapter.get_db_context')
 def test_load_rebuilds_vector_store(mock_context, test_db):
     """Test loading from database rebuilds vector store properly."""
-    # Add vector documents
+    # Add vector documents and corresponding DBDocuments (required for them to appear in result)
+    user = DBUser(username="testuser", hashed_password="hash")
+    test_db.add(user)
+
     vdoc1 = DBVectorDocument(doc_id=0, content="First document")
     vdoc2 = DBVectorDocument(doc_id=1, content="Second document")
     test_db.add(vdoc1)
     test_db.add(vdoc2)
+
+    # Add DBDocuments to link vdocs to metadata
+    doc1 = DBDocument(doc_id=0, owner_username="testuser", source_type="text", content_length=14, skill_level="beginner")
+    doc2 = DBDocument(doc_id=1, owner_username="testuser", source_type="text", content_length=15, skill_level="beginner")
+    test_db.add(doc1)
+    test_db.add(doc2)
     test_db.commit()
 
     mock_context.return_value.__enter__ = MagicMock(return_value=test_db)
@@ -258,9 +280,12 @@ def test_load_rebuilds_vector_store(mock_context, test_db):
 
     documents, _, _, _ = load_storage_from_db(vector_store)
 
-    assert len(documents) == 2
-    assert 0 in documents
-    assert 1 in documents
+    # Documents are now nested by kb_id
+    total_docs = sum(len(kb_docs) for kb_docs in documents.values())
+    assert total_docs == 2
+    assert "default" in documents
+    assert 0 in documents["default"]
+    assert 1 in documents["default"]
 
 
 # =============================================================================
@@ -270,6 +295,10 @@ def test_load_rebuilds_vector_store(mock_context, test_db):
 @patch('backend.db_storage_adapter.get_db_context')
 def test_concepts_are_loaded_correctly(mock_context, test_db):
     """Test that concepts are properly loaded from database."""
+    # Need a user for the document
+    user = DBUser(username="test", hashed_password="hash")
+    test_db.add(user)
+
     vdoc = DBVectorDocument(doc_id=0, content="Test")
     test_db.add(vdoc)
 
@@ -298,7 +327,10 @@ def test_concepts_are_loaded_correctly(mock_context, test_db):
 
     _, metadata, _, _ = load_storage_from_db(vs)
 
-    assert len(metadata[0].concepts) == 2
-    concept_names = [c.name for c in metadata[0].concepts]
+    # Metadata is now nested by kb_id
+    assert "default" in metadata
+    assert 0 in metadata["default"]
+    assert len(metadata["default"][0].concepts) == 2
+    concept_names = [c.name for c in metadata["default"][0].concepts]
     assert "Concept1" in concept_names
     assert "Concept2" in concept_names

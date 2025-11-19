@@ -221,7 +221,8 @@ async def upload_text_content(
 async def upload_url(
     doc: DocumentUpload,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Upload document via URL (YouTube, web article, etc) - Background processing with Celery.
@@ -232,6 +233,7 @@ async def upload_url(
         doc: Document upload request with URL
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
+        db: Database session
 
     Returns:
         Job ID for polling status
@@ -240,13 +242,17 @@ async def upload_url(
         {
             "job_id": "abc123-def456",
             "message": "URL queued for processing",
-            "url": "https://example.com"
+            "url": "https://example.com",
+            "knowledge_base_id": "uuid"
         }
 
     Poll /jobs/{job_id}/status for progress and results.
     """
     # Validate URL to prevent SSRF attacks
     url = validate_url(str(doc.url))
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
 
     # Rate limit: Check concurrent job count
     user_job_count = get_user_job_count(current_user.username)
@@ -256,10 +262,11 @@ async def upload_url(
             detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
 
-    # Queue Celery task
+    # Queue Celery task with kb_id
     task = process_url_upload.delay(
         user_id=current_user.username,
-        url=url
+        url=url,
+        kb_id=kb_id
     )
 
     # Increment job count
@@ -267,13 +274,14 @@ async def upload_url(
 
     logger.info(
         f"[{request.state.request_id}] User {current_user.username} queued URL upload: "
-        f"{url} (job_id: {task.id})"
+        f"{url} to KB {kb_id} (job_id: {task.id})"
     )
 
     return {
         "job_id": task.id,
         "message": "URL queued for processing",
-        "url": url
+        "url": url,
+        "knowledge_base_id": kb_id
     }
 
 # =============================================================================
@@ -285,7 +293,8 @@ async def upload_url(
 async def upload_file(
     req: FileBytesUpload,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Upload file (PDF, audio, etc) as base64 - Background processing with Celery.
@@ -296,6 +305,7 @@ async def upload_file(
         req: File upload request
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
+        db: Database session
 
     Returns:
         Job ID for polling status
@@ -304,13 +314,17 @@ async def upload_file(
         {
             "job_id": "abc123-def456",
             "message": "File queued for processing",
-            "filename": "document.pdf"
+            "filename": "document.pdf",
+            "knowledge_base_id": "uuid"
         }
 
     Poll /jobs/{job_id}/status for progress and results.
     """
     # Sanitize filename to prevent path traversal attacks
     filename = sanitize_filename(req.filename)
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
 
     try:
         # Validate base64 and file size early
@@ -334,11 +348,12 @@ async def upload_file(
             detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
 
-    # Queue Celery task
+    # Queue Celery task with kb_id
     task = process_file_upload.delay(
         user_id=current_user.username,
         filename=filename,
-        content_base64=req.content  # Pass original base64 to avoid re-encoding
+        content_base64=req.content,  # Pass original base64 to avoid re-encoding
+        kb_id=kb_id
     )
 
     # Increment job count
@@ -346,13 +361,14 @@ async def upload_file(
 
     logger.info(
         f"[{request.state.request_id}] User {current_user.username} queued file upload: "
-        f"{filename} (job_id: {task.id})"
+        f"{filename} to KB {kb_id} (job_id: {task.id})"
     )
 
     return {
         "job_id": task.id,
         "message": "File queued for processing",
-        "filename": filename
+        "filename": filename,
+        "knowledge_base_id": kb_id
     }
 
 # =============================================================================
@@ -364,7 +380,8 @@ async def upload_file(
 async def upload_image(
     req: ImageUpload,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Upload and process image with OCR - Background processing with Celery.
@@ -375,6 +392,7 @@ async def upload_image(
         req: Image upload request
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
+        db: Database session
 
     Returns:
         Job ID for polling status
@@ -383,7 +401,8 @@ async def upload_image(
         {
             "job_id": "abc123-def456",
             "message": "Image queued for OCR processing",
-            "filename": "screenshot.png"
+            "filename": "screenshot.png",
+            "knowledge_base_id": "uuid"
         }
 
     Poll /jobs/{job_id}/status for progress and results.
@@ -393,6 +412,9 @@ async def upload_image(
 
     # Sanitize optional description
     description = sanitize_description(req.description) if req.description else None
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
 
     try:
         # Validate base64 and file size early
@@ -416,12 +438,13 @@ async def upload_image(
             detail="Too many background jobs in progress. Please wait for current uploads to complete."
         )
 
-    # Queue Celery task
+    # Queue Celery task with kb_id
     task = process_image_upload.delay(
         user_id=current_user.username,
         filename=filename,
         content_base64=req.content,
-        description=description
+        description=description,
+        kb_id=kb_id
     )
 
     # Increment job count
