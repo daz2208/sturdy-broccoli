@@ -83,9 +83,13 @@ def reload_cache_from_database():
         docs, meta, clusts, usrs = load_storage_from_db(dependencies.vector_store)
 
         # FIX: Reset _next_id to prevent doc_id collisions
-        # Find the max doc_id and set _next_id to max + 1
-        if docs:
-            max_doc_id = max(docs.keys())
+        # Find the max doc_id across all KBs and set _next_id to max + 1
+        all_doc_ids = []
+        for kb_docs in docs.values():
+            all_doc_ids.extend(kb_docs.keys())
+
+        if all_doc_ids:
+            max_doc_id = max(all_doc_ids)
             dependencies.vector_store._next_id = max_doc_id + 1
         else:
             dependencies.vector_store._next_id = 0
@@ -100,7 +104,9 @@ def reload_cache_from_database():
         dependencies.users.clear()
         dependencies.users.update(usrs)
 
-        logger.info(f"Cache reloaded: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users, next_id={dependencies.vector_store._next_id}")
+        total_docs = sum(len(d) for d in docs.values())
+        total_clusters = sum(len(c) for c in clusts.values())
+        logger.info(f"Cache reloaded: {total_docs} documents in {len(docs)} KBs, {total_clusters} clusters, {len(usrs)} users, next_id={dependencies.vector_store._next_id}")
     except Exception as e:
         logger.error(f"Failed to reload cache: {e}")
 
