@@ -49,6 +49,8 @@ from .storage import load_storage
 from .auth import hash_password
 from .constants import DEFAULT_STORAGE_PATH
 from .security_middleware import SecurityHeadersMiddleware, HTTPSRedirectMiddleware, get_environment
+from .redis_client import redis_client
+import threading
 
 # =============================================================================
 # Configuration
@@ -61,6 +63,66 @@ TESTING = os.environ.get('TESTING') == 'true'
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Cache Reload Subscriber (Redis Pub/Sub)
+# =============================================================================
+
+def reload_cache_from_database():
+    """Reload in-memory cache from database."""
+    try:
+        logger.info("Reloading cache from database...")
+
+        # Clear vector store first
+        dependencies.vector_store.docs.clear()
+        dependencies.vector_store.doc_ids.clear()
+        dependencies.vector_store.vectorizer = None
+        dependencies.vector_store.doc_matrix = None
+
+        # Load from database
+        docs, meta, clusts, usrs = load_storage_from_db(dependencies.vector_store)
+
+        # FIX: Reset _next_id to prevent doc_id collisions
+        # Find the max doc_id and set _next_id to max + 1
+        if docs:
+            max_doc_id = max(docs.keys())
+            dependencies.vector_store._next_id = max_doc_id + 1
+        else:
+            dependencies.vector_store._next_id = 0
+
+        # Update global state
+        dependencies.documents.clear()
+        dependencies.documents.update(docs)
+        dependencies.metadata.clear()
+        dependencies.metadata.update(meta)
+        dependencies.clusters.clear()
+        dependencies.clusters.update(clusts)
+        dependencies.users.clear()
+        dependencies.users.update(usrs)
+
+        logger.info(f"Cache reloaded: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users, next_id={dependencies.vector_store._next_id}")
+    except Exception as e:
+        logger.error(f"Failed to reload cache: {e}")
+
+
+def listen_for_data_changes():
+    """Background thread that listens for data change notifications via Redis pub/sub."""
+    if not redis_client:
+        logger.warning("Redis not available, cache auto-reload disabled")
+        return
+
+    try:
+        pubsub = redis_client.pubsub()
+        pubsub.subscribe("syncboard:data_changed")
+        logger.info("✅ Subscribed to data change notifications")
+
+        for message in pubsub.listen():
+            if message['type'] == 'message':
+                logger.debug("Received data_changed notification, reloading cache...")
+                reload_cache_from_database()
+    except Exception as e:
+        logger.error(f"Data change listener error: {e}")
+
 
 # =============================================================================
 # Lifespan Event Handler
@@ -113,6 +175,11 @@ async def lifespan(app: FastAPI):
             logger.info("Created default test user in database")
         except Exception as e:
             logger.warning(f"Database save failed: {e}")
+
+    # Start background listener for data changes
+    listener_thread = threading.Thread(target=listen_for_data_changes, daemon=True)
+    listener_thread.start()
+    logger.info("Started data change listener thread")
 
     yield  # Application runs here
 

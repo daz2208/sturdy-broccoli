@@ -363,6 +363,25 @@ def decrement_user_job_count(user_id: str) -> int:
 
 
 # =============================================================================
+# Data Change Notifications (Pub/Sub)
+# =============================================================================
+
+def notify_data_changed():
+    """
+    Notify that data has changed (for cache invalidation).
+    Publishes to Redis pub/sub channel so backend can reload from database.
+    """
+    if not redis_client:
+        return
+
+    try:
+        redis_client.publish("syncboard:data_changed", "reload")
+        logger.debug("Published data_changed notification")
+    except RedisError as e:
+        logger.warning(f"Failed to publish data_changed notification: {e}")
+
+
+# =============================================================================
 # Export
 # =============================================================================
 
@@ -384,4 +403,5 @@ __all__ = [
     "increment_user_job_count",
     "get_user_job_count",
     "decrement_user_job_count",
+    "notify_data_changed",
 ]

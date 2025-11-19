@@ -28,6 +28,23 @@ services:
     networks:
       - syncboard-network
 
+  # Redis cache and message broker
+  redis:
+    image: redis:7-alpine
+    container_name: syncboard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - syncboard-network
+
   # Backend API
   backend:
     build:
@@ -38,15 +55,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       # Database connection
       DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
 
+      # Redis connection
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
       # Security
       SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
 
       # OpenAI API
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
 
       # CORS
       SYNCBOARD_ALLOWED_ORIGINS: ${SYNCBOARD_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
@@ -73,9 +99,89 @@ services:
       retries: 3
       start_period: 40s
 
+  # Celery worker for background tasks
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database connection
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+
+      # Redis connection
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # Security
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+
+      # OpenAI API
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+    volumes:
+      # Mount storage directories
+      - ./storage:/app/storage
+      - ./images:/app/images
+
+      # Development: Mount code for hot reload
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
+  # Celery worker 2 (additional worker for parallel processing)
+  celery-worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-2
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database connection
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+
+      # Redis connection
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # Security
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+
+      # OpenAI API
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+    volumes:
+      # Mount storage directories
+      - ./storage:/app/storage
+      - ./images:/app/images
+
+      # Development: Mount code for hot reload
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
 # Named volumes for data persistence
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
 
 # Network for service communication

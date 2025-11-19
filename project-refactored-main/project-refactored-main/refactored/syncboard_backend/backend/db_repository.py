@@ -52,7 +52,7 @@ class DatabaseKnowledgeBankRepository:
         try:
             vector_docs = self.db.query(DBVectorDocument).all()
             for vdoc in vector_docs:
-                self.vector_store.add_document(vdoc.content)
+                self.vector_store.add_document(vdoc.content, doc_id=vdoc.doc_id)
             logger.info(f"Loaded {len(vector_docs)} documents into vector store")
         except Exception as e:
             logger.error(f"Failed to load vector store: {e}")

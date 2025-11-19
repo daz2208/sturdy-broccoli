@@ -45,19 +45,8 @@ def load_storage_from_db(
             vector_docs = db.query(DBVectorDocument).order_by(DBVectorDocument.doc_id).all()
 
             for vdoc in vector_docs:
-                # Add to vector store - returns auto-incremented ID
-                vs_doc_id = vector_store.add_document(vdoc.content)
-
-                # CRITICAL: Verify vector store ID matches database ID
-                # If mismatch, vector store queries will fail!
-                if vs_doc_id != vdoc.doc_id:
-                    logger.warning(
-                        f"Vector store ID mismatch: DB has {vdoc.doc_id}, "
-                        f"vector store assigned {vs_doc_id}. "
-                        f"This will cause search failures!"
-                    )
-
-                # Use database doc_id for consistency
+                # Add to vector store using the persisted document ID
+                vector_store.add_document(vdoc.content, doc_id=vdoc.doc_id)
                 documents[vdoc.doc_id] = vdoc.content
 
             # Load document metadata

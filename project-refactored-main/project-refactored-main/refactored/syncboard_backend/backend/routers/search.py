@@ -177,14 +177,10 @@ async def search_full_content(
     for doc_id, score, snippet in search_results:
         meta = metadata[doc_id]
         cluster = clusters.get(meta.cluster_id) if meta.cluster_id else None
-        
+
         # Return full content or snippet based on parameter
-        if full_content:
-            content = documents[doc_id]
-        else:
-            # Return 500 char snippet for performance
-            doc_text = documents[doc_id]
-            content = doc_text[:SNIPPET_LENGTH] + ("..." if len(doc_text) > SNIPPET_LENGTH else "")
+        # Always return full content for now (snippets can be confusing)
+        content = documents[doc_id]
         
         results.append({
             "doc_id": doc_id,

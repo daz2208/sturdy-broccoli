@@ -4,6 +4,16 @@ const API_BASE = window.location.origin.includes('localhost') || window.location
     : (window.location.origin || 'http://localhost:8000');
 let token = null;
 
+function toggleLogoutButton(show) {
+    const button = document.getElementById('logoutButton');
+    if (!button) return;
+    if (show) {
+        button.classList.remove('hidden');
+    } else {
+        button.classList.add('hidden');
+    }
+}
+
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -63,6 +73,7 @@ async function login(event) {
             localStorage.setItem('token', token);
             document.getElementById('authSection').classList.add('hidden');
             document.getElementById('mainContent').classList.remove('hidden');
+            toggleLogoutButton(true);
             showToast('Logged in successfully');
             loadClusters();
         } else {
@@ -101,6 +112,20 @@ async function register(event) {
     } finally {
         if (button) setButtonLoading(button, false, 'Register');
     }
+}
+
+function logout() {
+    token = null;
+    localStorage.removeItem('token');
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('authSection').classList.remove('hidden');
+    toggleLogoutButton(false);
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('uploadForms').innerHTML = '';
+    document.getElementById('resultsArea').innerHTML = '';
+    document.getElementById('clustersList').innerHTML = '';
+    showToast('Logged out');
 }
 
 // =============================================================================
@@ -483,9 +508,10 @@ async function searchKnowledge() {
     // Build query with optional filters
     const params = new URLSearchParams({
         q: query,
-        top_k: '20',
-        full_content: 'true'
+        top_k: '20'
     });
+    // Add full_content as true (not string 'true')
+    params.append('full_content', true);
 
     // Add optional filters if they exist in the UI
     const sourceTypeFilter = document.getElementById('filterSourceType')?.value;
@@ -563,7 +589,7 @@ function displaySearchResults(results, searchQuery = '') {
                         `<span class="concept-tag">${c.name}</span>`
                     ).join('')}
                 </div>
-                <details style="margin-top: 10px;">
+                <details open style="margin-top: 10px;">
                     <summary>View Full Content (${r.content.length} chars)</summary>
                     <pre>${highlightSearchTerms(escapeHtml(r.content), searchQuery)}</pre>
                 </details>
@@ -1076,6 +1102,7 @@ if (savedToken) {
     token = savedToken;
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('mainContent').classList.remove('hidden');
+    toggleLogoutButton(true);
     loadClusters();
 }
 
@@ -1094,7 +1121,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // Analytics Dashboard (Phase 7.1)
 // =============================================================================
 
-let analyticsCharts = {};
+const analyticsCharts = {
+    timeSeries: null,
+    cluster: null,
+    skillLevel: null,
+    sourceType: null
+};
 
 // Tab switching
 function showTab(tabName) {
@@ -1164,6 +1196,47 @@ async function loadAnalytics() {
     }
 }
 
+function resetAnalyticsCanvas(canvasId) {
+    const oldCanvas = document.getElementById(canvasId);
+    if (!oldCanvas || !oldCanvas.parentNode) {
+        return oldCanvas || null;
+    }
+    const newCanvas = oldCanvas.cloneNode(true);
+    oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+    return newCanvas;
+}
+
+function showChartPlaceholder(canvasId, message) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !canvas.parentElement) {
+        return;
+    }
+    let placeholder = canvas.parentElement.querySelector(`.chart-placeholder[data-for="${canvasId}"]`);
+    if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.className = 'chart-placeholder';
+        placeholder.dataset.for = canvasId;
+        canvas.parentElement.appendChild(placeholder);
+    }
+    placeholder.textContent = message;
+    placeholder.classList.remove('hidden');
+    canvas.classList.add('hidden');
+}
+
+function hideChartPlaceholder(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        return;
+    }
+    const placeholder = canvas.parentElement
+        ? canvas.parentElement.querySelector(`.chart-placeholder[data-for="${canvasId}"]`)
+        : null;
+    if (placeholder) {
+        placeholder.classList.add('hidden');
+    }
+    canvas.classList.remove('hidden');
+}
+
 // Render overview statistics
 function renderOverviewStats(overview) {
     const container = document.getElementById('overviewStats');
@@ -1197,176 +1270,228 @@ function renderOverviewStats(overview) {
 
 // Render time series chart
 function renderTimeSeriesChart(timeSeriesData) {
-    const ctx = document.getElementById('timeSeriesChart');
+    if (!timeSeriesData || !timeSeriesData.labels || timeSeriesData.labels.length === 0) {
+        showChartPlaceholder('timeSeriesChart', 'No document activity yet.');
+        return;
+    }
+    hideChartPlaceholder('timeSeriesChart');
 
     // Destroy existing chart if it exists
     if (analyticsCharts.timeSeries) {
         analyticsCharts.timeSeries.destroy();
     }
 
-    analyticsCharts.timeSeries = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: timeSeriesData.labels,
-            datasets: [{
-                label: 'Documents Added',
-                data: timeSeriesData.data,
-                borderColor: '#00d4ff',
-                backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: '#e0e0e0'
+    const canvas = resetAnalyticsCanvas('timeSeriesChart');
+    if (!canvas) {
+        return;
+    }
+
+    try {
+        analyticsCharts.timeSeries = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: timeSeriesData.labels,
+                datasets: [{
+                    label: 'Documents Added',
+                    data: timeSeriesData.data,
+                    borderColor: '#00d4ff',
+                    backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e0e0e0'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#333' }
+                    },
+                    y: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#333' },
+                        beginAtZero: true
                     }
                 }
-            },
-            scales: {
-                x: {
-                    ticks: { color: '#888' },
-                    grid: { color: '#333' }
-                },
-                y: {
-                    ticks: { color: '#888' },
-                    grid: { color: '#333' },
-                    beginAtZero: true
-                }
             }
-        }
-    });
+        });
+        canvas.style.height = '300px';
+    } catch (error) {
+        console.error('Time series chart error:', error);
+        showChartPlaceholder('timeSeriesChart', 'Unable to render document growth chart.');
+    }
 
-    // Set canvas height
-    ctx.style.height = '300px';
 }
 
 // Render cluster distribution chart
 function renderClusterChart(clusterData) {
-    const ctx = document.getElementById('clusterChart');
+    if (!clusterData || !clusterData.labels || clusterData.labels.length === 0) {
+        showChartPlaceholder('clusterChart', 'No clusters available yet.');
+        return;
+    }
+    hideChartPlaceholder('clusterChart');
 
     if (analyticsCharts.cluster) {
         analyticsCharts.cluster.destroy();
     }
 
-    analyticsCharts.cluster = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: clusterData.labels,
-            datasets: [{
-                label: 'Documents',
-                data: clusterData.data,
-                backgroundColor: '#00d4ff',
-                borderColor: '#00a8cc',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: { color: '#e0e0e0' }
-                }
+    const canvas = resetAnalyticsCanvas('clusterChart');
+    if (!canvas) {
+        return;
+    }
+
+    try {
+        analyticsCharts.cluster = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: clusterData.labels,
+                datasets: [{
+                    label: 'Documents',
+                    data: clusterData.data,
+                    backgroundColor: '#00d4ff',
+                    borderColor: '#00a8cc',
+                    borderWidth: 1
+                }]
             },
-            scales: {
-                x: {
-                    ticks: { color: '#888' },
-                    grid: { color: '#333' }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#e0e0e0' }
+                    }
                 },
-                y: {
-                    ticks: { color: '#888' },
-                    grid: { color: '#333' },
-                    beginAtZero: true
+                scales: {
+                    x: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#333' }
+                    },
+                    y: {
+                        ticks: { color: '#888' },
+                        grid: { color: '#333' },
+                        beginAtZero: true
+                    }
                 }
             }
-        }
-    });
-
-    ctx.style.height = '250px';
+        });
+        canvas.style.height = '250px';
+    } catch (error) {
+        console.error('Cluster chart error:', error);
+        showChartPlaceholder('clusterChart', 'Unable to render cluster distribution chart.');
+    }
 }
 
 // Render skill level distribution chart
 function renderSkillLevelChart(skillLevelData) {
-    const ctx = document.getElementById('skillLevelChart');
+    if (!skillLevelData || !skillLevelData.labels || skillLevelData.labels.length === 0) {
+        showChartPlaceholder('skillLevelChart', 'Skill data will appear after onboarding documents.');
+        return;
+    }
+    hideChartPlaceholder('skillLevelChart');
 
     if (analyticsCharts.skillLevel) {
         analyticsCharts.skillLevel.destroy();
     }
 
-    analyticsCharts.skillLevel = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: skillLevelData.labels,
-            datasets: [{
-                data: skillLevelData.data,
-                backgroundColor: [
-                    '#00d4ff',
-                    '#4ade80',
-                    '#f59e0b',
-                    '#ef4444'
-                ],
-                borderWidth: 2,
-                borderColor: '#1a1a1a'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#e0e0e0' }
+    const canvas = resetAnalyticsCanvas('skillLevelChart');
+    if (!canvas) {
+        return;
+    }
+
+    try {
+        analyticsCharts.skillLevel = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: skillLevelData.labels,
+                datasets: [{
+                    data: skillLevelData.data,
+                    backgroundColor: [
+                        '#00d4ff',
+                        '#4ade80',
+                        '#f59e0b',
+                        '#ef4444'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#1a1a1a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#e0e0e0' }
+                    }
                 }
             }
-        }
-    });
-
-    ctx.style.height = '250px';
+        });
+        canvas.style.height = '250px';
+    } catch (error) {
+        console.error('Skill level chart error:', error);
+        showChartPlaceholder('skillLevelChart', 'Unable to render skill distribution chart.');
+    }
 }
 
 // Render source type distribution chart
 function renderSourceTypeChart(sourceTypeData) {
-    const ctx = document.getElementById('sourceTypeChart');
+    if (!sourceTypeData || !sourceTypeData.labels || sourceTypeData.labels.length === 0) {
+        showChartPlaceholder('sourceTypeChart', 'Upload content to see source distribution.');
+        return;
+    }
+    hideChartPlaceholder('sourceTypeChart');
 
     if (analyticsCharts.sourceType) {
         analyticsCharts.sourceType.destroy();
     }
 
-    analyticsCharts.sourceType = new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: sourceTypeData.labels,
-            datasets: [{
-                data: sourceTypeData.data,
-                backgroundColor: [
-                    '#00d4ff',
-                    '#4ade80',
-                    '#f59e0b',
-                    '#ef4444',
-                    '#8b5cf6'
-                ],
-                borderWidth: 2,
-                borderColor: '#1a1a1a'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#e0e0e0' }
+    const canvas = resetAnalyticsCanvas('sourceTypeChart');
+    if (!canvas) {
+        return;
+    }
+
+    try {
+        analyticsCharts.sourceType = new Chart(canvas, {
+            type: 'pie',
+            data: {
+                labels: sourceTypeData.labels,
+                datasets: [{
+                    data: sourceTypeData.data,
+                    backgroundColor: [
+                        '#00d4ff',
+                        '#4ade80',
+                        '#f59e0b',
+                        '#ef4444',
+                        '#8b5cf6'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#1a1a1a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#e0e0e0' }
+                    }
                 }
             }
-        }
-    });
-
-    ctx.style.height = '250px';
+        });
+        canvas.style.height = '250px';
+    } catch (error) {
+        console.error('Source type chart error:', error);
+        showChartPlaceholder('sourceTypeChart', 'Unable to render source distribution chart.');
+    }
 }
 
 // Render top concepts list

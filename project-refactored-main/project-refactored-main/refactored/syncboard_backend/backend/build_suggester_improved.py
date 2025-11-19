@@ -202,7 +202,7 @@ class ImprovedBuildSuggester:
 
                 # Get concept details
                 concept_list = ", ".join([
-                    f"{c.name} ({c.relevance:.2f})"
+                    f"{c.name} ({c.confidence:.2f})"
                     for c in meta.concepts[:5]
                 ])
 

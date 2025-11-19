@@ -27,6 +27,13 @@
             margin-bottom: 30px;
         }
         
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        
         h1 {
             color: #00d4ff;
             font-size: 2rem;
@@ -273,6 +280,12 @@
             background: #2a2a2a;
             padding: 20px;
             border-radius: 8px;
+            position: relative;
+        }
+
+        .chart-container canvas {
+            max-height: 250px;
+            height: 250px !important;
         }
 
         .chart-container h3 {
@@ -284,7 +297,21 @@
         .chart-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 15px;
+        }
+
+        /* Make analytics more compact */
+        .analytics-charts {
+            gap: 15px !important;
+        }
+
+        .chart-container {
+            padding: 15px !important;
+        }
+
+        .chart-container h3 {
+            font-size: 1rem !important;
+            margin-bottom: 10px !important;
         }
 
         .concepts-list {
@@ -327,6 +354,20 @@
             color: #00d4ff;
             font-size: 1.1rem;
             margin-bottom: 15px;
+        }
+
+        .chart-placeholder {
+            color: #888;
+            text-align: center;
+            padding: 30px 10px;
+            font-size: 0.95rem;
+        }
+
+        #analyticsContent {
+            /* Removed inner scroll box - let it flow naturally */
+            /* max-height: 80vh; */
+            /* overflow-y: auto; */
+            /* padding-right: 10px; */
         }
 
         .activity-list {
@@ -491,8 +532,13 @@
 <body>
     <header>
         <div class="container">
-            <h1>💡 Knowledge Bank</h1>
-            <p>Ingest → Organize → Build</p>
+            <div class="header-bar">
+                <div>
+                    <h1>💡 Knowledge Bank</h1>
+                    <p>Ingest → Organize → Build</p>
+                </div>
+                <button id="logoutButton" class="secondary hidden" onclick="logout()">Logout</button>
+            </div>
         </div>
     </header>
     
@@ -574,8 +620,11 @@
                             </div>
                         </div>
 
-                        <input type="text" id="searchQuery" placeholder="Search your knowledge...">
-                        <button onclick="searchKnowledge()">Search</button>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="searchQuery" placeholder="Search your knowledge..." style="flex: 1;">
+                            <button onclick="searchKnowledge()">Search</button>
+                            <button onclick="saveCurrentSearch()" style="background: #555;">💾 Save Search</button>
+                        </div>
 
                         <!-- AI Generation Panel (hidden by default) -->
                         <div id="aiGeneratorPanel" class="hidden" style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-top: 20px;">

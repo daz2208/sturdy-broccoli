@@ -113,13 +113,26 @@ class OpenAIProvider(LLMProvider):
         max_tokens: int
     ) -> str:
         """Call OpenAI API with retry logic."""
-        response = await self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_completion_tokens=max_tokens
-        )
-        return response.choices[0].message.content
+        # GPT-5 models use fixed sampling and different parameters
+        # - No temperature support (uses fixed sampling)
+        # - Use max_completion_tokens instead of max_tokens
+        params = {
+            "model": model,
+            "messages": messages
+        }
+
+        if model.startswith("gpt-5"):
+            # GPT-5 models use max_completion_tokens and no temperature
+            params["max_completion_tokens"] = max_tokens
+        else:
+            # GPT-4 and earlier use max_tokens and temperature
+            params["max_tokens"] = max_tokens
+            params["temperature"] = temperature
+
+        response = await self.client.chat.completions.create(**params)
+        content = response.choices[0].message.content
+        logger.info(f"API response - finish_reason: {response.choices[0].finish_reason}, content length: {len(content) if content else 0}")
+        return content or ""  # Return empty string if None
 
     async def extract_concepts(
         self,
@@ -158,16 +171,18 @@ Extract 3-10 concepts. Be specific. Use lowercase for names."""
                 ],
                 model=self.concept_model,
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=1500
             )
 
             # Parse JSON response
+            logger.debug(f"OpenAI raw response: {response[:200]}")  # Log first 200 chars
             result = json.loads(response)
             logger.debug(f"Extracted {len(result.get('concepts', []))} concepts")
             return result
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from OpenAI: {e}")
+            logger.error(f"Raw response was: {response[:500]}")
             return {
                 "concepts": [],
                 "skill_level": "unknown",
@@ -309,7 +324,7 @@ IMPORTANT:
                 ],
                 model=self.suggestion_model,
                 temperature=0.7,
-                max_tokens=2500
+                max_tokens=4500
             )
 
             suggestions = json.loads(response)

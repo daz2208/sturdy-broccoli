@@ -34,6 +34,10 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     logger.warning("OPENAI_API_KEY not set - YouTube transcription will fail")
 
+TRANSCRIPTION_MODEL = os.environ.get("TRANSCRIPTION_MODEL", "gpt-4o-mini-transcribe")
+CHUNK_DURATION_SECONDS = int(os.environ.get("TRANSCRIPTION_CHUNK_DURATION_SECONDS", "300"))
+CHUNK_DURATION_THRESHOLD_SECONDS = int(os.environ.get("TRANSCRIPTION_CHUNK_THRESHOLD_SECONDS", "600"))
+
 # Whisper API file size limit
 WHISPER_MAX_SIZE_MB = 25
 WHISPER_MAX_SIZE_BYTES = WHISPER_MAX_SIZE_MB * 1024 * 1024
@@ -114,7 +118,7 @@ def compress_audio_for_whisper(input_path: Path, output_path: Path) -> None:
         raise Exception(f"Audio compression failed: {e.stderr}")
 
 
-def chunk_audio_file(audio_path: Path, chunk_duration_seconds: int = 600) -> list[Path]:
+def chunk_audio_file(audio_path: Path, chunk_duration_seconds: int = CHUNK_DURATION_SECONDS) -> list[Path]:
     """
     Split audio file into chunks for very long videos.
     
@@ -142,7 +146,7 @@ def chunk_audio_file(audio_path: Path, chunk_duration_seconds: int = 600) -> lis
         ], check=True, capture_output=True, text=True)
         
         # Find all created chunks
-        chunks = sorted(audio_path.parent.glob(f"{audio_path.stem}_chunk_*.{audio_path.suffix}"))
+        chunks = sorted(audio_path.parent.glob(f"{audio_path.stem}_chunk_*{audio_path.suffix}"))
         logger.info(f"Split audio into {len(chunks)} chunks")
         return chunks
         
@@ -236,9 +240,22 @@ def transcribe_youtube(url: str) -> str:
                 f"Even after compression ({final_size/(1024*1024):.2f}MB), "
                 f"file exceeds limit. Splitting into chunks..."
             )
-            chunks = chunk_audio_file(transcription_path)
+            chunks = chunk_audio_file(
+                transcription_path, chunk_duration_seconds=CHUNK_DURATION_SECONDS
+            )
             return transcribe_audio_chunks(chunks, title, channel, duration, url)
-        
+
+        if duration and duration >= CHUNK_DURATION_THRESHOLD_SECONDS:
+            logger.info(
+                "Video duration exceeds chunk threshold. Splitting into %s-second segments..."
+                % CHUNK_DURATION_SECONDS
+            )
+            chunks = chunk_audio_file(
+                transcription_path, chunk_duration_seconds=CHUNK_DURATION_SECONDS
+            )
+            return transcribe_audio_chunks(chunks, title, channel, duration, url)
+
+
         # Transcribe with Whisper (single file)
         try:
             client = OpenAI(api_key=OPENAI_API_KEY)
@@ -246,7 +263,7 @@ def transcribe_youtube(url: str) -> str:
             logger.info(f"Sending to Whisper API ({final_size/(1024*1024):.2f}MB)...")
             with open(transcription_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=TRANSCRIPTION_MODEL,
                     file=audio_file,
                     response_format="text"
                 )
@@ -297,7 +314,7 @@ def transcribe_audio_chunks(chunks: list[Path], title: str, channel: str,
             
             with open(chunk_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=TRANSCRIPTION_MODEL,
                     file=audio_file,
                     response_format="text"
                 )
@@ -372,6 +389,7 @@ def transcribe_tiktok(url: str) -> str:
                 info = ydl.extract_info(url, download=True)
                 title = info.get('title', 'TikTok Video')
                 creator = info.get('creator', 'Unknown')
+                duration = info.get('duration', 0)
                 
             original_size = audio_path.stat().st_size
             logger.info(f"Downloaded TikTok: {title} ({original_size/(1024*1024):.2f}MB)")
@@ -387,13 +405,34 @@ def transcribe_tiktok(url: str) -> str:
         else:
             transcription_path = audio_path
         
+        final_size = transcription_path.stat().st_size
+        if final_size > WHISPER_MAX_SIZE_BYTES:
+            logger.warning(
+                f"Even after compression ({final_size/(1024*1024):.2f}MB), "
+                f"file exceeds limit. Splitting into chunks..."
+            )
+            chunks = chunk_audio_file(
+                transcription_path, chunk_duration_seconds=CHUNK_DURATION_SECONDS
+            )
+            return transcribe_audio_chunks(chunks, title, creator, duration or 0, url)
+
+        if duration and duration >= CHUNK_DURATION_THRESHOLD_SECONDS:
+            logger.info(
+                "TikTok duration exceeds chunk threshold. Splitting into %s-second segments..."
+                % CHUNK_DURATION_SECONDS
+            )
+            chunks = chunk_audio_file(
+                transcription_path, chunk_duration_seconds=CHUNK_DURATION_SECONDS
+            )
+            return transcribe_audio_chunks(chunks, title, creator, duration, url)
+
         # Transcribe
         try:
             client = OpenAI(api_key=OPENAI_API_KEY)
             
             with open(transcription_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=TRANSCRIPTION_MODEL,
                     file=audio_file,
                     response_format="text"
                 )
@@ -702,7 +741,7 @@ def transcribe_audio_file(content_bytes: bytes, filename: str) -> str:
             
             with open(transcription_path, 'rb') as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=TRANSCRIPTION_MODEL,
                     file=audio_file,
                     response_format="text"
                 )
@@ -1482,3 +1521,4 @@ def extract_subtitles(content_bytes: bytes, filename: str) -> str:
 
     except Exception as e:
         raise Exception(f"Subtitle extraction failed: {e}")
+

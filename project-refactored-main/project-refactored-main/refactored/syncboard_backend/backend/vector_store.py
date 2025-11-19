@@ -14,6 +14,7 @@ hash‑based embeddings by importing and using the previous version of
 this module.
 """
 
+from bisect import insort
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -45,6 +46,7 @@ class VectorStore:
         # insertion
         self.vectorizer: TfidfVectorizer | None = None
         self.doc_matrix = None  # type: ignore
+        self._next_id: int = 0
 
     def _rebuild_vectors(self) -> None:
         """(Re)fit the TF‑IDF vectoriser and document matrix.
@@ -65,43 +67,37 @@ class VectorStore:
             self.vectorizer = None
             self.doc_matrix = None
 
-    def add_document(self, text: str) -> int:
-        """Add a document to the vector store and rebuild vectors.
+    def _request_new_id(self) -> int:
+        """Return the next available document ID and advance the counter."""
+        doc_id = self._next_id
+        self._next_id += 1
+        return doc_id
 
-        Args:
-            text: Document text.
+    def _ensure_next_id(self, doc_id: int) -> None:
+        """Ensure the auto-increment counter will not collide with doc_id."""
+        if doc_id >= self._next_id:
+            self._next_id = doc_id + 1
 
-        Returns:
-            Assigned document ID.
-        """
-        doc_id = len(self.docs)
+    def add_document(self, text: str, doc_id: int | None = None) -> int:
+        """Add a document to the vector store and rebuild vectors."""
+        if doc_id is None:
+            doc_id = self._request_new_id()
+        else:
+            self._ensure_next_id(doc_id)
+
         self.docs[doc_id] = text
-        self.doc_ids.append(doc_id)
-        # Rebuild vectoriser and document matrix
+
+        if doc_id not in self.doc_ids:
+            insort(self.doc_ids, doc_id)
+
         self._rebuild_vectors()
         return doc_id
 
     def add_documents_batch(self, texts: List[str]) -> List[int]:
-        """Add multiple documents in batch and rebuild vectors once.
-
-        This is much more efficient than calling add_document() multiple
-        times, as it rebuilds the TF-IDF matrix only once at the end.
-
-        Args:
-            texts: List of document texts.
-
-        Returns:
-            List of assigned document IDs.
-        """
+        """Add multiple documents in batch and rebuild vectors once."""
         doc_ids = []
         for text in texts:
-            doc_id = len(self.docs)
-            self.docs[doc_id] = text
-            self.doc_ids.append(doc_id)
-            doc_ids.append(doc_id)
-
-        # Single rebuild for all documents
-        self._rebuild_vectors()
+            doc_ids.append(self.add_document(text))
         return doc_ids
 
     def remove_document(self, doc_id: int) -> None:

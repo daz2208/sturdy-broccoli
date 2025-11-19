@@ -67,16 +67,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # This is a restrictive policy - adjust based on your needs
         csp_policy = (
             "default-src 'self'; "  # Only load resources from same origin
-            "script-src 'self' 'unsafe-inline'; "  # Allow inline scripts (needed for some frameworks)
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "  # Allow inline scripts + Chart.js CDN
             "style-src 'self' 'unsafe-inline'; "  # Allow inline styles
             "img-src 'self' data: https:; "  # Allow images from same origin, data URIs, and HTTPS
             "font-src 'self' data:; "  # Allow fonts from same origin and data URIs
             "connect-src 'self'; "  # Allow AJAX requests to same origin
             "frame-ancestors 'none'; "  # Prevent embedding in iframes (same as X-Frame-Options)
             "base-uri 'self'; "  # Restrict <base> tag URLs
-            "form-action 'self'; "  # Restrict form submission targets
-            "upgrade-insecure-requests"  # Upgrade HTTP to HTTPS automatically
+            "form-action 'self'"  # Restrict form submission targets
         )
+        # Only upgrade to HTTPS in production
+        if self.is_production:
+            csp_policy += "; upgrade-insecure-requests"
         response.headers["Content-Security-Policy"] = csp_policy
         
         # Referrer-Policy: Control referrer information

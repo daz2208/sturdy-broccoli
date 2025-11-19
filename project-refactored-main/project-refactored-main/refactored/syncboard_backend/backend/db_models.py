@@ -22,7 +22,9 @@ class DBUser(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
-    documents = relationship("DBDocument", back_populates="owner_user", cascade="all, delete-orphan")
+    # CASCADE FIX: Removed delete-orphan to prevent automatic document deletion
+    # Documents are managed via foreign key (document.owner_username), not collection
+    documents = relationship("DBDocument", back_populates="owner_user")
 
     def __repr__(self):
         return f"<DBUser(id={self.id}, username='{self.username}')>"
@@ -40,7 +42,9 @@ class DBCluster(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    documents = relationship("DBDocument", back_populates="cluster", cascade="all, delete-orphan")
+    # CASCADE FIX: Removed delete-orphan to prevent automatic document deletion
+    # Documents are managed via foreign key (document.cluster_id), not collection
+    documents = relationship("DBDocument", back_populates="cluster")
 
     # Indexes
     __table_args__ = (

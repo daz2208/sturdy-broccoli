@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Optional
 from celery import Task
+from celery.signals import worker_process_init
 
 from .celery_app import celery_app
 from .models import DocumentMetadata, Concept
@@ -33,7 +34,8 @@ from .dependencies import (
 from .sanitization import sanitize_filename, sanitize_text_content, validate_url
 from .constants import MAX_UPLOAD_SIZE_BYTES
 from . import ingest
-from .db_storage_adapter import save_storage_to_db
+from .db_storage_adapter import save_storage_to_db, load_storage_from_db
+from .redis_client import notify_data_changed
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -41,6 +43,37 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def reload_cache_from_db():
+    """Reload in-memory cache from database after Celery task updates."""
+    try:
+        # Clear vector store first to prevent ID mismatch
+        vector_store.docs.clear()
+        vector_store.doc_ids.clear()
+        vector_store.vectorizer = None
+        vector_store.doc_matrix = None
+
+        docs, meta, clusts, usrs = load_storage_from_db(vector_store)
+
+        # FIX: Reset _next_id to prevent doc_id collisions
+        # Find the max doc_id and set _next_id to max + 1
+        if docs:
+            max_doc_id = max(docs.keys())
+            vector_store._next_id = max_doc_id + 1
+        else:
+            vector_store._next_id = 0
+
+        documents.clear()
+        documents.update(docs)
+        metadata.clear()
+        metadata.update(meta)
+        clusters.clear()
+        clusters.update(clusts)
+        users.clear()
+        users.update(usrs)
+        logger.debug(f"Cache reloaded: {len(docs)} documents, {len(clusts)} clusters, next_id={vector_store._next_id}")
+    except Exception as e:
+        logger.error(f"Failed to reload cache from database: {e}")
 
 def find_or_create_cluster_sync(
     doc_id: int,
@@ -81,6 +114,20 @@ def find_or_create_cluster_sync(
     )
 
     return cluster_id
+
+
+# =============================================================================
+# Worker Initialization Hook
+# =============================================================================
+
+@worker_process_init.connect
+def initialize_worker_state(**kwargs):
+    """
+    Ensure each Celery worker process loads the latest documents, metadata,
+    and clusters before handling uploads so IDs stay in sync with the DB.
+    """
+    logger.info("Initializing Celery worker cache from database")
+    reload_cache_from_db()
 
 
 # =============================================================================
@@ -219,6 +266,8 @@ def process_file_upload(
         )
 
         save_storage_to_db(documents, metadata, clusters, users)
+        reload_cache_from_db()
+        notify_data_changed()  # Notify backend to reload
 
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
@@ -357,6 +406,8 @@ def process_url_upload(
         )
 
         save_storage_to_db(documents, metadata, clusters, users)
+        reload_cache_from_db()
+        notify_data_changed()  # Notify backend to reload
 
         logger.info(f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id}")
 
@@ -503,6 +554,8 @@ def process_image_upload(
 
         # Save
         save_storage_to_db(documents, metadata, clusters, users)
+        reload_cache_from_db()
+        notify_data_changed()  # Notify backend to reload
 
         logger.info(f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id}")
 
@@ -901,6 +954,8 @@ def import_github_files_task(
         # Save to database
         try:
             save_storage_to_db(documents, metadata, clusters, users)
+            reload_cache_from_db()
+            notify_data_changed()  # Notify backend to reload
             logger.info(f"GitHub import: Saved {files_processed} files to database")
         except Exception as e:
             logger.error(f"Failed to save GitHub import to database: {e}")
