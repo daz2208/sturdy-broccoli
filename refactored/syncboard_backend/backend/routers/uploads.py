@@ -36,7 +36,14 @@ from ..dependencies import (
     get_concept_extractor,
     get_clustering_engine,
     get_image_processor,
+    get_kb_documents,
+    get_kb_metadata,
+    get_kb_clusters,
+    get_user_default_kb_id,
+    ensure_kb_exists,
 )
+from ..database import get_db
+from sqlalchemy.orm import Session
 from ..sanitization import (
     sanitize_filename,
     sanitize_text_content,
@@ -69,35 +76,39 @@ router = APIRouter(
 async def find_or_create_cluster(
     doc_id: int,
     suggested_cluster: str,
-    concepts: List[Dict]
+    concepts: List[Dict],
+    kb_id: str
 ) -> int:
-    """Find best cluster or create new one."""
-    metadata = get_metadata()
-    clusters = get_clusters()
+    """Find best cluster or create new one for a knowledge base."""
+    kb_metadata = get_kb_metadata(kb_id)
+    kb_clusters = get_kb_clusters(kb_id)
     clustering_engine = get_clustering_engine()
-    
-    meta = metadata[doc_id]
-    
-    # Try to find existing cluster
+
+    meta = kb_metadata[doc_id]
+
+    # Try to find existing cluster in this KB
     cluster_id = clustering_engine.find_best_cluster(
         doc_concepts=concepts,
         suggested_name=suggested_cluster,
-        existing_clusters=clusters
+        existing_clusters=kb_clusters
     )
-    
+
     if cluster_id is not None:
-        clustering_engine.add_to_cluster(cluster_id, doc_id, clusters)
+        clustering_engine.add_to_cluster(cluster_id, doc_id, kb_clusters)
         return cluster_id
-    
-    # Create new cluster
+
+    # Create new cluster in this KB
     cluster_id = clustering_engine.create_cluster(
         doc_id=doc_id,
         name=suggested_cluster,
         concepts=concepts,
         skill_level=meta.skill_level,
-        existing_clusters=clusters
+        existing_clusters=kb_clusters
     )
-    
+
+    # Set knowledge_base_id on the cluster
+    kb_clusters[cluster_id].knowledge_base_id = kb_id
+
     return cluster_id
 
 # =============================================================================
@@ -109,24 +120,34 @@ async def find_or_create_cluster(
 async def upload_text_content(
     req: TextUpload,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Upload plain text content.
-    
+
     Rate limited to 10 uploads per minute.
-    
+
     Args:
         req: Text upload request
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+        db: Database session
+
     Returns:
         Document ID, cluster ID, and extracted concepts
     """
     # Sanitize text content to prevent XSS and resource exhaustion
     content = sanitize_text_content(req.content)
-    
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+    ensure_kb_exists(kb_id)
+
+    # Get KB-scoped storage
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+    kb_clusters = get_kb_clusters(kb_id)
     documents = get_documents()
     metadata = get_metadata()
     clusters = get_clusters()
@@ -134,15 +155,17 @@ async def upload_text_content(
     vector_store = get_vector_store()
     storage_lock = get_storage_lock()
     concept_extractor = get_concept_extractor()
-    
+
     async with storage_lock:
         # Extract concepts
         extraction = await concept_extractor.extract(content, "text")
-        
+
         # Add to vector store
         doc_id = vector_store.add_document(content)
-        documents[doc_id] = content
-        
+
+        # Add to KB-scoped storage
+        kb_documents[doc_id] = content
+
         # Create metadata
         meta = DocumentMetadata(
             doc_id=doc_id,
@@ -151,31 +174,41 @@ async def upload_text_content(
             concepts=[Concept(**c) for c in extraction.get("concepts", [])],
             skill_level=extraction.get("skill_level", "unknown"),
             cluster_id=None,
+            knowledge_base_id=kb_id,
             ingested_at=datetime.utcnow().isoformat(),
             content_length=len(content)
         )
-        metadata[doc_id] = meta
-        
+        kb_metadata[doc_id] = meta
+
         # Find or create cluster
         cluster_id = await find_or_create_cluster(
             doc_id=doc_id,
             suggested_cluster=extraction.get("suggested_cluster", "General"),
-            concepts=extraction.get("concepts", [])
+            concepts=extraction.get("concepts", []),
+            kb_id=kb_id
         )
-        metadata[doc_id].cluster_id = cluster_id
-        
+        kb_metadata[doc_id].cluster_id = cluster_id
+
         # Save
         save_storage_to_db(documents, metadata, clusters, users)
-        
+
+        # Update document count in KB
+        from ..db_models import DBKnowledgeBase
+        kb = db.query(DBKnowledgeBase).filter_by(id=kb_id).first()
+        if kb:
+            kb.document_count = len(kb_documents)
+            db.commit()
+
         # Structured logging with request context
         logger.info(
             f"[{request.state.request_id}] User {current_user.username} uploaded text as doc {doc_id} "
-            f"(cluster: {cluster_id}, concepts: {len(extraction.get('concepts', []))})"
+            f"to KB {kb_id} (cluster: {cluster_id}, concepts: {len(extraction.get('concepts', []))})"
         )
-        
+
         return {
             "document_id": doc_id,
             "cluster_id": cluster_id,
+            "knowledge_base_id": kb_id,
             "concepts": extraction.get("concepts", [])
         }
 

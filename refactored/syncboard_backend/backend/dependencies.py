@@ -182,3 +182,62 @@ def ensure_kb_exists(kb_id: str) -> None:
         metadata[kb_id] = {}
     if kb_id not in clusters:
         clusters[kb_id] = {}
+
+
+# =============================================================================
+# Database-dependent helpers (imported when needed)
+# =============================================================================
+
+def get_user_default_kb_id(username: str, db) -> str:
+    """Get user's default knowledge base ID from database.
+
+    Args:
+        username: The username
+        db: Database session
+
+    Returns:
+        KB ID string, or creates default KB if none exists
+    """
+    from .db_models import DBKnowledgeBase
+    import uuid
+    from datetime import datetime
+
+    # Find user's default KB
+    default_kb = db.query(DBKnowledgeBase).filter(
+        DBKnowledgeBase.owner_username == username,
+        DBKnowledgeBase.is_default == True
+    ).first()
+
+    if default_kb:
+        return default_kb.id
+
+    # No default KB - check if user has any KBs
+    any_kb = db.query(DBKnowledgeBase).filter(
+        DBKnowledgeBase.owner_username == username
+    ).first()
+
+    if any_kb:
+        # Make the first one default
+        any_kb.is_default = True
+        db.commit()
+        return any_kb.id
+
+    # Create default KB for user
+    kb_id = str(uuid.uuid4())
+    new_kb = DBKnowledgeBase(
+        id=kb_id,
+        name="Main Knowledge Base",
+        description="Default knowledge base for all your documents",
+        owner_username=username,
+        is_default=True,
+        document_count=0,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    db.add(new_kb)
+    db.commit()
+
+    # Ensure in-memory structure exists
+    ensure_kb_exists(kb_id)
+
+    return kb_id
