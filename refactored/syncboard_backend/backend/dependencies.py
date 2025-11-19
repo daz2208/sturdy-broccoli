@@ -35,13 +35,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # Global State
 # =============================================================================
 
-# Vector store for semantic search
+# Vector store for semantic search (shared across all KBs, filtered by allowed_doc_ids)
 vector_store = VectorStore(dim=int(os.environ.get('SYNCBOARD_VECTOR_DIM', str(DEFAULT_VECTOR_DIM))))
 
-# Document storage (in-memory)
-documents: Dict[int, str] = {}
-metadata: Dict[int, DocumentMetadata] = {}
-clusters: Dict[int, Cluster] = {}
+# Document storage (in-memory) - nested by knowledge_base_id
+# Structure: {kb_id: {doc_id: content/metadata/cluster}}
+documents: Dict[str, Dict[int, str]] = {}
+metadata: Dict[str, Dict[int, DocumentMetadata]] = {}
+clusters: Dict[str, Dict[int, Cluster]] = {}
 users: Dict[str, str] = {}  # username -> hashed_password
 
 # Storage lock for thread safety
@@ -105,16 +106,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
 # State Access Functions
 # =============================================================================
 
-def get_documents() -> Dict[int, str]:
-    """Get documents dictionary."""
+def get_documents() -> Dict[str, Dict[int, str]]:
+    """Get all documents dictionary (nested by kb_id)."""
     return documents
 
-def get_metadata() -> Dict[int, DocumentMetadata]:
-    """Get metadata dictionary."""
+def get_metadata() -> Dict[str, Dict[int, DocumentMetadata]]:
+    """Get all metadata dictionary (nested by kb_id)."""
     return metadata
 
-def get_clusters() -> Dict[int, Cluster]:
-    """Get clusters dictionary."""
+def get_clusters() -> Dict[str, Dict[int, Cluster]]:
+    """Get all clusters dictionary (nested by kb_id)."""
     return clusters
 
 def get_users() -> Dict[str, str]:
@@ -144,3 +145,40 @@ def get_image_processor() -> ImageProcessor:
 def get_build_suggester() -> ImprovedBuildSuggester:
     """Get improved build suggester instance."""
     return build_suggester
+
+# =============================================================================
+# Knowledge Base Scoped Access Functions
+# =============================================================================
+
+def get_kb_documents(kb_id: str) -> Dict[int, str]:
+    """Get documents for a specific knowledge base."""
+    if kb_id not in documents:
+        documents[kb_id] = {}
+    return documents[kb_id]
+
+def get_kb_metadata(kb_id: str) -> Dict[int, DocumentMetadata]:
+    """Get metadata for a specific knowledge base."""
+    if kb_id not in metadata:
+        metadata[kb_id] = {}
+    return metadata[kb_id]
+
+def get_kb_clusters(kb_id: str) -> Dict[int, Cluster]:
+    """Get clusters for a specific knowledge base."""
+    if kb_id not in clusters:
+        clusters[kb_id] = {}
+    return clusters[kb_id]
+
+def get_kb_doc_ids(kb_id: str) -> list:
+    """Get list of document IDs in a knowledge base (for vector store filtering)."""
+    if kb_id not in documents:
+        return []
+    return list(documents[kb_id].keys())
+
+def ensure_kb_exists(kb_id: str) -> None:
+    """Ensure knowledge base exists in all dictionaries."""
+    if kb_id not in documents:
+        documents[kb_id] = {}
+    if kb_id not in metadata:
+        metadata[kb_id] = {}
+    if kb_id not in clusters:
+        clusters[kb_id] = {}

@@ -38,7 +38,7 @@ from slowapi.errors import RateLimitExceeded
 from .routers import (
     auth, uploads, search, clusters, documents, build_suggestions,
     analytics, ai_generation, duplicates, tags, saved_searches, relationships, jobs,
-    integrations
+    integrations, knowledge_bases
 )
 
 # Import dependencies and shared state
@@ -304,6 +304,9 @@ app.include_router(jobs.router)
 
 # Phase 5: Cloud service integrations endpoints
 app.include_router(integrations.router)
+
+# Phase 8: Multi-knowledge base support
+app.include_router(knowledge_bases.router)
 
 # =============================================================================
 # Health Check Endpoint

@@ -139,6 +139,7 @@ class DocumentMetadata(BaseModel):
     concepts: List[Concept] = []
     skill_level: str  # "beginner", "intermediate", "advanced", "unknown"
     cluster_id: Optional[int] = None
+    knowledge_base_id: Optional[str] = None  # UUID of knowledge base
     ingested_at: str  # ISO timestamp
     content_length: Optional[int] = None  # Set after calculating content length
     image_path: Optional[str] = None  # For images
@@ -151,6 +152,7 @@ class Cluster(BaseModel):
     primary_concepts: List[str]
     doc_ids: List[int]
     skill_level: str
+    knowledge_base_id: Optional[str] = None  # UUID of knowledge base
     doc_count: Optional[int] = None  # Computed from len(doc_ids) if not provided
 
     def __init__(self, **data):
@@ -388,3 +390,81 @@ class OAuthCallbackParams(BaseModel):
     state: str
     error: Optional[str] = None
     error_description: Optional[str] = None
+
+
+# =============================================================================
+# Knowledge Base Models (Phase 8)
+# =============================================================================
+
+class KnowledgeBaseCreate(BaseModel):
+    """Request to create a new knowledge base."""
+    name: str = Field(..., min_length=1, max_length=255, description="Name of the knowledge base")
+    description: Optional[str] = Field(None, description="Description of the knowledge base")
+    is_default: bool = Field(False, description="Set as default knowledge base")
+
+
+class KnowledgeBaseUpdate(BaseModel):
+    """Request to update a knowledge base."""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+class KnowledgeBase(BaseModel):
+    """Knowledge base response model."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    description: Optional[str]
+    owner_username: str
+    is_default: bool
+    document_count: int
+    created_at: datetime
+    updated_at: datetime
+    last_accessed_at: Optional[datetime]
+
+
+class KnowledgeBaseList(BaseModel):
+    """List of knowledge bases."""
+    knowledge_bases: List[KnowledgeBase]
+    total: int
+
+
+class SavedBuildSuggestion(BaseModel):
+    """Saved build suggestion from database."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    knowledge_base_id: str
+    title: str
+    description: str
+    feasibility: str  # high, medium, low
+    effort_estimate: Optional[str]
+    required_skills: Optional[List[str]]
+    missing_knowledge: Optional[List[str]]
+    relevant_clusters: Optional[List[int]]
+    starter_steps: Optional[List[str]]
+    file_structure: Optional[str]
+    knowledge_coverage: Optional[str]  # high, medium, low
+    created_at: datetime
+    is_completed: bool
+    completed_at: Optional[datetime]
+    notes: Optional[str]
+
+
+class BuildSuggestionUpdate(BaseModel):
+    """Request to update a build suggestion (mark complete, add notes)."""
+    is_completed: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class BuildSuggestionGenerate(BaseModel):
+    """Request to generate new build suggestions."""
+    max_suggestions: int = Field(5, ge=1, le=10, description="Number of suggestions to generate")
+
+
+class BuildSuggestionList(BaseModel):
+    """List of build suggestions."""
+    suggestions: List[SavedBuildSuggestion]
+    total: int

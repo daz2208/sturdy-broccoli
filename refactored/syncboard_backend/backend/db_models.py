@@ -24,6 +24,7 @@ class DBUser(Base):
     # Relationships
     # Documents are cascade deleted when user is deleted
     documents = relationship("DBDocument", back_populates="owner_user", cascade="all, delete-orphan")
+    knowledge_bases = relationship("DBKnowledgeBase", back_populates="owner", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<DBUser(id={self.id}, username='{self.username}')>"
@@ -37,6 +38,7 @@ class DBCluster(Base):
     name = Column(String(255), nullable=False, index=True)
     primary_concepts = Column(JSON, nullable=False, default=list)  # List of concept names
     skill_level = Column(String(50), nullable=True)  # beginner, intermediate, advanced
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -44,10 +46,12 @@ class DBCluster(Base):
     # CASCADE FIX: Removed delete-orphan to prevent automatic document deletion
     # Documents are managed via foreign key (document.cluster_id), not collection
     documents = relationship("DBDocument", back_populates="cluster")
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="clusters")
 
     # Indexes
     __table_args__ = (
         Index('idx_cluster_skill_level', 'skill_level'),
+        Index('idx_cluster_kb', 'knowledge_base_id'),
     )
 
     def __repr__(self):
@@ -62,6 +66,7 @@ class DBDocument(Base):
     doc_id = Column(Integer, unique=True, nullable=False, index=True)  # Vector store ID
     owner_username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Source information
     source_type = Column(String(50), nullable=False, index=True)  # text, url, file, image
@@ -81,12 +86,14 @@ class DBDocument(Base):
     owner_user = relationship("DBUser", back_populates="documents")
     cluster = relationship("DBCluster", back_populates="documents")
     concepts = relationship("DBConcept", back_populates="document", cascade="all, delete-orphan")
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="documents")
 
     # Composite indexes for common queries
     __table_args__ = (
         Index('idx_doc_owner_cluster', 'owner_username', 'cluster_id'),
         Index('idx_doc_source_skill', 'source_type', 'skill_level'),
         Index('idx_doc_ingested', 'ingested_at'),
+        Index('idx_doc_kb', 'knowledge_base_id'),
     )
 
     def __repr__(self):
@@ -309,3 +316,78 @@ class DBIntegrationImport(Base):
 
     def __repr__(self):
         return f"<DBIntegrationImport(job='{self.job_id}', service='{self.service}', status='{self.status}')>"
+
+
+# =============================================================================
+# Phase 8: Multi-Knowledge Base Support
+# =============================================================================
+
+class DBKnowledgeBase(Base):
+    """Knowledge base for organizing documents into separate contexts."""
+    __tablename__ = "knowledge_bases"
+
+    id = Column(String(36), primary_key=True)  # UUID
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    owner_username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    is_default = Column(Boolean, default=False, nullable=False, index=True)
+
+    # Metadata
+    document_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_accessed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    owner = relationship("DBUser", back_populates="knowledge_bases")
+    documents = relationship("DBDocument", back_populates="knowledge_base", cascade="all, delete-orphan")
+    clusters = relationship("DBCluster", back_populates="knowledge_base", cascade="all, delete-orphan")
+    build_suggestions = relationship("DBBuildSuggestion", back_populates="knowledge_base", cascade="all, delete-orphan")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_kb_owner_name', 'owner_username', 'name'),
+    )
+
+    def __repr__(self):
+        return f"<DBKnowledgeBase(id='{self.id}', name='{self.name}', docs={self.document_count})>"
+
+
+class DBBuildSuggestion(Base):
+    """Saved build suggestions generated from knowledge base analysis."""
+    __tablename__ = "build_suggestions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Core suggestion data
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=False)
+    feasibility = Column(String(20), nullable=False)  # high, medium, low
+    effort_estimate = Column(String(100), nullable=True)
+
+    # JSON fields for complex data
+    required_skills = Column(JSON, nullable=True)  # ["skill1", "skill2"]
+    missing_knowledge = Column(JSON, nullable=True)  # ["gap1", "gap2"]
+    relevant_clusters = Column(JSON, nullable=True)  # [0, 1, 2]
+    starter_steps = Column(JSON, nullable=True)  # ["step1", "step2"]
+    file_structure = Column(Text, nullable=True)
+    knowledge_coverage = Column(String(20), nullable=True)  # high, medium, low
+
+    # Tracking
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    is_completed = Column(Boolean, default=False, nullable=False, index=True)
+    completed_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)  # User notes about the project
+
+    # Relationships
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="build_suggestions")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_suggestion_kb_created', 'knowledge_base_id', 'created_at'),
+        Index('idx_suggestion_feasibility', 'feasibility'),
+    )
+
+    def __repr__(self):
+        return f"<DBBuildSuggestion(id={self.id}, title='{self.title}', feasibility='{self.feasibility}')>"
