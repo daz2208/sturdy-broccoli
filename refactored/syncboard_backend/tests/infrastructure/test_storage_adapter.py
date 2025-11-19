@@ -38,7 +38,7 @@ def test_db():
 def mock_vector_store():
     """Create a mock vector store."""
     vs = MagicMock(spec=VectorStore)
-    vs.add_document = MagicMock(side_effect=lambda x: len(vs.add_document.call_args_list) - 1)
+    vs.add_document = MagicMock(side_effect=lambda content, doc_id=None: doc_id if doc_id is not None else len(vs.add_document.call_args_list) - 1)
     return vs
 
 
@@ -247,7 +247,9 @@ def test_load_rebuilds_vector_store(mock_context, test_db):
     vector_store = MagicMock(spec=VectorStore)
     call_count = [0]
 
-    def mock_add(content):
+    def mock_add(content, doc_id=None):
+        if doc_id is not None:
+            return doc_id
         result = call_count[0]
         call_count[0] += 1
         return result

@@ -53,41 +53,30 @@ async def get_job_status(
         current_user: Authenticated user
 
     Returns:
-        Task status dict with state, meta, and result
+        Flat task status dict with status and relevant fields
 
     Example Response (PROCESSING):
         {
             "job_id": "abc123",
-            "state": "PROCESSING",
-            "meta": {
-                "stage": "ai_analysis",
-                "message": "Running AI concept extraction...",
-                "percent": 50
-            },
-            "result": null
+            "status": "PROCESSING",
+            "progress": 50,
+            "current_step": "Extracting text from PDF"
         }
 
     Example Response (SUCCESS):
         {
             "job_id": "abc123",
-            "state": "SUCCESS",
-            "meta": {},
-            "result": {
-                "doc_id": 42,
-                "cluster_id": 5,
-                "concepts": [...]
-            }
+            "status": "SUCCESS",
+            "document_id": 42,
+            "cluster_id": 5,
+            "concepts": [...]
         }
 
     Example Response (FAILURE):
         {
             "job_id": "abc123",
-            "state": "FAILURE",
-            "meta": {
-                "error": "File too large",
-                "message": "Failed to process file: File too large"
-            },
-            "result": null
+            "status": "FAILURE",
+            "error": "Failed to download URL: 404 Not Found"
         }
     """
     try:
@@ -104,71 +93,68 @@ async def get_job_status(
                     detail="Access denied: This job belongs to another user"
                 )
 
-        # Build response based on task state
+        # Build flat response based on task state
         response = {
             "job_id": job_id,
-            "state": task.state,
-            "meta": {},
-            "result": None
+            "status": task.state
         }
 
         if task.state == "PENDING":
             # Task hasn't started yet
-            response["meta"] = {
-                "message": "Task is waiting in queue...",
-                "percent": 0
-            }
+            response["progress"] = 0
+            response["message"] = "Task is waiting in queue..."
 
         elif task.state == "PROCESSING":
             # Task is running - return progress metadata
-            response["meta"] = task.info or {
-                "message": "Processing...",
-                "percent": 50
-            }
+            if task.info and isinstance(task.info, dict):
+                response["progress"] = task.info.get("progress", 50)
+                if "current_step" in task.info:
+                    response["current_step"] = task.info["current_step"]
+                if "message" in task.info:
+                    response["message"] = task.info["message"]
+            else:
+                response["progress"] = 50
+                response["message"] = "Processing..."
 
         elif task.state == "SUCCESS":
-            # Task completed successfully
-            response["result"] = task.result
-            response["meta"] = {
-                "message": "Task completed successfully",
-                "percent": 100
-            }
+            # Task completed successfully - flatten result into response
+            response["progress"] = 100
+            if task.result and isinstance(task.result, dict):
+                # Copy result fields directly to response
+                for key, value in task.result.items():
+                    if key != "user_id":  # Don't expose user_id
+                        response[key] = value
 
         elif task.state == "FAILURE":
             # Task failed - return error info
-            response["meta"] = task.info or {
-                "error": "Unknown error",
-                "message": "Task failed"
-            }
-            # Don't expose full exception traceback to client
             if isinstance(task.info, dict):
-                response["meta"]["error"] = task.info.get("error", "Unknown error")
+                response["error"] = task.info.get("error", "Unknown error")
+            elif task.info:
+                response["error"] = str(task.info)
             else:
-                response["meta"]["error"] = str(task.info)
+                response["error"] = "Unknown error"
 
         elif task.state == "RETRY":
             # Task is being retried
-            response["meta"] = {
-                "message": "Task failed, retrying...",
-                "percent": 25
-            }
+            response["progress"] = 25
+            response["message"] = "Task failed, retrying..."
+            if task.info and isinstance(task.info, dict):
+                if "retry_count" in task.info:
+                    response["retry_count"] = task.info["retry_count"]
 
         elif task.state == "REVOKED":
             # Task was cancelled
-            response["meta"] = {
-                "message": "Task was cancelled",
-                "percent": 0
-            }
+            response["progress"] = 0
+            response["message"] = "Task was cancelled"
 
         else:
             # Unknown state
-            response["meta"] = {
-                "message": f"Task state: {task.state}",
-                "percent": 0
-            }
+            response["message"] = f"Task state: {task.state}"
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting job status for {job_id}: {e}", exc_info=True)
         raise HTTPException(

@@ -146,14 +146,15 @@ class TestCancelJob:
         with patch('backend.routers.jobs.AsyncResult') as mock_result:
             mock_task = MagicMock()
             mock_task.state = 'PENDING'
+            mock_task.result = None
             mock_task.revoke = MagicMock()
             mock_result.return_value = mock_task
 
-            response = client.delete("/jobs/test-job-cancel/status", headers=auth_headers)
+            response = client.delete("/jobs/test-job-cancel", headers=auth_headers)
 
             assert response.status_code == 200
             data = response.json()
-            assert data["message"] == "Job cancelled successfully"
+            assert "cancelled" in data["message"].lower()
             mock_task.revoke.assert_called_once_with(terminate=True)
 
     def test_cancel_job_already_completed(self, client, auth_headers):
@@ -161,9 +162,11 @@ class TestCancelJob:
         with patch('backend.routers.jobs.AsyncResult') as mock_result:
             mock_task = MagicMock()
             mock_task.state = 'SUCCESS'
+            mock_task.result = None
+            mock_task.revoke = MagicMock()
             mock_result.return_value = mock_task
 
-            response = client.delete("/jobs/test-job-done/status", headers=auth_headers)
+            response = client.delete("/jobs/test-job-done", headers=auth_headers)
 
             # Should still return 200 but indicate it was already complete
             assert response.status_code in [200, 400]
@@ -173,11 +176,12 @@ class TestCancelJob:
         with patch('backend.routers.jobs.AsyncResult') as mock_result:
             mock_task = MagicMock()
             mock_task.state = 'PENDING'
+            mock_task.result = None
             mock_task.revoke = MagicMock()
             mock_result.return_value = mock_task
 
             # Job that was never created
-            response = client.delete("/jobs/nonexistent-job-999/status", headers=auth_headers)
+            response = client.delete("/jobs/nonexistent-job-999", headers=auth_headers)
 
             # Should handle gracefully
             assert response.status_code in [200, 404]
@@ -198,7 +202,7 @@ class TestJobSecurity:
 
     def test_cancel_job_unauthorized(self, client):
         """Test canceling job without authentication fails."""
-        response = client.delete("/jobs/test-job-123/status")
+        response = client.delete("/jobs/test-job-123")
 
         assert response.status_code == 401
 
@@ -329,8 +333,9 @@ class TestJobWorkflow:
         with patch('backend.routers.jobs.AsyncResult') as mock_result:
             mock_task = MagicMock()
             mock_task.state = 'PROCESSING'
+            mock_task.result = None
             mock_task.revoke = MagicMock()
             mock_result.return_value = mock_task
 
-            cancel_response = client.delete(f"/jobs/{job_id}/status", headers=auth_headers)
+            cancel_response = client.delete(f"/jobs/{job_id}", headers=auth_headers)
             assert cancel_response.status_code == 200

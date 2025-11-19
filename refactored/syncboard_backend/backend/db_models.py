@@ -22,9 +22,8 @@ class DBUser(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
-    # CASCADE FIX: Removed delete-orphan to prevent automatic document deletion
-    # Documents are managed via foreign key (document.owner_username), not collection
-    documents = relationship("DBDocument", back_populates="owner_user")
+    # Documents are cascade deleted when user is deleted
+    documents = relationship("DBDocument", back_populates="owner_user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<DBUser(id={self.id}, username='{self.username}')>"
@@ -61,8 +60,8 @@ class DBDocument(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     doc_id = Column(Integer, unique=True, nullable=False, index=True)  # Vector store ID
-    owner_username = Column(String(50), ForeignKey("users.username"), nullable=False, index=True)
-    cluster_id = Column(Integer, ForeignKey("clusters.id"), nullable=True, index=True)
+    owner_username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Source information
     source_type = Column(String(50), nullable=False, index=True)  # text, url, file, image
