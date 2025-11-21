@@ -669,7 +669,22 @@ async function searchKnowledge() {
         return;
     }
 
-    // Build query with optional filters
+    // Check search mode
+    const searchMode = document.getElementById('searchMode')?.value || 'standard';
+
+    if (searchMode === 'summary') {
+        // Use summary search
+        const summaryLevel = document.getElementById('summaryLevel')?.value || 'all';
+        try {
+            const results = await performSummarySearch(query, summaryLevel, 20);
+            displaySummarySearchResults(results);
+        } catch (e) {
+            showToast('Summary search failed', 'error');
+        }
+        return;
+    }
+
+    // Standard search - Build query with optional filters
     const params = new URLSearchParams({
         q: query,
         top_k: '20'
@@ -1922,15 +1937,17 @@ function getTimeAgo(date) {
 // Switch between advanced feature sub-tabs
 function showAdvancedFeature(featureName) {
     // Update sub-tab buttons
-    const subTabs = ['duplicatesSubTab', 'tagsSubTab', 'savedSearchesSubTab', 'relationshipsSubTab'];
+    const subTabs = ['duplicatesSubTab', 'tagsSubTab', 'savedSearchesSubTab', 'relationshipsSubTab', 'knowledgeGraphSubTab'];
     subTabs.forEach(tabId => {
-        document.getElementById(tabId).classList.remove('active');
+        const el = document.getElementById(tabId);
+        if (el) el.classList.remove('active');
     });
 
     // Hide all feature sections
-    const sections = ['duplicatesFeature', 'tagsFeature', 'savedSearchesFeature', 'relationshipsFeature'];
+    const sections = ['duplicatesFeature', 'tagsFeature', 'savedSearchesFeature', 'relationshipsFeature', 'knowledgeGraphFeature'];
     sections.forEach(sectionId => {
-        document.getElementById(sectionId).classList.add('hidden');
+        const el = document.getElementById(sectionId);
+        if (el) el.classList.add('hidden');
     });
 
     // Show selected feature
@@ -1948,6 +1965,10 @@ function showAdvancedFeature(featureName) {
     } else if (featureName === 'relationships') {
         document.getElementById('relationshipsSubTab').classList.add('active');
         document.getElementById('relationshipsFeature').classList.remove('hidden');
+    } else if (featureName === 'knowledgeGraph') {
+        document.getElementById('knowledgeGraphSubTab').classList.add('active');
+        document.getElementById('knowledgeGraphFeature').classList.remove('hidden');
+        loadGraphStats();
     }
 }
 
@@ -3603,4 +3624,402 @@ function formatDate(dateString) {
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     return date.toLocaleDateString();
+}
+
+// =============================================================================
+// KNOWLEDGE GRAPH (Phase 7.6)
+// =============================================================================
+
+/**
+ * Load knowledge graph statistics.
+ */
+async function loadGraphStats() {
+    try {
+        const response = await fetch(`${API_BASE}/knowledge-graph/stats`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load graph stats');
+        }
+
+        const stats = await response.json();
+
+        // Update stat cards
+        document.getElementById('graphDocCount').textContent = stats.document_count || 0;
+        document.getElementById('graphRelCount').textContent = stats.relationship_count || 0;
+        document.getElementById('graphConceptCount').textContent = stats.unique_concepts || 0;
+        document.getElementById('graphTechCount').textContent = stats.unique_technologies || 0;
+
+        // Load concept and tech clouds
+        await Promise.all([loadConceptCloud(), loadTechCloud()]);
+
+    } catch (e) {
+        console.error('Error loading graph stats:', e);
+        showToast('Failed to load graph stats', 'error');
+    }
+}
+
+/**
+ * Build/rebuild the knowledge graph.
+ */
+async function buildKnowledgeGraph() {
+    try {
+        showToast('Building knowledge graph...', 'info');
+
+        const response = await fetch(`${API_BASE}/knowledge-graph/build`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to build graph');
+        }
+
+        const result = await response.json();
+        showToast(`Graph built: ${result.document_count} docs, ${result.relationship_count} relationships`, 'success');
+
+        // Reload stats
+        await loadGraphStats();
+
+    } catch (e) {
+        console.error('Error building graph:', e);
+        showToast('Failed to build knowledge graph', 'error');
+    }
+}
+
+/**
+ * Load concept cloud.
+ */
+async function loadConceptCloud() {
+    try {
+        const response = await fetch(`${API_BASE}/knowledge-graph/concepts?limit=30`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) return;
+
+        const concepts = await response.json();
+        const container = document.getElementById('conceptCloud');
+
+        if (!concepts || concepts.length === 0) {
+            container.innerHTML = '<span style="color: #666;">No concepts found. Upload some documents first.</span>';
+            return;
+        }
+
+        // Calculate font sizes based on count
+        const maxCount = Math.max(...concepts.map(c => c.count));
+        const minCount = Math.min(...concepts.map(c => c.count));
+
+        container.innerHTML = concepts.map(c => {
+            const size = minCount === maxCount ? 1 : 0.8 + ((c.count - minCount) / (maxCount - minCount)) * 0.8;
+            return `<span class="concept-tag" style="font-size: ${size}rem; cursor: pointer;"
+                          onclick="searchByConcept('${c.concept}')"
+                          title="${c.count} documents">${c.concept}</span>`;
+        }).join('');
+
+    } catch (e) {
+        console.error('Error loading concept cloud:', e);
+    }
+}
+
+/**
+ * Load technology cloud.
+ */
+async function loadTechCloud() {
+    try {
+        const response = await fetch(`${API_BASE}/knowledge-graph/technologies?limit=30`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) return;
+
+        const techs = await response.json();
+        const container = document.getElementById('techCloud');
+
+        if (!techs || techs.length === 0) {
+            container.innerHTML = '<span style="color: #666;">No technologies found. Upload some documents first.</span>';
+            return;
+        }
+
+        // Calculate font sizes based on count
+        const maxCount = Math.max(...techs.map(t => t.count));
+        const minCount = Math.min(...techs.map(t => t.count));
+
+        container.innerHTML = techs.map(t => {
+            const size = minCount === maxCount ? 1 : 0.8 + ((t.count - minCount) / (maxCount - minCount)) * 0.8;
+            return `<span class="concept-tag" style="font-size: ${size}rem; cursor: pointer; background: #00ff8822; color: #00ff88;"
+                          onclick="searchByTech('${t.technology}')"
+                          title="${t.count} documents">${t.technology}</span>`;
+        }).join('');
+
+    } catch (e) {
+        console.error('Error loading tech cloud:', e);
+    }
+}
+
+/**
+ * Find related documents by knowledge graph.
+ */
+async function findRelatedByGraph() {
+    const docId = document.getElementById('kgDocId').value;
+    const minShared = document.getElementById('kgMinShared').value || 1;
+    const limit = document.getElementById('kgLimit').value || 10;
+
+    if (!docId) {
+        showToast('Please enter a document ID', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/knowledge-graph/related/${docId}?min_shared=${minShared}&limit=${limit}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to find related documents');
+        }
+
+        const results = await response.json();
+        const container = document.getElementById('kgRelatedResults');
+
+        if (!results || results.length === 0) {
+            container.innerHTML = '<p style="color: #888;">No related documents found.</p>';
+            return;
+        }
+
+        container.innerHTML = results.map(r => `
+            <div class="relationship-item">
+                <div>
+                    <strong style="color: #00d4ff;">Doc #${r.doc_id}</strong>
+                    <div style="color: #888; font-size: 0.85rem;">
+                        ${r.shared_concepts?.length || 0} shared concepts,
+                        ${r.shared_technologies?.length || 0} shared technologies
+                    </div>
+                    <div style="margin-top: 5px;">
+                        ${(r.shared_concepts || []).slice(0, 5).map(c =>
+                            `<span class="concept-tag" style="font-size: 0.75rem;">${c}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                <span class="duplicate-similarity">${r.shared_count} shared</span>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error('Error finding related:', e);
+        showToast('Failed to find related documents', 'error');
+    }
+}
+
+/**
+ * Find learning path between concepts.
+ */
+async function findLearningPath() {
+    const startConcept = document.getElementById('kgStartConcept').value.trim();
+    const endConcept = document.getElementById('kgEndConcept').value.trim();
+
+    if (!startConcept || !endConcept) {
+        showToast('Please enter both start and end concepts', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/knowledge-graph/path?start=${encodeURIComponent(startConcept)}&end=${encodeURIComponent(endConcept)}&max_depth=5`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to find learning path');
+        }
+
+        const path = await response.json();
+        const container = document.getElementById('kgPathResults');
+
+        if (!path || path.length === 0) {
+            container.innerHTML = '<p style="color: #888;">No path found between these concepts.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <div style="background: #1a1a1a; padding: 15px; border-radius: 8px;">
+                <h4 style="color: #00d4ff; margin-bottom: 10px;">Learning Path (${path.length} steps)</h4>
+                ${path.map((step, i) => `
+                    <div style="display: flex; align-items: center; margin: 10px 0;">
+                        <span style="background: #ef4444; color: white; border-radius: 50%; width: 24px; height: 24px;
+                                     display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+                            ${i + 1}
+                        </span>
+                        <div style="margin-left: 10px;">
+                            <strong style="color: #e0e0e0;">Doc #${step.doc_id}</strong>
+                            <span style="color: #888; margin-left: 10px;">${step.concept}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+    } catch (e) {
+        console.error('Error finding path:', e);
+        showToast('Failed to find learning path', 'error');
+    }
+}
+
+/**
+ * Search documents by concept.
+ */
+async function searchByConcept(concept = null) {
+    const searchConcept = concept || document.getElementById('kgConceptSearch')?.value?.trim();
+
+    if (!searchConcept) {
+        showToast('Please enter a concept', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/knowledge-graph/by-concept/${encodeURIComponent(searchConcept)}?limit=20`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to search by concept');
+        }
+
+        const results = await response.json();
+        const container = document.getElementById('kgConceptResults');
+
+        if (!results || results.length === 0) {
+            container.innerHTML = '<p style="color: #888;">No documents found with this concept.</p>';
+            return;
+        }
+
+        container.innerHTML = results.map(r => `
+            <div class="search-result" style="margin-bottom: 10px; padding: 10px;">
+                <strong style="color: #00d4ff;">Doc #${r.doc_id}</strong>
+                <div style="color: #888; font-size: 0.85rem; margin-top: 5px;">
+                    Concepts: ${(r.concepts || []).slice(0, 5).join(', ')}
+                </div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error('Error searching by concept:', e);
+        showToast('Failed to search by concept', 'error');
+    }
+}
+
+/**
+ * Search documents by technology.
+ */
+async function searchByTech(tech = null) {
+    const searchTech = tech || document.getElementById('kgTechSearch')?.value?.trim();
+
+    if (!searchTech) {
+        showToast('Please enter a technology', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_BASE}/knowledge-graph/by-tech/${encodeURIComponent(searchTech)}?limit=20`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to search by technology');
+        }
+
+        const results = await response.json();
+        const container = document.getElementById('kgTechResults');
+
+        if (!results || results.length === 0) {
+            container.innerHTML = '<p style="color: #888;">No documents found with this technology.</p>';
+            return;
+        }
+
+        container.innerHTML = results.map(r => `
+            <div class="search-result" style="margin-bottom: 10px; padding: 10px;">
+                <strong style="color: #00ff88;">Doc #${r.doc_id}</strong>
+                <div style="color: #888; font-size: 0.85rem; margin-top: 5px;">
+                    Technologies: ${(r.technologies || []).slice(0, 5).join(', ')}
+                </div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error('Error searching by tech:', e);
+        showToast('Failed to search by technology', 'error');
+    }
+}
+
+// =============================================================================
+// SUMMARY SEARCH (Phase 7.6)
+// =============================================================================
+
+// Handle search mode change
+document.addEventListener('DOMContentLoaded', function() {
+    const searchModeSelect = document.getElementById('searchMode');
+    const summaryLevelSelect = document.getElementById('summaryLevel');
+
+    if (searchModeSelect && summaryLevelSelect) {
+        searchModeSelect.addEventListener('change', function() {
+            summaryLevelSelect.style.display = this.value === 'summary' ? 'block' : 'none';
+        });
+    }
+});
+
+/**
+ * Perform summary search.
+ */
+async function performSummarySearch(query, level = 'all', limit = 20) {
+    const levelParam = level === 'all' ? '' : `&level=${level}`;
+
+    const response = await fetch(
+        `${API_BASE}/search/summaries?q=${encodeURIComponent(query)}${levelParam}&limit=${limit}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    if (!response.ok) {
+        throw new Error('Summary search failed');
+    }
+
+    return await response.json();
+}
+
+/**
+ * Display summary search results.
+ */
+function displaySummarySearchResults(results) {
+    const container = document.getElementById('resultsArea');
+
+    if (!results || results.length === 0) {
+        container.innerHTML = '<p style="color: #888; text-align: center; padding: 40px;">No results found in document summaries.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <h3 style="color: #a78bfa; margin-bottom: 15px;">Summary Search Results (${results.length})</h3>
+        ${results.map(r => `
+            <div class="search-result" style="border-left-color: #a78bfa;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <strong style="color: #00d4ff;">Doc #${r.doc_id}</strong>
+                        <span style="background: #a78bfa22; color: #a78bfa; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 10px;">
+                            ${r.level || 'document'}
+                        </span>
+                    </div>
+                    <span style="color: #888; font-size: 0.85rem;">Score: ${(r.score * 100).toFixed(0)}%</span>
+                </div>
+                <p style="color: #e0e0e0; margin: 10px 0; font-size: 0.9rem;">${r.summary || 'No summary available'}</p>
+                ${r.concepts && r.concepts.length > 0 ? `
+                    <div class="concepts-list" style="margin-top: 10px;">
+                        ${r.concepts.slice(0, 5).map(c => `<span class="concept-tag">${c}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `).join('')}
+    `;
 }

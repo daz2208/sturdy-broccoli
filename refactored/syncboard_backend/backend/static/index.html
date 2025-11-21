@@ -678,8 +678,18 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; gap: 10px;">
+                        <div style="display: flex; gap: 10px; align-items: center;">
                             <input type="text" id="searchQuery" placeholder="Search your knowledge..." style="flex: 1;">
+                            <select id="searchMode" style="width: 160px;" title="Search mode">
+                                <option value="standard">Standard Search</option>
+                                <option value="summary">Summary Search</option>
+                            </select>
+                            <select id="summaryLevel" style="width: 130px; display: none;" title="Summary level">
+                                <option value="all">All Levels</option>
+                                <option value="document">Document</option>
+                                <option value="section">Section</option>
+                                <option value="chunk">Chunk</option>
+                            </select>
                             <button onclick="searchKnowledge()">Search</button>
                             <button onclick="saveCurrentSearch()" style="background: #555;">💾 Save Search</button>
                         </div>
@@ -801,6 +811,7 @@
                             <button id="tagsSubTab" class="sub-tab-button" onclick="showAdvancedFeature('tags')">🏷️ Tags</button>
                             <button id="savedSearchesSubTab" class="sub-tab-button" onclick="showAdvancedFeature('savedSearches')">💾 Saved Searches</button>
                             <button id="relationshipsSubTab" class="sub-tab-button" onclick="showAdvancedFeature('relationships')">🔗 Relationships</button>
+                            <button id="knowledgeGraphSubTab" class="sub-tab-button" onclick="showAdvancedFeature('knowledgeGraph')">🕸️ Knowledge Graph</button>
                         </div>
 
                         <!-- Duplicate Detection Section -->
@@ -901,6 +912,100 @@
                             <!-- Results Container -->
                             <div id="relationshipsResultsContainer" class="feature-results">
                                 <!-- Relationships will appear here -->
+                            </div>
+                        </div>
+
+                        <!-- Knowledge Graph Section -->
+                        <div id="knowledgeGraphFeature" class="advanced-feature-section hidden">
+                            <h3>🕸️ Knowledge Graph</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Explore document relationships through shared concepts and technologies</p>
+
+                            <!-- Graph Stats & Build -->
+                            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #a78bfa;">
+                                <h4 style="color: #a78bfa; margin-bottom: 10px;">📊 Graph Statistics</h4>
+                                <div id="graphStats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 15px;">
+                                    <div class="stat-card" style="padding: 15px;">
+                                        <h4>Documents</h4>
+                                        <div class="stat-value" id="graphDocCount">-</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 15px;">
+                                        <h4>Relationships</h4>
+                                        <div class="stat-value" id="graphRelCount">-</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 15px;">
+                                        <h4>Concepts</h4>
+                                        <div class="stat-value" id="graphConceptCount">-</div>
+                                    </div>
+                                    <div class="stat-card" style="padding: 15px;">
+                                        <h4>Technologies</h4>
+                                        <div class="stat-value" id="graphTechCount">-</div>
+                                    </div>
+                                </div>
+                                <button onclick="buildKnowledgeGraph()" style="background: #a78bfa; color: #000;">🔄 Rebuild Graph</button>
+                                <button onclick="loadGraphStats()" style="background: #555; margin-left: 10px;">📊 Refresh Stats</button>
+                            </div>
+
+                            <!-- Concept Cloud -->
+                            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #00d4ff;">
+                                <h4 style="color: #00d4ff; margin-bottom: 10px;">☁️ Concept Cloud</h4>
+                                <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">Most common concepts across your documents</p>
+                                <div id="conceptCloud" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 60px;">
+                                    <span style="color: #666;">Click "Refresh Stats" to load concepts</span>
+                                </div>
+                            </div>
+
+                            <!-- Technology Cloud -->
+                            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #00ff88;">
+                                <h4 style="color: #00ff88; margin-bottom: 10px;">🔧 Technology Cloud</h4>
+                                <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">Technologies and tools found in your knowledge base</p>
+                                <div id="techCloud" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 60px;">
+                                    <span style="color: #666;">Click "Refresh Stats" to load technologies</span>
+                                </div>
+                            </div>
+
+                            <!-- Find Related Documents -->
+                            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                                <h4 style="color: #f59e0b; margin-bottom: 10px;">🔗 Find Related Documents</h4>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="number" id="kgDocId" placeholder="Document ID" style="width: 150px;">
+                                    <input type="number" id="kgMinShared" placeholder="Min shared" value="1" min="1" style="width: 120px;">
+                                    <input type="number" id="kgLimit" placeholder="Max results" value="10" min="1" max="50" style="width: 120px;">
+                                    <button onclick="findRelatedByGraph()" style="background: #f59e0b; color: #000;">Find Related</button>
+                                </div>
+                                <div id="kgRelatedResults" style="margin-top: 15px;"></div>
+                            </div>
+
+                            <!-- Learning Path Finder -->
+                            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                                <h4 style="color: #ef4444; margin-bottom: 10px;">🎯 Learning Path Finder</h4>
+                                <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">Find a learning path between two concepts</p>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" id="kgStartConcept" placeholder="Start concept (e.g., Python)" style="flex: 1;">
+                                    <span style="color: #888;">→</span>
+                                    <input type="text" id="kgEndConcept" placeholder="End concept (e.g., Machine Learning)" style="flex: 1;">
+                                    <button onclick="findLearningPath()" style="background: #ef4444; color: #fff;">Find Path</button>
+                                </div>
+                                <div id="kgPathResults" style="margin-top: 15px;"></div>
+                            </div>
+
+                            <!-- Search by Concept/Tech -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 4px solid #60a5fa;">
+                                    <h4 style="color: #60a5fa; margin-bottom: 10px;">📚 Documents by Concept</h4>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="kgConceptSearch" placeholder="Concept name" style="flex: 1;">
+                                        <button onclick="searchByConcept()" style="background: #60a5fa; color: #000;">Search</button>
+                                    </div>
+                                    <div id="kgConceptResults" style="margin-top: 15px; max-height: 300px; overflow-y: auto;"></div>
+                                </div>
+                                <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 4px solid #4ade80;">
+                                    <h4 style="color: #4ade80; margin-bottom: 10px;">🔧 Documents by Technology</h4>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" id="kgTechSearch" placeholder="Technology name" style="flex: 1;">
+                                        <button onclick="searchByTech()" style="background: #4ade80; color: #000;">Search</button>
+                                    </div>
+                                    <div id="kgTechResults" style="margin-top: 15px; max-height: 300px; overflow-y: auto;"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
