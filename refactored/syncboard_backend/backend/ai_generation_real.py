@@ -1,14 +1,31 @@
 """
 Real AI generation with RAG (Retrieval Augmented Generation).
 Uses OpenAI to generate content based on user's knowledge bank.
+
+Supports two retrieval modes:
+1. Full-document RAG (TF-IDF) - Original approach
+2. Chunk-based RAG (embeddings) - More precise, uses document_chunks table
 """
 
 import os
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Citation:
+    """Structured citation for RAG response."""
+    doc_id: int
+    chunk_id: Optional[int]
+    filename: Optional[str]
+    source_url: Optional[str]
+    source_type: str
+    relevance: float
+    snippet: str  # First 200 chars of content
 
 # Available models
 MODELS = {
@@ -188,4 +205,146 @@ Please answer this question: {prompt}"""
 
     except Exception as e:
         logger.error(f"OpenAI API error: {e}")
+        raise Exception(f"Failed to generate response: {str(e)}")
+
+
+async def generate_with_chunks(
+    prompt: str,
+    model: str,
+    chunks: List[Dict],
+    metadata: Optional[Dict[int, Any]] = None,
+    max_context_tokens: int = 100000
+) -> Tuple[str, List[Citation]]:
+    """
+    Generate AI content using chunk-based RAG.
+
+    This is the enhanced version that uses pre-computed document chunks
+    for more precise context retrieval.
+
+    Args:
+        prompt: User's prompt/question
+        model: OpenAI model to use
+        chunks: List of chunk dicts with 'content', 'document_id', 'similarity', etc.
+        metadata: Document metadata for citations
+        max_context_tokens: Maximum tokens for context
+
+    Returns:
+        Tuple of (response_text, citations_list)
+    """
+    if not chunks:
+        return "I don't have any relevant information in my knowledge bank for this question.", []
+
+    CHARS_PER_TOKEN = 4
+    max_chars = max_context_tokens * CHARS_PER_TOKEN
+
+    # Build context from chunks
+    context_parts = []
+    citations = []
+    total_chars = 0
+    seen_docs = set()
+
+    for i, chunk in enumerate(chunks):
+        chunk_content = chunk.get('content', '')
+        chunk_chars = len(chunk_content)
+
+        if total_chars + chunk_chars > max_chars:
+            if total_chars > 0:
+                logger.info(f"Stopped at {i} chunks due to token limit")
+                break
+            # If first chunk is too big, truncate it
+            chunk_content = chunk_content[:max_chars - 100] + "\n[...truncated...]"
+            chunk_chars = len(chunk_content)
+
+        doc_id = chunk.get('document_id')
+        chunk_id = chunk.get('chunk_id')
+        similarity = chunk.get('similarity', 0.0)
+
+        # Get metadata for this document
+        meta = metadata.get(doc_id) if metadata else None
+        filename = getattr(meta, 'filename', None) if meta else None
+        source_url = getattr(meta, 'source_url', None) if meta else None
+        source_type = getattr(meta, 'source_type', 'unknown') if meta else 'unknown'
+
+        # Build header
+        header = f"[Chunk {i+1} from Document {doc_id}"
+        if filename:
+            header += f" | {filename}"
+        elif source_url:
+            url = source_url[:50] + "..." if len(source_url) > 50 else source_url
+            header += f" | {url}"
+        header += f" | Relevance: {similarity:.2f}]"
+
+        context_parts.append(f"{header}\n{chunk_content}")
+        total_chars += chunk_chars
+
+        # Track citation (only once per document)
+        if doc_id not in seen_docs:
+            citations.append(Citation(
+                doc_id=doc_id,
+                chunk_id=chunk_id,
+                filename=filename,
+                source_url=source_url,
+                source_type=source_type,
+                relevance=similarity,
+                snippet=chunk_content[:200] + "..." if len(chunk_content) > 200 else chunk_content
+            ))
+            seen_docs.add(doc_id)
+
+    context = "\n\n---\n\n".join(context_parts)
+
+    logger.info(f"Chunk-based RAG: {len(context_parts)} chunks, ~{total_chars//CHARS_PER_TOKEN} tokens")
+
+    # System message for chunk-based context
+    system_message = """You are an AI assistant helping users with their knowledge bank.
+You have access to relevant chunks from the user's documents.
+
+IMPORTANT: When answering, you MUST:
+1. Cite your sources using chunk numbers (e.g., "According to Chunk 1..." or "[Chunk 3]")
+2. Reference document IDs and filenames when available
+3. If multiple chunks support a point, cite all of them
+4. If the chunks don't contain relevant information, say so clearly
+5. Synthesize information from multiple chunks when appropriate
+
+The chunks are sorted by relevance to the user's question."""
+
+    user_message = f"""Based on these relevant chunks from my knowledge bank:
+
+{context}
+
+---
+
+Please answer this question: {prompt}"""
+
+    # Call OpenAI API
+    try:
+        selected_model = MODELS.get(model, "gpt-5-mini")
+        logger.info(f"Using model: {selected_model} for chunk-based RAG")
+
+        if selected_model.startswith("gpt-5"):
+            response = await client.chat.completions.create(
+                model=selected_model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                max_completion_tokens=16000
+            )
+        else:
+            response = await client.chat.completions.create(
+                model=selected_model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.7,
+                max_tokens=16000
+            )
+
+        generated_text = response.choices[0].message.content
+        logger.info(f"Generated response using {len(context_parts)} chunks from {len(citations)} documents")
+
+        return generated_text, citations
+
+    except Exception as e:
+        logger.error(f"OpenAI API error in chunk-based RAG: {e}")
         raise Exception(f"Failed to generate response: {str(e)}")

@@ -122,6 +122,27 @@ class GenerationRequest(BaseModel):
     """Schema for AI content generation requests."""
     prompt: str
     model: Optional[str] = "gpt-5-mini"
+    use_chunks: Optional[bool] = True  # Use chunk-based RAG if available
+
+
+class CitationInfo(BaseModel):
+    """Structured citation information."""
+    doc_id: int
+    chunk_id: Optional[int] = None
+    filename: Optional[str] = None
+    source_url: Optional[str] = None
+    source_type: str
+    relevance: float
+    snippet: str  # Preview of the cited content
+
+
+class GenerationResponse(BaseModel):
+    """Response from AI generation with structured citations."""
+    response: str
+    citations: Optional[List[CitationInfo]] = None
+    chunks_used: Optional[int] = None
+    documents_used: Optional[int] = None
+    model: Optional[str] = None
 
 
 class BuildSuggestionRequest(BaseModel):
