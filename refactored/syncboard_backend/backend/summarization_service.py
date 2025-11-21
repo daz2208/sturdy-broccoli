@@ -300,7 +300,8 @@ async def generate_hierarchical_summaries(
     db: Session,
     document_id: int,
     knowledge_base_id: str,
-    chunks: List[Dict[str, Any]]
+    chunks: List[Dict[str, Any]],
+    generate_ideas: bool = False
 ) -> Dict[str, Any]:
     """
     Generate hierarchical summaries for a document's chunks.
@@ -310,6 +311,7 @@ async def generate_hierarchical_summaries(
         document_id: Document ID (internal)
         knowledge_base_id: Knowledge base ID
         chunks: List of chunk dicts with 'id', 'content', 'chunk_index'
+        generate_ideas: Whether to also generate build idea seeds
 
     Returns:
         Dict with summary statistics
@@ -415,12 +417,29 @@ async def generate_hierarchical_summaries(
         f"{len(chunk_summaries)} chunks, {len(section_summaries)} sections, 1 document"
     )
 
-    return {
+    result = {
         "status": "success",
         "chunk_summaries": len(chunk_summaries),
         "section_summaries": len(section_summaries),
         "document_summary": 1
     }
+
+    # Optionally generate build idea seeds
+    if generate_ideas:
+        try:
+            from .idea_seeds_service import generate_document_idea_seeds
+            ideas_result = await generate_document_idea_seeds(
+                db=db,
+                document_id=document_id,
+                knowledge_base_id=knowledge_base_id
+            )
+            result["ideas_generated"] = ideas_result.get("ideas_generated", 0)
+            logger.info(f"Generated {result['ideas_generated']} idea seeds for document {document_id}")
+        except Exception as e:
+            logger.warning(f"Idea generation failed for doc {document_id}: {e}")
+            result["ideas_error"] = str(e)
+
+    return result
 
 
 async def get_document_summary(
