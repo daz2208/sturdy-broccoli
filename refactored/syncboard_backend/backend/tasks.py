@@ -40,9 +40,49 @@ from .constants import MAX_UPLOAD_SIZE_BYTES
 from . import ingest
 from .db_storage_adapter import save_storage_to_db, load_storage_from_db
 from .redis_client import notify_data_changed
+from .chunking_pipeline import chunk_document_on_upload
+from .db_models import DBDocument
+from .database import get_db_context
 
 # Initialize logger
 logger = logging.getLogger(__name__)
+
+
+def chunk_document_sync(doc_id: int, content: str, kb_id: str) -> dict:
+    """
+    Synchronous wrapper for document chunking (for use in Celery tasks).
+
+    Args:
+        doc_id: Document ID (vector store ID)
+        content: Document text content
+        kb_id: Knowledge base ID
+
+    Returns:
+        Chunking result dict or empty dict on failure
+    """
+    import asyncio
+
+    try:
+        with get_db_context() as db:
+            db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+            if not db_doc:
+                logger.warning(f"Document {doc_id} not found for chunking")
+                return {}
+
+            # Run async chunking in sync context
+            result = asyncio.run(
+                chunk_document_on_upload(
+                    db=db,
+                    document=db_doc,
+                    content=content,
+                    generate_embeddings=True
+                )
+            )
+            logger.info(f"Chunked document {doc_id}: {result.get('chunks', 0)} chunks")
+            return result
+    except Exception as e:
+        logger.warning(f"Chunking failed for document {doc_id}: {e}")
+        return {}
 
 # =============================================================================
 # Helper Functions
@@ -294,9 +334,21 @@ def process_file_upload(
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
+        # Stage 6: Chunk document for RAG
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "chunking",
+                "message": "Creating document chunks for AI search...",
+                "percent": 95
+            }
+        )
+
+        chunk_result = chunk_document_sync(doc_id, document_text, kb_id)
+
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
-            f"to KB {kb_id} (cluster: {cluster_id})"
+            f"to KB {kb_id} (cluster: {cluster_id}, chunks: {chunk_result.get('chunks', 0)})"
         )
 
         # Return success result
@@ -306,7 +358,8 @@ def process_file_upload(
             "concepts": extraction.get("concepts", []),
             "filename": filename_safe,
             "user_id": user_id,
-            "knowledge_base_id": kb_id
+            "knowledge_base_id": kb_id,
+            "chunks_created": chunk_result.get("chunks", 0)
         }
 
     except Exception as e:
@@ -445,7 +498,19 @@ def process_url_upload(
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
-        logger.info(f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id}")
+        # Stage 5: Chunk document for RAG
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "chunking",
+                "message": "Creating document chunks for AI search...",
+                "percent": 95
+            }
+        )
+
+        chunk_result = chunk_document_sync(doc_id, document_text, kb_id)
+
+        logger.info(f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id} (chunks: {chunk_result.get('chunks', 0)})")
 
         return {
             "doc_id": doc_id,
@@ -453,7 +518,8 @@ def process_url_upload(
             "concepts": extraction.get("concepts", []),
             "url": url_safe,
             "user_id": user_id,
-            "knowledge_base_id": kb_id
+            "knowledge_base_id": kb_id,
+            "chunks_created": chunk_result.get("chunks", 0)
         }
 
     except Exception as e:
@@ -611,7 +677,19 @@ def process_image_upload(
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
-        logger.info(f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id}")
+        # Stage 5: Chunk document for RAG
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "chunking",
+                "message": "Creating document chunks for AI search...",
+                "percent": 95
+            }
+        )
+
+        chunk_result = chunk_document_sync(doc_id, combined_text, kb_id)
+
+        logger.info(f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} (chunks: {chunk_result.get('chunks', 0)})")
 
         return {
             "doc_id": doc_id,
@@ -620,7 +698,8 @@ def process_image_upload(
             "image_path": image_path,
             "ocr_text_length": len(ocr_text),
             "user_id": user_id,
-            "knowledge_base_id": kb_id
+            "knowledge_base_id": kb_id,
+            "chunks_created": chunk_result.get("chunks", 0)
         }
 
     except Exception as e:

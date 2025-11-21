@@ -57,6 +57,8 @@ from .. import ingest
 from ..db_storage_adapter import save_storage_to_db
 from ..redis_client import increment_user_job_count, get_user_job_count
 from ..tasks import process_file_upload, process_url_upload, process_image_upload
+from ..chunking_pipeline import chunk_document_on_upload
+from ..db_models import DBDocument
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -201,6 +203,22 @@ async def upload_text_content(
             kb.document_count = len(kb_documents)
             db.commit()
 
+        # Chunk document for RAG (async, runs embeddings)
+        chunk_result = None
+        try:
+            db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+            if db_doc:
+                chunk_result = await chunk_document_on_upload(
+                    db=db,
+                    document=db_doc,
+                    content=content,
+                    generate_embeddings=True
+                )
+                logger.info(f"Chunked document {doc_id}: {chunk_result.get('chunks', 0)} chunks created")
+        except Exception as chunk_err:
+            logger.warning(f"Chunking failed for doc {doc_id}: {chunk_err}")
+            # Non-fatal - document is still saved, just won't have chunk-based RAG
+
         # Structured logging with request context
         logger.info(
             f"[{request.state.request_id}] User {current_user.username} uploaded text as doc {doc_id} "
@@ -211,7 +229,8 @@ async def upload_text_content(
             "document_id": doc_id,
             "cluster_id": cluster_id,
             "knowledge_base_id": kb_id,
-            "concepts": extraction.get("concepts", [])
+            "concepts": extraction.get("concepts", []),
+            "chunks_created": chunk_result.get("chunks", 0) if chunk_result else 0
         }
 
 # =============================================================================
