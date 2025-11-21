@@ -3,10 +3,12 @@ Search Router for SyncBoard 3.0 Knowledge Bank.
 
 Endpoints:
 - GET /search_full - Semantic search with filters
+- GET /search/summaries - Search through document summaries
+- GET /search/summaries/stats - Get summary statistics
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request, Depends
 from slowapi import Limiter
@@ -221,4 +223,101 @@ async def search_full_content(
         },
         "total_results": len(results),
         "knowledge_base_id": kb_id
+    }
+
+
+# =============================================================================
+# Summary Search Endpoints
+# =============================================================================
+
+@router.get("/search/summaries")
+@limiter.limit("30/minute")
+async def search_summaries(
+    request: Request,
+    q: Optional[str] = None,
+    concepts: Optional[str] = None,
+    technologies: Optional[str] = None,
+    level: Optional[int] = None,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Search through document summaries for faster, context-aware results.
+
+    Searches summary content, concepts, and technologies.
+
+    Args:
+        q: Text query to search in summaries
+        concepts: Comma-separated list of concepts to filter by
+        technologies: Comma-separated list of technologies to filter by
+        level: Summary level filter (1=chunk, 2=section, 3=document)
+        limit: Maximum results (default 20, max 50)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Search results with summaries and relevance scores
+    """
+    from ..summary_search_service import search_summaries as do_search
+
+    # Validate level
+    if level and level not in [1, 2, 3]:
+        raise HTTPException(400, "Invalid level. Use: 1 (chunk), 2 (section), 3 (document)")
+
+    # Validate limit
+    limit = max(1, min(50, limit))
+
+    # Parse comma-separated filters
+    concept_list = [c.strip() for c in concepts.split(",")] if concepts else None
+    tech_list = [t.strip() for t in technologies.split(",")] if technologies else None
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Search summaries
+    results = await do_search(
+        db=db,
+        knowledge_base_id=kb_id,
+        query=q,
+        concepts=concept_list,
+        technologies=tech_list,
+        level=level,
+        limit=limit
+    )
+
+    return {
+        "results": results,
+        "total_results": len(results),
+        "filters_applied": {
+            "query": q,
+            "concepts": concept_list,
+            "technologies": tech_list,
+            "level": level
+        },
+        "knowledge_base_id": kb_id
+    }
+
+
+@router.get("/search/summaries/stats")
+@limiter.limit("30/minute")
+async def get_summary_stats(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get statistics about summaries in the knowledge base.
+
+    Returns counts of summaries by level, unique concepts, and technologies.
+    """
+    from ..summary_search_service import get_summary_stats as fetch_stats
+
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    stats = await fetch_stats(db, kb_id)
+
+    return {
+        "knowledge_base_id": kb_id,
+        "stats": stats
     }
