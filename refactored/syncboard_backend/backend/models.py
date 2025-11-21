@@ -37,6 +37,17 @@ class ImageUpload(BaseModel):
     description: Optional[str] = None
 
 
+class BatchFileItem(BaseModel):
+    """Single file in a batch upload."""
+    filename: str
+    content: str  # base64 encoded
+
+
+class BatchFileUpload(BaseModel):
+    """Schema for uploading multiple files in one request."""
+    files: List[BatchFileItem] = Field(..., min_length=1, max_length=20, description="List of files to upload (max 20)")
+
+
 # =============================================================================
 # Search Models
 # =============================================================================

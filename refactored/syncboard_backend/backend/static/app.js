@@ -148,11 +148,17 @@ function showUploadType(type) {
         `;
     } else if (type === 'file') {
         forms.innerHTML = `
-            <input type="file" id="fileInput" accept=".pdf,.txt,.md,.docx,.mp3,.wav,.m4a,.ogg,.flac,.ipynb,.py,.js,.ts,.java,.cpp,.c,.go,.rs,.html,.css,.json,.csv,.yaml,.yml,.sql,.sh,.xlsx,.xls,.pptx,.zip,.epub,.srt,.vtt">
-            <button onclick="uploadFile(event)">Upload File</button>
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.docx,.mp3,.wav,.m4a,.ogg,.flac,.ipynb,.py,.js,.ts,.java,.cpp,.c,.go,.rs,.html,.css,.json,.csv,.yaml,.yml,.sql,.sh,.xlsx,.xls,.pptx,.zip,.epub,.srt,.vtt">
+            <button onclick="uploadFiles(event)">Upload Files</button>
             <p style="color: #888; font-size: 0.85rem; margin-top: 5px;">
-                Supports: PDFs, Jupyter notebooks, code files (40+ languages), Office docs (Excel, PowerPoint, Word), audio files, archives, and more
+                Supports: PDFs, Jupyter notebooks, code files (40+ languages), Office docs, archives. Select multiple files for batch upload (max 20).
             </p>
+            <div id="batchProgress" style="display: none; margin-top: 10px;">
+                <div style="background: #333; border-radius: 4px; overflow: hidden;">
+                    <div id="batchProgressBar" style="height: 8px; background: #4CAF50; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <p id="batchProgressText" style="color: #888; font-size: 0.85rem; margin-top: 5px;">Processing 0 of 0...</p>
+            </div>
         `;
     } else if (type === 'image') {
         forms.innerHTML = `
@@ -283,6 +289,161 @@ async function uploadFile(event) {
         showToast('Upload error: ' + e.message, 'error');
         if (button) setButtonLoading(button, false, 'Upload File');
     }
+}
+
+// Batch upload handler - uploads multiple files in one request
+async function uploadFiles(event) {
+    const button = event ? event.target : null;
+    const files = document.getElementById('fileInput').files;
+
+    if (!files || files.length === 0) {
+        showToast('Please select at least one file', 'error');
+        return;
+    }
+
+    // For single file, use the regular upload
+    if (files.length === 1) {
+        return uploadFile(event);
+    }
+
+    // Limit to 20 files
+    if (files.length > 20) {
+        showToast('Maximum 20 files allowed per batch upload', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+
+    // Show progress bar
+    const progressDiv = document.getElementById('batchProgress');
+    const progressBar = document.getElementById('batchProgressBar');
+    const progressText = document.getElementById('batchProgressText');
+    if (progressDiv) {
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '0%';
+        progressText.textContent = `Preparing ${files.length} files...`;
+    }
+
+    try {
+        // Convert all files to base64
+        const fileItems = [];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            progressText.textContent = `Encoding file ${i + 1} of ${files.length}: ${file.name}`;
+            progressBar.style.width = `${((i + 1) / files.length) * 30}%`; // 0-30% for encoding
+
+            const base64 = await fileToBase64(file);
+            fileItems.push({
+                filename: file.name,
+                content: base64
+            });
+        }
+
+        progressText.textContent = `Uploading ${files.length} files...`;
+        progressBar.style.width = '40%';
+
+        // Send batch upload request
+        const res = await fetch(`${API_BASE}/upload_batch`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                files: fileItems
+            })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            progressBar.style.width = '50%';
+
+            // Show success message
+            showToast(`📤 Batch queued: ${data.queued} of ${data.total_files} files`, 'info');
+
+            // Show any errors
+            if (data.errors && data.errors.length > 0) {
+                data.errors.forEach(err => {
+                    showToast(`⚠️ ${err.filename}: ${err.error}`, 'error');
+                });
+            }
+
+            // Clear file input
+            document.getElementById('fileInput').value = '';
+
+            // Poll for all job statuses
+            if (data.jobs && data.jobs.length > 0) {
+                pollBatchJobs(data.jobs, button, progressBar, progressText, progressDiv);
+            } else {
+                if (progressDiv) progressDiv.style.display = 'none';
+                if (button) setButtonLoading(button, false, 'Upload Files');
+            }
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+            if (progressDiv) progressDiv.style.display = 'none';
+            if (button) setButtonLoading(button, false, 'Upload Files');
+        }
+    } catch (e) {
+        showToast('Batch upload error: ' + e.message, 'error');
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (button) setButtonLoading(button, false, 'Upload Files');
+    }
+}
+
+// Poll multiple job statuses for batch uploads
+async function pollBatchJobs(jobs, button, progressBar, progressText, progressDiv) {
+    const totalJobs = jobs.length;
+    let completedJobs = 0;
+    let failedJobs = 0;
+    const pendingJobs = [...jobs];
+
+    const pollInterval = setInterval(async () => {
+        for (let i = pendingJobs.length - 1; i >= 0; i--) {
+            const job = pendingJobs[i];
+            try {
+                const res = await fetch(`${API_BASE}/jobs/${job.job_id}/status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const status = await res.json();
+                    if (status.status === 'completed') {
+                        completedJobs++;
+                        pendingJobs.splice(i, 1);
+                    } else if (status.status === 'failed') {
+                        failedJobs++;
+                        pendingJobs.splice(i, 1);
+                        showToast(`❌ ${job.filename}: ${status.error || 'Processing failed'}`, 'error');
+                    }
+                }
+            } catch (e) {
+                // Ignore polling errors, will retry
+            }
+        }
+
+        // Update progress
+        const progress = 50 + ((completedJobs + failedJobs) / totalJobs) * 50;
+        if (progressBar) progressBar.style.width = `${progress}%`;
+        if (progressText) progressText.textContent = `Processed ${completedJobs + failedJobs} of ${totalJobs} files (${completedJobs} success, ${failedJobs} failed)`;
+
+        // Check if all jobs are done
+        if (pendingJobs.length === 0) {
+            clearInterval(pollInterval);
+
+            if (completedJobs > 0) {
+                showToast(`✅ Batch complete: ${completedJobs} files processed`, 'success');
+                await loadClusters();
+            }
+
+            // Hide progress after a moment
+            setTimeout(() => {
+                if (progressDiv) progressDiv.style.display = 'none';
+            }, 2000);
+
+            if (button) setButtonLoading(button, false, 'Upload Files');
+        }
+    }, 2000); // Poll every 2 seconds
 }
 
 async function uploadImage(event) {

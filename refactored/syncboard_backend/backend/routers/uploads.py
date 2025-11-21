@@ -6,6 +6,7 @@ Endpoints:
 - POST /upload - Upload document via URL (YouTube, web article, etc)
 - POST /upload_file - Upload file (PDF, audio, etc) as base64
 - POST /upload_image - Upload and process image with OCR
+- POST /upload_batch - Upload multiple files in one request
 """
 
 import base64
@@ -21,6 +22,7 @@ from ..models import (
     DocumentUpload,
     FileBytesUpload,
     ImageUpload,
+    BatchFileUpload,
     User,
     DocumentMetadata,
     Concept,
@@ -459,4 +461,138 @@ async def upload_image(
         "job_id": task.id,
         "message": "Image queued for OCR processing",
         "filename": filename
+    }
+
+
+# =============================================================================
+# Batch File Upload Endpoint (Celery)
+# =============================================================================
+
+@router.post("/upload_batch")
+@limiter.limit("3/minute")
+async def upload_batch(
+    req: BatchFileUpload,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload multiple files in one request - Background processing with Celery.
+
+    Rate limited to 3 batch uploads per minute (max 20 files per batch).
+
+    Args:
+        req: Batch file upload request containing list of files
+        request: FastAPI request (for rate limiting)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of job IDs for polling status
+
+    Response:
+        {
+            "message": "Batch upload queued",
+            "total_files": 5,
+            "knowledge_base_id": "uuid",
+            "jobs": [
+                {"filename": "doc1.pdf", "job_id": "abc123", "status": "queued"},
+                {"filename": "doc2.pdf", "job_id": "def456", "status": "queued"},
+                ...
+            ],
+            "errors": []
+        }
+
+    Poll /jobs/{job_id}/status for progress on each file.
+    """
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Check concurrent job count - batch counts as multiple jobs
+    user_job_count = get_user_job_count(current_user.username)
+    max_allowed = 10 - user_job_count
+
+    if max_allowed <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many background jobs in progress. Please wait for current uploads to complete."
+        )
+
+    jobs = []
+    errors = []
+    queued_count = 0
+
+    for file_item in req.files:
+        # Stop if we've hit the job limit
+        if queued_count >= max_allowed:
+            errors.append({
+                "filename": file_item.filename,
+                "error": "Job limit reached - file not queued"
+            })
+            continue
+
+        # Sanitize filename
+        filename = sanitize_filename(file_item.filename)
+
+        try:
+            # Validate base64 and file size
+            file_bytes = base64.b64decode(file_item.content)
+
+            if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+                errors.append({
+                    "filename": filename,
+                    "error": f"File too large. Maximum size is {MAX_UPLOAD_SIZE_BYTES / (1024*1024):.0f}MB"
+                })
+                continue
+
+        except Exception as exc:
+            errors.append({
+                "filename": filename,
+                "error": f"Invalid base64 content: {exc}"
+            })
+            continue
+
+        # Queue Celery task
+        try:
+            task = process_file_upload.delay(
+                user_id=current_user.username,
+                filename=filename,
+                content_base64=file_item.content,
+                kb_id=kb_id
+            )
+
+            # Increment job count
+            increment_user_job_count(current_user.username)
+            queued_count += 1
+
+            jobs.append({
+                "filename": filename,
+                "job_id": task.id,
+                "status": "queued"
+            })
+        except Exception as celery_err:
+            # Celery/Redis not available - add to errors
+            errors.append({
+                "filename": filename,
+                "error": f"Background processing unavailable: {str(celery_err)[:100]}"
+            })
+            # If first file fails due to Celery, break early
+            if queued_count == 0 and len(errors) == 1:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Background processing service unavailable. Redis/Celery may not be running."
+                )
+
+    logger.info(
+        f"[{request.state.request_id}] User {current_user.username} queued batch upload: "
+        f"{queued_count} files to KB {kb_id}, {len(errors)} errors"
+    )
+
+    return {
+        "message": "Batch upload queued",
+        "total_files": len(req.files),
+        "queued": queued_count,
+        "knowledge_base_id": kb_id,
+        "jobs": jobs,
+        "errors": errors
     }
