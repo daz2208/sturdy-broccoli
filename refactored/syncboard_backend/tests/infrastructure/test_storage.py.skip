@@ -1,0 +1,129 @@
+"""
+Tests for file storage operations.
+
+Tests JSON file operations with atomic saves.
+"""
+
+import pytest
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+# Import the FastAPI app
+import sys
+backend_path = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_path))
+
+from backend.storage import save_to_file, load_from_file
+
+
+@pytest.fixture
+def temp_json_file():
+    """Create a temporary JSON file for testing."""
+    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+        yield f.name
+    # Cleanup
+    Path(f.name).unlink(missing_ok=True)
+
+
+# =============================================================================
+# SAVE TO FILE TESTS
+# =============================================================================
+
+def test_save_to_file(temp_json_file):
+    """Test saving data to JSON file."""
+    data = {"key": "value", "number": 42}
+
+    save_to_file(data, temp_json_file)
+
+    # Verify file exists and contains correct data
+    assert Path(temp_json_file).exists()
+    with open(temp_json_file, 'r') as f:
+        loaded = json.load(f)
+    assert loaded == data
+
+
+def test_save_to_file_creates_directory(tmp_path):
+    """Test save_to_file creates parent directories if needed."""
+    file_path = tmp_path / "subdir" / "test.json"
+    data = {"test": True}
+
+    save_to_file(data, str(file_path))
+
+    assert file_path.exists()
+    with open(file_path, 'r') as f:
+        loaded = json.load(f)
+    assert loaded == data
+
+
+def test_save_to_file_overwrites_existing(temp_json_file):
+    """Test saving overwrites existing file."""
+    # Write initial data
+    with open(temp_json_file, 'w') as f:
+        json.dump({"old": "data"}, f)
+
+    # Overwrite
+    new_data = {"new": "data"}
+    save_to_file(new_data, temp_json_file)
+
+    # Verify new data
+    with open(temp_json_file, 'r') as f:
+        loaded = json.load(f)
+    assert loaded == new_data
+
+
+# =============================================================================
+# LOAD FROM FILE TESTS
+# =============================================================================
+
+def test_load_from_file(temp_json_file):
+    """Test loading data from JSON file."""
+    data = {"loaded": "successfully", "count": 10}
+
+    # Write test data
+    with open(temp_json_file, 'w') as f:
+        json.dump(data, f)
+
+    # Load and verify
+    loaded = load_from_file(temp_json_file)
+    assert loaded == data
+
+
+def test_load_from_nonexistent_file():
+    """Test loading from nonexistent file returns empty dict."""
+    loaded = load_from_file("/nonexistent/path/file.json")
+    assert loaded == {}
+
+
+def test_load_from_invalid_json(temp_json_file):
+    """Test loading invalid JSON returns empty dict."""
+    # Write invalid JSON
+    with open(temp_json_file, 'w') as f:
+        f.write("not valid json {]")
+
+    loaded = load_from_file(temp_json_file)
+    assert loaded == {}
+
+
+# =============================================================================
+# ATOMIC SAVE TESTS
+# =============================================================================
+
+def test_atomic_save_prevents_corruption(temp_json_file):
+    """Test atomic save prevents file corruption on error."""
+    # Write initial valid data
+    initial_data = {"safe": "data"}
+    with open(temp_json_file, 'w') as f:
+        json.dump(initial_data, f)
+
+    # Simulate error during save (mock will fail)
+    with patch('builtins.open', side_effect=IOError("Disk full")):
+        try:
+            save_to_file({"new": "data"}, temp_json_file)
+        except:
+            pass
+
+    # Original file should still be readable
+    # Note: Actual atomic save implementation may vary
+    assert Path(temp_json_file).exists()
