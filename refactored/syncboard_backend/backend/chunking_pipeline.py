@@ -5,7 +5,8 @@ Orchestrates the document chunking and embedding process:
 1. Split document into chunks
 2. Generate embeddings for each chunk
 3. Store chunks in database
-4. Update document status
+4. Generate hierarchical summaries (optional)
+5. Update document status
 """
 
 import logging
@@ -47,16 +48,18 @@ class ChunkingPipeline:
         db: Session,
         document: DBDocument,
         content: str,
-        generate_embeddings: bool = True
+        generate_embeddings: bool = True,
+        generate_summaries: bool = False
     ) -> Dict:
         """
-        Process a document: chunk it, embed it, store it.
+        Process a document: chunk it, embed it, store it, summarize it.
 
         Args:
             db: Database session
             document: DBDocument instance
             content: Full document text
             generate_embeddings: Whether to generate embeddings (costs API calls)
+            generate_summaries: Whether to generate hierarchical summaries (costs API calls)
 
         Returns:
             Dict with processing results
@@ -118,10 +121,38 @@ class ChunkingPipeline:
 
             logger.info(f"Document {doc_id}: created {len(chunks)} chunks")
 
+            # Step 6: Generate hierarchical summaries (optional)
+            summary_result = None
+            if generate_summaries:
+                try:
+                    from .summarization_service import generate_hierarchical_summaries
+
+                    # Prepare chunk data for summarization
+                    chunk_data = [
+                        {
+                            'id': db_chunk.id,
+                            'content': db_chunk.content,
+                            'chunk_index': db_chunk.chunk_index
+                        }
+                        for db_chunk in db_chunks
+                    ]
+
+                    summary_result = await generate_hierarchical_summaries(
+                        db=db,
+                        document_id=doc_id,
+                        knowledge_base_id=kb_id,
+                        chunks=chunk_data
+                    )
+                    logger.info(f"Document {doc_id}: generated summaries - {summary_result}")
+                except Exception as e:
+                    logger.warning(f"Summarization failed for doc {doc_id}: {e}")
+                    summary_result = {"status": "failed", "error": str(e)}
+
             return {
                 "doc_id": doc_id,
                 "chunks": len(chunks),
                 "embeddings": sum(1 for e in embeddings if e),
+                "summaries": summary_result,
                 "status": "completed"
             }
 
@@ -187,7 +218,8 @@ async def chunk_document_on_upload(
     db: Session,
     document: DBDocument,
     content: str,
-    generate_embeddings: bool = True
+    generate_embeddings: bool = True,
+    generate_summaries: bool = False
 ) -> Dict:
     """
     Convenience function to chunk a document after upload.
@@ -199,13 +231,14 @@ async def chunk_document_on_upload(
         document: The uploaded document
         content: Document content
         generate_embeddings: Whether to generate embeddings
+        generate_summaries: Whether to generate hierarchical summaries
 
     Returns:
         Processing result dict
     """
     pipeline = ChunkingPipeline()
     return await pipeline.process_document(
-        db, document, content, generate_embeddings
+        db, document, content, generate_embeddings, generate_summaries
     )
 
 

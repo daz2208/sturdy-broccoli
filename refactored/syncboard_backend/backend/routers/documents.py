@@ -5,6 +5,8 @@ Endpoints:
 - GET /documents/{doc_id} - Get a single document
 - DELETE /documents/{doc_id} - Delete a document
 - PUT /documents/{doc_id}/metadata - Update document metadata
+- GET /documents/{doc_id}/summaries - Get document summaries
+- POST /documents/{doc_id}/summarize - Generate summaries for a document
 """
 
 import logging
@@ -251,3 +253,158 @@ async def update_document_metadata(
 
     logger.info(f"Updated metadata for document {doc_id} in KB {kb_id}")
     return {"message": "Metadata updated", "metadata": meta.dict()}
+
+
+# =============================================================================
+# Document Summaries Endpoints
+# =============================================================================
+
+@router.get("/{doc_id}/summaries")
+async def get_document_summaries(
+    doc_id: int,
+    level: int = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get hierarchical summaries for a document.
+
+    Args:
+        doc_id: Document ID (doc_id, not internal ID)
+        level: Optional filter by level (1=chunk, 2=section, 3=document)
+        user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of summaries at requested levels
+    """
+    from ..db_models import DBDocument, DBDocumentSummary
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(user.username, db)
+
+    # Find the document
+    doc = db.query(DBDocument).filter(
+        DBDocument.doc_id == doc_id,
+        DBDocument.knowledge_base_id == kb_id,
+        DBDocument.owner_username == user.username
+    ).first()
+
+    if not doc:
+        raise HTTPException(404, f"Document {doc_id} not found")
+
+    # Get summaries
+    query = db.query(DBDocumentSummary).filter(
+        DBDocumentSummary.document_id == doc.id
+    )
+
+    if level:
+        query = query.filter(DBDocumentSummary.summary_level == level)
+
+    summaries = query.order_by(
+        DBDocumentSummary.summary_level.desc(),
+        DBDocumentSummary.id
+    ).all()
+
+    return {
+        "doc_id": doc_id,
+        "summary_count": len(summaries),
+        "summaries": [
+            {
+                "id": s.id,
+                "summary_type": s.summary_type,
+                "summary_level": s.summary_level,
+                "short_summary": s.short_summary,
+                "long_summary": s.long_summary,
+                "key_concepts": s.key_concepts,
+                "tech_stack": s.tech_stack,
+                "skill_profile": s.skill_profile,
+                "chunk_id": s.chunk_id,
+                "created_at": s.created_at.isoformat() if s.created_at else None
+            }
+            for s in summaries
+        ]
+    }
+
+
+@router.post("/{doc_id}/summarize")
+async def generate_document_summaries(
+    doc_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate hierarchical summaries for a document.
+
+    Requires document to have been chunked first.
+
+    Args:
+        doc_id: Document ID (doc_id, not internal ID)
+        user: Authenticated user
+        db: Database session
+
+    Returns:
+        Summary generation results
+    """
+    from ..db_models import DBDocument, DBDocumentChunk, DBDocumentSummary
+    from ..summarization_service import generate_hierarchical_summaries
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(user.username, db)
+
+    # Find the document
+    doc = db.query(DBDocument).filter(
+        DBDocument.doc_id == doc_id,
+        DBDocument.knowledge_base_id == kb_id,
+        DBDocument.owner_username == user.username
+    ).first()
+
+    if not doc:
+        raise HTTPException(404, f"Document {doc_id} not found")
+
+    # Check if document has chunks
+    chunks = db.query(DBDocumentChunk).filter(
+        DBDocumentChunk.document_id == doc.id
+    ).order_by(DBDocumentChunk.chunk_index).all()
+
+    if not chunks:
+        raise HTTPException(400, f"Document {doc_id} has no chunks. Run chunking first.")
+
+    # Delete existing summaries
+    db.query(DBDocumentSummary).filter(
+        DBDocumentSummary.document_id == doc.id
+    ).delete()
+    db.commit()
+
+    # Prepare chunk data
+    chunk_data = [
+        {
+            'id': c.id,
+            'content': c.content,
+            'chunk_index': c.chunk_index
+        }
+        for c in chunks
+    ]
+
+    # Generate summaries
+    try:
+        result = await generate_hierarchical_summaries(
+            db=db,
+            document_id=doc.id,
+            knowledge_base_id=kb_id,
+            chunks=chunk_data
+        )
+
+        logger.info(f"Generated summaries for document {doc_id}: {result}")
+
+        return {
+            "doc_id": doc_id,
+            "status": result.get("status", "unknown"),
+            "chunk_summaries": result.get("chunk_summaries", 0),
+            "section_summaries": result.get("section_summaries", 0),
+            "document_summary": result.get("document_summary", 0)
+        }
+
+    except Exception as e:
+        logger.error(f"Summary generation failed for doc {doc_id}: {e}")
+        raise HTTPException(500, f"Summary generation failed: {str(e)}")
