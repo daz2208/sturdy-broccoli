@@ -82,11 +82,20 @@ class DBDocument(Base):
     ingested_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    # Processing status for hierarchical summarization (Phase 9)
+    chunking_status = Column(String(50), default='pending', nullable=False)  # pending, processing, completed, failed
+    summary_status = Column(String(50), default='pending', nullable=False)  # pending, processing, completed, failed
+    chunk_count = Column(Integer, default=0, nullable=False)
+
     # Relationships
     owner_user = relationship("DBUser", back_populates="documents")
     cluster = relationship("DBCluster", back_populates="documents")
     concepts = relationship("DBConcept", back_populates="document", cascade="all, delete-orphan")
     knowledge_base = relationship("DBKnowledgeBase", back_populates="documents")
+    # Phase 9: Hierarchical summarization relationships
+    chunks = relationship("DBDocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    summaries = relationship("DBDocumentSummary", back_populates="document", cascade="all, delete-orphan")
+    build_ideas = relationship("DBBuildIdeaSeed", back_populates="document", cascade="all, delete-orphan")
 
     # Composite indexes for common queries
     __table_args__ = (
@@ -343,6 +352,10 @@ class DBKnowledgeBase(Base):
     documents = relationship("DBDocument", back_populates="knowledge_base", cascade="all, delete-orphan")
     clusters = relationship("DBCluster", back_populates="knowledge_base", cascade="all, delete-orphan")
     build_suggestions = relationship("DBBuildSuggestion", back_populates="knowledge_base", cascade="all, delete-orphan")
+    # Phase 9: Hierarchical summarization relationships
+    document_chunks = relationship("DBDocumentChunk", back_populates="knowledge_base", cascade="all, delete-orphan")
+    document_summaries = relationship("DBDocumentSummary", back_populates="knowledge_base", cascade="all, delete-orphan")
+    build_idea_seeds = relationship("DBBuildIdeaSeed", back_populates="knowledge_base", cascade="all, delete-orphan")
 
     # Indexes
     __table_args__ = (
@@ -391,3 +404,89 @@ class DBBuildSuggestion(Base):
 
     def __repr__(self):
         return f"<DBBuildSuggestion(id={self.id}, title='{self.title}', feasibility='{self.feasibility}')>"
+
+
+# =============================================================================
+# Phase 9: Hierarchical Summarization
+# =============================================================================
+
+class DBDocumentChunk(Base):
+    """Stores chunks of documents with embeddings for semantic search."""
+    __tablename__ = "document_chunks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
+    chunk_index = Column(Integer, nullable=False)  # Order within document
+    start_token = Column(Integer, nullable=False)  # Token position in original doc
+    end_token = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    embedding = Column(JSON, nullable=True)  # Vector embedding as JSON array
+    summary = Column(Text, nullable=True)  # 100-200 token summary of this chunk
+    concepts = Column(JSON, nullable=True)  # Extracted concepts from this chunk
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    document = relationship("DBDocument", back_populates="chunks")
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="document_chunks")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_chunks_doc_index', 'document_id', 'chunk_index'),
+    )
+
+    def __repr__(self):
+        return f"<DBDocumentChunk(doc_id={self.document_id}, chunk={self.chunk_index}, tokens={self.end_token - self.start_token})>"
+
+
+class DBDocumentSummary(Base):
+    """Stores hierarchical summaries at different levels (chunk, section, document)."""
+    __tablename__ = "document_summaries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
+    summary_type = Column(String(50), nullable=False, index=True)  # 'chunk', 'section', 'document'
+    summary_level = Column(Integer, nullable=False, index=True)  # 1=chunk, 2=section, 3=document
+    parent_id = Column(Integer, ForeignKey("document_summaries.id", ondelete="SET NULL"), nullable=True)
+    chunk_id = Column(Integer, ForeignKey("document_chunks.id", ondelete="SET NULL"), nullable=True)  # For chunk summaries
+    short_summary = Column(Text, nullable=False)  # 100-200 tokens
+    long_summary = Column(Text, nullable=True)  # 500-1000 tokens (optional)
+    key_concepts = Column(JSON, nullable=True)  # Key concepts at this level
+    tech_stack = Column(JSON, nullable=True)  # Technologies mentioned
+    skill_profile = Column(JSON, nullable=True)  # Skill levels required
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    document = relationship("DBDocument", back_populates="summaries")
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="document_summaries")
+    parent = relationship("DBDocumentSummary", remote_side=[id], backref="children")
+    chunk = relationship("DBDocumentChunk", foreign_keys=[chunk_id])
+
+    def __repr__(self):
+        return f"<DBDocumentSummary(doc_id={self.document_id}, type='{self.summary_type}', level={self.summary_level})>"
+
+
+class DBBuildIdeaSeed(Base):
+    """Pre-computed build ideas based on individual documents."""
+    __tablename__ = "build_idea_seeds"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=False)
+    difficulty = Column(String(50), nullable=False, index=True)  # 'beginner', 'intermediate', 'advanced'
+    dependencies = Column(JSON, nullable=True)  # List of required concepts/other docs
+    referenced_sections = Column(JSON, nullable=True)  # Which sections support this idea
+    feasibility = Column(String(50), nullable=True)  # 'high', 'medium', 'low'
+    effort_estimate = Column(String(100), nullable=True)  # "2-3 days", "1 week", etc.
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    document = relationship("DBDocument", back_populates="build_ideas")
+    knowledge_base = relationship("DBKnowledgeBase", back_populates="build_idea_seeds")
+
+    def __repr__(self):
+        return f"<DBBuildIdeaSeed(doc_id={self.document_id}, title='{self.title}', difficulty='{self.difficulty}')>"
