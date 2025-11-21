@@ -9,14 +9,18 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Depends
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy.orm import Session
 
 from ..models import User, GenerationRequest
 from ..dependencies import (
     get_current_user,
-    get_documents,
-    get_metadata,
+    get_kb_documents,
+    get_kb_metadata,
+    get_kb_doc_ids,
+    get_user_default_kb_id,
     get_vector_store,
 )
+from ..database import get_db
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -49,49 +53,62 @@ except ImportError as e:
 async def generate_content(
     req: GenerationRequest,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Generate AI content with RAG (Retrieval-Augmented Generation).
-    
+
     Rate limited to 5 requests per minute.
-    
+
     Uses the user's knowledge bank to provide context for generation,
     implementing RAG pattern for better, context-aware responses.
-    
+
     Args:
         req: Generation request with prompt and model selection
         request: FastAPI request (for rate limiting)
         current_user: Authenticated user
-    
+        db: Database session
+
     Returns:
         AI-generated response based on user's knowledge
     """
     if not REAL_AI_AVAILABLE:
         return {"response": "AI generation not available - API keys not configured"}
-    
-    documents = get_documents()
-    metadata = get_metadata()
+
+    # Get user's default knowledge base (KB-scoped, no data leakage)
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Get KB-scoped storage (properly isolated)
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
     vector_store = get_vector_store()
-    
-    # Get user's documents for RAG (flatten across all KBs)
+
+    # Filter to user's documents within their KB
     user_doc_ids = []
-    flat_documents = {}  # Flatten documents for RAG
-    for kb_id, kb_metadata in metadata.items():
-        kb_docs = documents.get(kb_id, {})
-        for doc_id, meta in kb_metadata.items():
-            if meta.owner == current_user.username:
-                user_doc_ids.append(doc_id)
-                if doc_id in kb_docs:
-                    flat_documents[doc_id] = kb_docs[doc_id]
-    
+    user_documents = {}
+    for doc_id, meta in kb_metadata.items():
+        if meta.owner == current_user.username:
+            user_doc_ids.append(doc_id)
+            if doc_id in kb_documents:
+                user_documents[doc_id] = kb_documents[doc_id]
+
+    logger.info(f"RAG context: {len(user_documents)} documents for user {current_user.username} in KB {kb_id}")
+
+    # Also get metadata for those documents (for citations)
+    user_metadata = {
+        did: meta for did, meta in kb_metadata.items()
+        if did in user_doc_ids
+    }
+
     try:
         response_text = await generate_with_rag(
             prompt=req.prompt,
             model=req.model,
             vector_store=vector_store,
             allowed_doc_ids=user_doc_ids,
-            documents=flat_documents  # Pass flattened dict
+            documents=user_documents,
+            metadata=user_metadata
         )
         return {"response": response_text}
     except Exception as e:

@@ -5,7 +5,7 @@ Uses OpenAI to generate content based on user's knowledge bank.
 
 import os
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ async def generate_with_rag(
     vector_store,
     allowed_doc_ids: List[int],
     documents: Dict[int, str],
+    metadata: Optional[Dict[int, Any]] = None,
     top_k: int = 100
 ) -> str:
     """
@@ -41,6 +42,7 @@ async def generate_with_rag(
         vector_store: Vector store for semantic search
         allowed_doc_ids: Document IDs the user has access to
         documents: All documents dict
+        metadata: Optional document metadata dict for citations
         top_k: Number of relevant documents to retrieve
 
     Returns:
@@ -49,14 +51,25 @@ async def generate_with_rag(
     # Get relevant documents using semantic search
     search_results = vector_store.search(prompt, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
 
-    # Filter to only user's documents
+    # Filter to only user's documents with metadata
     relevant_docs = []
     for doc_id, score, snippet in search_results:  # FIX: Unpack all 3 values
         if doc_id in allowed_doc_ids and doc_id in documents:
-            relevant_docs.append({
+            doc_info = {
+                "doc_id": doc_id,
                 "content": documents[doc_id],
                 "relevance": score
-            })
+            }
+            # Add metadata if available
+            if metadata and doc_id in metadata:
+                meta = metadata[doc_id]
+                doc_info["source_type"] = getattr(meta, 'source_type', 'unknown')
+                doc_info["filename"] = getattr(meta, 'filename', None)
+                doc_info["source_url"] = getattr(meta, 'source_url', None)
+                # Get concept names
+                concepts = getattr(meta, 'concepts', [])
+                doc_info["concepts"] = [c.name for c in concepts[:5]] if concepts else []
+            relevant_docs.append(doc_info)
 
     # Token budget management (GPT-5 has 272k input limit, leave room for prompt + response)
     MAX_CONTEXT_TOKENS = 200000  # Conservative limit for context
@@ -93,16 +106,41 @@ async def generate_with_rag(
 
     logger.info(f"Using {len(truncated_docs)} documents (~{total_chars//CHARS_PER_TOKEN} tokens)")
 
-    # Build context from truncated documents
-    context = "\n\n---\n\n".join([
-        f"[Document {i+1} - Relevance: {doc['relevance']:.2f}]\n{doc['content']}"
-        for i, doc in enumerate(truncated_docs)
-    ])
+    # Build context from truncated documents with metadata
+    context_parts = []
+    for i, doc in enumerate(truncated_docs):
+        # Build document header with metadata
+        header = f"[Document {i+1}"
+        if doc.get('filename'):
+            header += f" | {doc['filename']}"
+        elif doc.get('source_url'):
+            # Truncate long URLs
+            url = doc['source_url']
+            if len(url) > 60:
+                url = url[:57] + "..."
+            header += f" | {url}"
+        header += f" | {doc.get('source_type', 'unknown')}"
+        header += f" | Relevance: {doc['relevance']:.2f}]"
 
-    # Construct system message
+        # Add concepts if available
+        if doc.get('concepts'):
+            header += f"\nKey concepts: {', '.join(doc['concepts'])}"
+
+        context_parts.append(f"{header}\n{doc['content']}")
+
+    context = "\n\n---\n\n".join(context_parts)
+
+    # Construct system message with citation guidance
     system_message = """You are an AI assistant helping users with their knowledge bank.
 You have access to the user's documents and can use them to provide informed, accurate responses.
-Always cite which documents you're referencing when possible."""
+
+IMPORTANT: When answering, you MUST:
+1. Cite your sources using document numbers (e.g., "According to Document 1..." or "[Document 3]")
+2. Reference filenames or URLs when available for better traceability
+3. If multiple documents support a point, cite all of them
+4. If you cannot find relevant information, say so clearly
+
+The documents are sorted by relevance to the user's question."""
 
     # Construct user message with context
     if context:
