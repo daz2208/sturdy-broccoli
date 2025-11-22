@@ -1,0 +1,577 @@
+"""
+Abstract LLM provider interface for decoupling from specific AI vendors.
+
+This allows easy switching between OpenAI, Anthropic, local models, etc.
+"""
+
+import os
+import json
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, List
+
+from openai import AsyncOpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+logger = logging.getLogger(__name__)
+
+
+def get_representative_sample(content: str, max_chars: int = 6000) -> str:
+    """
+    Get representative sample from beginning, middle, and end of content.
+
+    For content longer than max_chars, extracts three equal-sized chunks:
+    - Beginning: First concepts and introduction
+    - Middle: Core content and examples
+    - End: Conclusions and advanced topics
+
+    Args:
+        content: Full document text
+        max_chars: Maximum total characters to return
+
+    Returns:
+        Sampled content with section separators
+    """
+    if len(content) <= max_chars:
+        return content
+
+    chunk_size = max_chars // 3
+
+    # Beginning - first chunk_size chars
+    start = content[:chunk_size].strip()
+
+    # Middle - centered chunk
+    middle_pos = (len(content) // 2) - (chunk_size // 2)
+    middle = content[middle_pos:middle_pos + chunk_size].strip()
+
+    # End - last chunk_size chars
+    end = content[-chunk_size:].strip()
+
+    # Combine with clear separators
+    return f"{start}\n\n[... content continued ...]\n\n{middle}\n\n[... content continued ...]\n\n{end}"
+
+
+class LLMProvider(ABC):
+    """Abstract base class for LLM providers."""
+
+    @abstractmethod
+    async def extract_concepts(
+        self,
+        content: str,
+        source_type: str
+    ) -> Dict:
+        """
+        Extract concepts from content.
+
+        Args:
+            content: Content to analyze
+            source_type: Type of content (text, pdf, etc.)
+
+        Returns:
+            Dict with concepts, skill_level, primary_topic, suggested_cluster
+        """
+        pass
+
+    @abstractmethod
+    async def generate_build_suggestions(
+        self,
+        knowledge_summary: str,
+        max_suggestions: int
+    ) -> List[Dict]:
+        """
+        Generate project build suggestions.
+
+        Args:
+            knowledge_summary: Summary of user's knowledge bank
+            max_suggestions: Maximum number of suggestions
+
+        Returns:
+            List of build suggestion dictionaries
+        """
+        pass
+
+    @abstractmethod
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """
+        Generic chat completion for various tasks.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            temperature: Sampling temperature (0-1)
+
+        Returns:
+            Response text
+        """
+        pass
+
+
+class OpenAIProvider(LLMProvider):
+    """OpenAI implementation of LLM provider."""
+
+    def __init__(
+        self,
+        api_key: str = None,
+        concept_model: str = "gpt-5-mini",
+        suggestion_model: str = "gpt-5-mini"
+    ):
+        """
+        Initialize OpenAI provider.
+
+        Args:
+            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            concept_model: Model for concept extraction
+            suggestion_model: Model for build suggestions
+        """
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("OpenAI API key required")
+
+        self.client = AsyncOpenAI(api_key=self.api_key)
+        self.concept_model = concept_model
+        self.suggestion_model = suggestion_model
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((Exception,)),
+        reraise=True
+    )
+    async def _call_openai(
+        self,
+        messages: List[Dict],
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> str:
+        """Call OpenAI API with retry logic."""
+        logger.info(f"Calling OpenAI with model: {model}")
+
+        # GPT-5 models use fixed sampling and different parameters
+        # - No temperature support (uses fixed sampling)
+        # - Use max_completion_tokens instead of max_tokens
+        params = {
+            "model": model,
+            "messages": messages
+        }
+
+        if model.startswith("gpt-5"):
+            # GPT-5 models use max_completion_tokens and no temperature
+            params["max_completion_tokens"] = max_tokens
+        else:
+            # GPT-4 and earlier use max_tokens and temperature
+            params["max_tokens"] = max_tokens
+            params["temperature"] = temperature
+
+        response = await self.client.chat.completions.create(**params)
+        content = response.choices[0].message.content
+        logger.info(f"API response - finish_reason: {response.choices[0].finish_reason}, content length: {len(content) if content else 0}")
+        return content or ""  # Return empty string if None
+
+    async def extract_concepts(
+        self,
+        content: str,
+        source_type: str
+    ) -> Dict:
+        """Extract concepts using OpenAI."""
+        from .constants import CONCEPT_EXTRACTION_SAMPLE_SIZE, CONCEPT_EXTRACTION_METHOD
+
+        # Smart sampling: extract from beginning, middle, and end
+        if CONCEPT_EXTRACTION_METHOD == "smart":
+            sample = get_representative_sample(content, max_chars=CONCEPT_EXTRACTION_SAMPLE_SIZE)
+            sampling_note = "\nNOTE: For long documents, this is a representative sample from beginning, middle, and end."
+        else:
+            # Fallback to simple truncation
+            sample = content[:CONCEPT_EXTRACTION_SAMPLE_SIZE] if len(content) > CONCEPT_EXTRACTION_SAMPLE_SIZE else content
+            sampling_note = ""
+
+        # Detect YouTube transcripts
+        is_youtube = "YOUTUBE VIDEO TRANSCRIPT" in content or source_type == "youtube"
+
+        if is_youtube:
+            prompt = self._build_youtube_prompt(sample, sampling_note)
+        else:
+            prompt = self._build_standard_prompt(sample, source_type, sampling_note)
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a concept extraction system. Return only valid JSON."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.concept_model,
+                temperature=0.3,
+                max_tokens=4000
+            )
+
+            # Parse JSON response
+            logger.debug(f"OpenAI raw response: {response[:200]}")  # Log first 200 chars
+            result = json.loads(response)
+            logger.debug(f"Extracted {len(result.get('concepts', []))} concepts")
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from OpenAI: {e}")
+            logger.error(f"Raw response was: {response[:500]}")
+            return {
+                "concepts": [],
+                "skill_level": "unknown",
+                "primary_topic": "uncategorized",
+                "suggested_cluster": "General"
+            }
+        except Exception as e:
+            logger.error(f"Concept extraction failed: {e}")
+            return {
+                "concepts": [],
+                "skill_level": "unknown",
+                "primary_topic": "uncategorized",
+                "suggested_cluster": "General"
+            }
+
+    def _build_youtube_prompt(self, sample: str, sampling_note: str = "") -> str:
+        """Build specialized prompt for YouTube transcripts."""
+        return f"""Analyze this YouTube video transcript and extract comprehensive information.{sampling_note}
+
+TRANSCRIPT:
+{sample}
+
+Return ONLY valid JSON (no markdown, no explanation) with this structure:
+{{
+  "title": "Full video title",
+  "creator": "Channel or creator name",
+  "concepts": [
+    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
+  ],
+  "skill_level": "beginner|intermediate|advanced",
+  "primary_topic": "main topic in 2-4 words",
+  "suggested_cluster": "cluster name for grouping similar content",
+  "target_audience": "Who this video is for (e.g., 'Python beginners', 'DevOps engineers')",
+  "key_takeaways": ["Main point 1", "Main point 2", "Main point 3"],
+  "video_type": "tutorial|talk|demo|discussion|course|review",
+  "estimated_watch_time": "Approximate length (e.g., '15 minutes', '1 hour')"
+}}
+
+CATEGORY DEFINITIONS:
+- language: Programming languages (python, javascript, rust)
+- framework: Web/app frameworks (react, django, spring)
+- library: Code libraries (pandas, numpy, lodash)
+- tool: Development tools (docker, git, webpack)
+- platform: Cloud/hosting platforms (aws, azure, vercel)
+- database: Databases (postgresql, mongodb, redis)
+- methodology: Development practices (agile, tdd, ci/cd)
+- architecture: System design patterns (microservices, mvc, rest)
+- testing: Testing approaches (unit testing, e2e, jest)
+- devops: Operations concepts (kubernetes, terraform, monitoring)
+- concept: General programming concepts (async, orm, api)
+
+Extract 3-10 concepts from the actual content discussed. Be specific. Use lowercase for concept names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
+
+    def _build_standard_prompt(self, sample: str, source_type: str, sampling_note: str = "") -> str:
+        """Build standard prompt for non-YouTube content."""
+        return f"""Analyze this {source_type} content and extract structured information.{sampling_note}
+
+CONTENT:
+{sample}
+
+Return ONLY valid JSON (no markdown, no explanation) with this structure:
+{{
+  "concepts": [
+    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
+  ],
+  "skill_level": "beginner|intermediate|advanced",
+  "primary_topic": "main topic in 2-4 words",
+  "suggested_cluster": "cluster name for grouping similar content"
+}}
+
+CATEGORY DEFINITIONS:
+- language: Programming languages (python, javascript, rust)
+- framework: Web/app frameworks (react, django, spring)
+- library: Code libraries (pandas, numpy, lodash)
+- tool: Development tools (docker, git, webpack)
+- platform: Cloud/hosting platforms (aws, azure, vercel)
+- database: Databases (postgresql, mongodb, redis)
+- methodology: Development practices (agile, tdd, ci/cd)
+- architecture: System design patterns (microservices, mvc, rest)
+- testing: Testing approaches (unit testing, e2e, jest)
+- devops: Operations concepts (kubernetes, terraform, monitoring)
+- concept: General programming concepts (async, orm, api)
+
+Extract 3-10 concepts. Be specific. Use lowercase for names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
+
+    async def generate_build_suggestions(
+        self,
+        knowledge_summary: str,
+        max_suggestions: int
+    ) -> List[Dict]:
+        """Generate build suggestions using OpenAI."""
+        prompt = f"""Based on this user's knowledge bank, suggest {max_suggestions} practical projects they could build RIGHT NOW.
+
+KNOWLEDGE BANK:
+{knowledge_summary}
+
+Return ONLY a JSON array of suggestions (no markdown, no explanation):
+[
+  {{
+    "title": "Project Name",
+    "description": "What they'll build and why it's valuable",
+    "feasibility": "high|medium|low",
+    "effort_estimate": "2-3 days",
+    "required_skills": ["skill1", "skill2"],
+    "missing_knowledge": ["gap1", "gap2"],
+    "relevant_clusters": [1, 2],
+    "starter_steps": ["step 1", "step 2", "step 3"],
+    "file_structure": "project/\\n  src/\\n  tests/\\n  README.md"
+  }}
+]
+
+Be specific. Reference actual content from their knowledge. Prioritize projects they can START TODAY."""
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a project advisor. Return only valid JSON arrays of build suggestions."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.7,
+                max_tokens=2000  # Keep as max_tokens since it goes through _call_openai which converts to max_completion_tokens
+            )
+
+            # Parse JSON response
+            suggestions = json.loads(response)
+            logger.info(f"Generated {len(suggestions)} build suggestions")
+            return suggestions
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from OpenAI: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Build suggestion generation failed: {e}")
+            return []
+
+    async def generate_build_suggestions_improved(
+        self,
+        knowledge_summary: str,
+        knowledge_areas: List[Dict],
+        validation_info: Dict,
+        max_suggestions: int,
+        enable_quality_filter: bool = True
+    ) -> List[Dict]:
+        """
+        Generate IMPROVED build suggestions with depth analysis.
+
+        Includes:
+        - Actual content snippets (not just concept names)
+        - Knowledge area detection
+        - Minimum threshold validation
+        - Feasibility checks
+        - Optional quality filtering (can be disabled)
+
+        Args:
+            knowledge_summary: Rich summary of user's knowledge
+            knowledge_areas: Detected knowledge areas
+            validation_info: Knowledge depth validation info
+            max_suggestions: Number of suggestions to generate
+            enable_quality_filter: If True, filter out low-coverage suggestions
+        """
+        stats = validation_info["stats"]
+
+        # Build areas summary
+        areas_text = "\n".join([
+            f"- {area['name']}: {area['document_count']} docs, {len(area['core_concepts'])} concepts ({area['skill_level']})"
+            for area in knowledge_areas
+        ])
+
+        prompt = f"""Based on this VALIDATED knowledge bank, suggest {max_suggestions} DETAILED practical projects.
+
+KNOWLEDGE VALIDATION:
+✅ {stats['total_documents']} documents analyzed
+✅ {stats['unique_concepts']} unique concepts extracted
+✅ {stats['total_clusters']} knowledge areas identified
+✅ Skill levels: {', '.join(f"{k}: {v}" for k, v in stats['skill_distribution'].items())}
+
+KNOWLEDGE AREAS:
+{areas_text}
+
+DETAILED KNOWLEDGE CONTENT:
+{knowledge_summary}
+
+Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
+[
+  {{
+    "title": "Specific Project Name",
+    "description": "What they'll build and WHY (reference their actual knowledge)",
+    "feasibility": "high|medium|low",
+    "effort_estimate": "X hours/days",
+    "complexity_level": "beginner|intermediate|advanced",
+    "required_skills": ["skill1", "skill2"],
+    "missing_knowledge": ["specific gap 1", "specific gap 2"],
+    "relevant_clusters": [0, 1],
+    "starter_steps": [
+      "Step 1: Set up project structure",
+      "Step 2: Create main.py with basic Flask app",
+      "Step 3: Define database models",
+      "Step 4: Create API endpoints",
+      "Step 5: Add authentication",
+      "Step 6: Write unit tests",
+      "Step 7: Deploy to cloud"
+    ],
+    "file_structure": "project/\\n  src/\\n    __init__.py\\n    main.py\\n    models.py\\n    routes.py\\n  tests/\\n    test_api.py\\n  requirements.txt\\n  README.md\\n  .env.example",
+    "starter_code": "# main.py\\nfrom flask import Flask\\napp = Flask(__name__)\\n\\n@app.route('/')\\ndef home():\\n    return 'Hello World'\\n\\nif __name__ == '__main__':\\n    app.run(debug=True)",
+    "learning_path": [
+      "Study: Flask routing and request handling (2 hours)",
+      "Practice: Build a simple REST API (4 hours)",
+      "Learn: Database integration with SQLAlchemy (3 hours)",
+      "Master: Authentication with JWT tokens (2 hours)"
+    ],
+    "recommended_resources": [
+      "Flask Official Docs: https://flask.palletsprojects.com/",
+      "Real Python - Flask Tutorial",
+      "FreeCodeCamp - REST API Guide"
+    ],
+    "expected_outcomes": [
+      "Working REST API with CRUD operations",
+      "User authentication system",
+      "Database integration",
+      "Deployed application"
+    ],
+    "troubleshooting_tips": [
+      "CORS errors: Add flask-cors package",
+      "Database connection: Check .env configuration",
+      "Port conflicts: Use different port with app.run(port=5001)"
+    ],
+    "knowledge_coverage": "high|medium|low (how much of their knowledge applies)"
+  }}
+]
+
+IMPORTANT:
+- Reference ACTUAL content from their knowledge (concepts, code, examples)
+- Provide 5-10 DETAILED starter steps
+- Include WORKING starter code snippets
+- Add SPECIFIC learning resources and timelines
+- Give PRACTICAL troubleshooting tips
+- Only suggest if they have ENOUGH depth (check knowledge_coverage)
+- Be SPECIFIC - not generic
+- Prioritize projects they can START TODAY with existing knowledge"""
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert project advisor and mentor. Analyze knowledge depth and suggest COMPREHENSIVE, DETAILED, REALISTIC projects with learning paths, code examples, and resources. Return only valid JSON."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.7,
+                max_tokens=64000  # Increased for detailed suggestions with code, resources, and learning paths
+            )
+
+            suggestions = json.loads(response)
+
+            # Conditionally filter out low-coverage suggestions
+            if enable_quality_filter:
+                filtered = [
+                    s for s in suggestions
+                    if s.get("knowledge_coverage", "low") in ["high", "medium"]
+                ]
+                logger.info(f"Generated {len(filtered)} high-quality suggestions (filtered {len(suggestions) - len(filtered)})")
+                return filtered
+            else:
+                logger.info(f"Generated {len(suggestions)} suggestions (quality filter disabled)")
+                return suggestions
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Improved suggestion generation failed: {e}")
+            return []
+
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """
+        Generic chat completion for various tasks.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            temperature: Sampling temperature (0-1)
+
+        Returns:
+            Response text
+        """
+        try:
+            response = await self._call_openai(
+                messages=messages,
+                model=self.concept_model,  # Use faster model for generic tasks
+                temperature=temperature,
+                max_tokens=500
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Chat completion failed: {e}")
+            raise
+
+
+class MockLLMProvider(LLMProvider):
+    """
+    Mock LLM provider for testing.
+
+    Returns dummy data without making API calls.
+    """
+
+    async def extract_concepts(
+        self,
+        content: str,
+        source_type: str
+    ) -> Dict:
+        """Return mock concept extraction."""
+        return {
+            "concepts": [
+                {"name": "test concept", "relevance": 0.9},
+                {"name": "mock data", "relevance": 0.8}
+            ],
+            "skill_level": "intermediate",
+            "primary_topic": "testing",
+            "suggested_cluster": "Test Cluster"
+        }
+
+    async def generate_build_suggestions(
+        self,
+        knowledge_summary: str,
+        max_suggestions: int
+    ) -> List[Dict]:
+        """Return mock build suggestions."""
+        return [
+            {
+                "title": "Test Project",
+                "description": "A mock project for testing",
+                "feasibility": "high",
+                "effort_estimate": "1 day",
+                "required_skills": ["testing"],
+                "missing_knowledge": [],
+                "starter_steps": ["Step 1", "Step 2"],
+                "file_structure": "test/\n  src/\n  tests/"
+            }
+        ]
+
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """Return mock chat completion."""
+        return '{"similar": true, "confidence": 0.8, "reason": "mock similarity"}'
