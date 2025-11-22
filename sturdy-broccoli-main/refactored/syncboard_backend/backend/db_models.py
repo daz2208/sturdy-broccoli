@@ -95,8 +95,13 @@ class DBDocument(Base):
     summary_status = Column(String(50), default='pending', nullable=False)  # pending, processing, completed, failed
     chunk_count = Column(Integer, default=0, nullable=False)
 
+    # Phase 10: Document tagging and project association
+    document_tags = Column(JSON, nullable=True)  # ['project-postmortem', 'success-story', 'market-research', 'code-example']
+    related_project_id = Column(Integer, ForeignKey("project_attempts.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Relationships
     owner_user = relationship("DBUser", back_populates="documents")
+    related_project = relationship("DBProjectAttempt", backref="related_documents", foreign_keys=[related_project_id])
     cluster = relationship("DBCluster", back_populates="documents")
     concepts = relationship("DBConcept", back_populates="document", cascade="all, delete-orphan")
     knowledge_base = relationship("DBKnowledgeBase", back_populates="documents")
@@ -498,3 +503,181 @@ class DBBuildIdeaSeed(Base):
 
     def __repr__(self):
         return f"<DBBuildIdeaSeed(doc_id={self.document_id}, title='{self.title}', difficulty='{self.difficulty}')>"
+
+
+# =============================================================================
+# Phase 10: SyncBoard 3.0 Enhancements - Goal-Driven Creation Engine
+# =============================================================================
+
+class DBProjectGoal(Base):
+    """User project goals and constraints for personalized suggestions."""
+    __tablename__ = "project_goals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    goal_type = Column(String(50), nullable=False, index=True)  # 'revenue', 'learning', 'portfolio', 'automation'
+    priority = Column(Integer, default=0, nullable=False)  # Higher = more important
+    constraints = Column(JSON, nullable=True)  # {time_available, budget, target_market, tech_stack_preference, deployment_preference}
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="project_goals")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_project_goals_user', 'user_id'),
+        Index('idx_project_goals_type', 'goal_type'),
+        Index('idx_project_goals_priority', 'user_id', 'priority'),
+    )
+
+    def __repr__(self):
+        return f"<DBProjectGoal(id={self.id}, user='{self.user_id}', type='{self.goal_type}', priority={self.priority})>"
+
+
+class DBProjectAttempt(Base):
+    """Tracks user's project attempts for learning and pattern recognition."""
+    __tablename__ = "project_attempts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    suggestion_id = Column(String(255), nullable=True)  # Links to build suggestion that inspired this
+    title = Column(String(255), nullable=False)
+    status = Column(String(50), nullable=False, default='planned', index=True)  # 'planned', 'in_progress', 'completed', 'abandoned'
+
+    # Timestamps
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    abandoned_at = Column(DateTime, nullable=True)
+
+    # Project details
+    repository_url = Column(String(500), nullable=True)
+    demo_url = Column(String(500), nullable=True)
+    learnings = Column(Text, nullable=True)  # What went right/wrong
+    difficulty_rating = Column(Integer, nullable=True)  # 1-10, actual vs estimated
+    time_spent_hours = Column(Integer, nullable=True)
+    revenue_generated = Column(Float, nullable=True)  # Decimal for currency
+    metadata = Column(JSON, nullable=True)  # Extra data
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="project_attempts")
+    generated_code = relationship("DBGeneratedCode", back_populates="project_attempt", cascade="all, delete-orphan")
+    market_validations = relationship("DBMarketValidation", back_populates="project_attempt", cascade="all, delete-orphan")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_project_attempts_user', 'user_id'),
+        Index('idx_project_attempts_status', 'status'),
+        Index('idx_project_attempts_user_status', 'user_id', 'status'),
+        Index('idx_project_attempts_created', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<DBProjectAttempt(id={self.id}, title='{self.title}', status='{self.status}')>"
+
+
+class DBGeneratedCode(Base):
+    """Stores generated code files for projects."""
+    __tablename__ = "generated_code"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    project_attempt_id = Column(Integer, ForeignKey("project_attempts.id", ondelete="CASCADE"), nullable=True, index=True)
+    generation_type = Column(String(50), nullable=False, index=True)  # 'starter_project', 'component', 'n8n_workflow', 'script'
+    language = Column(String(50), nullable=True)  # 'python', 'javascript', 'json', etc
+    filename = Column(String(255), nullable=True)
+    code_content = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    dependencies = Column(JSON, nullable=True)  # List of required packages/libraries
+    setup_instructions = Column(Text, nullable=True)
+    prompt_used = Column(Text, nullable=True)  # Original prompt for regeneration
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="generated_code")
+    project_attempt = relationship("DBProjectAttempt", back_populates="generated_code")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_generated_code_user', 'user_id'),
+        Index('idx_generated_code_project', 'project_attempt_id'),
+        Index('idx_generated_code_type', 'generation_type'),
+    )
+
+    def __repr__(self):
+        return f"<DBGeneratedCode(id={self.id}, filename='{self.filename}', type='{self.generation_type}')>"
+
+
+class DBN8nWorkflow(Base):
+    """Stores generated n8n workflows."""
+    __tablename__ = "n8n_workflows"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    workflow_json = Column(JSON, nullable=False)  # Complete n8n workflow
+    task_description = Column(Text, nullable=False)  # What it does
+    required_integrations = Column(JSON, nullable=True)  # ['gmail', 'slack', 'openai', etc]
+    trigger_type = Column(String(100), nullable=True)  # 'webhook', 'schedule', 'manual', etc
+    estimated_complexity = Column(String(50), nullable=True)  # 'simple', 'medium', 'complex'
+    tested = Column(Boolean, default=False, nullable=False)
+    deployed = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="n8n_workflows")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_n8n_workflows_user', 'user_id'),
+        Index('idx_n8n_workflows_trigger', 'trigger_type'),
+        Index('idx_n8n_workflows_complexity', 'estimated_complexity'),
+    )
+
+    def __repr__(self):
+        return f"<DBN8nWorkflow(id={self.id}, title='{self.title}', trigger='{self.trigger_type}')>"
+
+
+class DBMarketValidation(Base):
+    """Stores market validation results for project ideas."""
+    __tablename__ = "market_validations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_attempt_id = Column(Integer, ForeignKey("project_attempts.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Validation results
+    validation_date = Column(DateTime, default=datetime.utcnow, nullable=False)
+    market_size_estimate = Column(String(100), nullable=True)  # 'small', 'medium', 'large', 'niche'
+    competition_level = Column(String(100), nullable=True)  # 'low', 'medium', 'high', 'crowded'
+    competitors = Column(JSON, nullable=True)  # List of competitor names/urls
+    unique_advantage = Column(Text, nullable=True)  # What makes this different
+    potential_revenue_estimate = Column(String(100), nullable=True)  # '$0-1k/mo', '$1k-5k/mo', etc
+    validation_sources = Column(JSON, nullable=True)  # Where info came from
+    recommendation = Column(String(50), nullable=True)  # 'proceed', 'pivot', 'abandon'
+    reasoning = Column(Text, nullable=True)
+    confidence_score = Column(Float, nullable=True)  # 0.0-1.0
+
+    # Full validation data
+    full_analysis = Column(JSON, nullable=True)  # Complete analysis response
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    project_attempt = relationship("DBProjectAttempt", back_populates="market_validations")
+    user = relationship("DBUser", backref="market_validations")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_market_validations_project', 'project_attempt_id'),
+        Index('idx_market_validations_user', 'user_id'),
+        Index('idx_market_validations_recommendation', 'recommendation'),
+    )
+
+    def __repr__(self):
+        return f"<DBMarketValidation(id={self.id}, recommendation='{self.recommendation}', confidence={self.confidence_score})>"
