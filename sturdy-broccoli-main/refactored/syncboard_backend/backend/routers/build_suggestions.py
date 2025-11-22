@@ -3,18 +3,24 @@ Build Suggestions Router for SyncBoard 3.0 Knowledge Bank.
 
 Endpoints:
 - POST /what_can_i_build - Analyze knowledge bank and suggest viable projects
+- POST /what_can_i_build/goal-driven - Goal-driven suggestions (Phase 10)
 - GET /idea-seeds - Get pre-computed build ideas from knowledge bank
 - POST /idea-seeds/generate - Generate idea seeds for a document
 - GET /idea-seeds/combined - Get ideas combining multiple documents
 """
 
 import logging
+import os
 from fastapi import APIRouter, HTTPException, Request, Depends
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
-from ..models import User, BuildSuggestionRequest
+from ..models import (
+    User, BuildSuggestionRequest,
+    GoalDrivenSuggestionsRequest, GoalDrivenSuggestionsResponse,
+    MarketValidationRequest, MarketValidationResponse
+)
 from ..dependencies import (
     get_current_user,
     get_kb_documents,
@@ -23,9 +29,10 @@ from ..dependencies import (
     get_user_default_kb_id,
     get_build_suggester,
 )
-from ..database import get_db
+from ..database import get_db, get_db_context
 from ..sanitization import validate_positive_integer
 from ..constants import MAX_SUGGESTIONS
+from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -123,6 +130,259 @@ async def what_can_i_build(
             "clusters": [c.dict() for c in user_clusters.values()]
         }
     }
+
+
+# =============================================================================
+# Goal-Driven Build Suggestions (Phase 10)
+# =============================================================================
+
+@router.post("/what_can_i_build/goal-driven")
+@limiter.limit("3/minute")
+async def what_can_i_build_goal_driven(
+    req: GoalDrivenSuggestionsRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate goal-driven build suggestions based on user's goals and past projects.
+
+    This enhanced version considers:
+    - User's primary goal (revenue, learning, portfolio, automation)
+    - Constraints (time, budget, tech stack preferences)
+    - Past project attempts and learnings
+
+    Rate limited to 3 requests per minute (expensive operation).
+
+    Args:
+        req: Request with max_suggestions and quality filter options
+        request: FastAPI request (for rate limiting)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Comprehensive project suggestions with code, learning paths, and market validation
+    """
+    from ..llm_providers import OpenAIProvider
+
+    # Get user's default knowledge base ID
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Get KB-scoped storage
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+    kb_clusters = get_kb_clusters(kb_id)
+    build_suggester = get_build_suggester()
+
+    # Get user's primary goal and constraints
+    primary_goal = db.query(DBProjectGoal).filter(
+        DBProjectGoal.user_id == current_user.username
+    ).order_by(DBProjectGoal.priority.desc()).first()
+
+    if not primary_goal:
+        # Default goal if none set
+        user_goals = {
+            'primary_goal': 'revenue',
+            'constraints': {
+                'time_available': 'weekends',
+                'budget': 0,
+                'target_market': 'B2B SaaS',
+                'tech_stack_preference': 'Python/FastAPI',
+                'deployment_preference': 'Docker'
+            }
+        }
+    else:
+        user_goals = {
+            'primary_goal': primary_goal.goal_type,
+            'constraints': primary_goal.constraints or {}
+        }
+
+    # Get past project attempts for learning
+    past_attempts_db = db.query(DBProjectAttempt).filter(
+        DBProjectAttempt.user_id == current_user.username
+    ).order_by(DBProjectAttempt.created_at.desc()).limit(10).all()
+
+    past_attempts = []
+    for attempt in past_attempts_db:
+        past_attempts.append({
+            'title': attempt.title,
+            'status': attempt.status,
+            'time_spent_hours': attempt.time_spent_hours,
+            'learnings': attempt.learnings,
+            'difficulty_rating': attempt.difficulty_rating
+        })
+
+    # Filter to user's content within their KB
+    user_clusters = {
+        cid: cluster for cid, cluster in kb_clusters.items()
+        if any(kb_metadata.get(did) and kb_metadata[did].owner == current_user.username for did in cluster.doc_ids)
+    }
+
+    user_metadata = {
+        did: meta for did, meta in kb_metadata.items()
+        if meta.owner == current_user.username
+    }
+
+    user_documents = {
+        did: doc for did, doc in kb_documents.items()
+        if did in user_metadata
+    }
+
+    if not user_documents:
+        return GoalDrivenSuggestionsResponse(
+            suggestions=[],
+            user_goal=user_goals['primary_goal'],
+            total_documents=0,
+            total_clusters=0
+        )
+
+    # Build knowledge summary
+    knowledge_summary = build_suggester._build_knowledge_summary(
+        user_clusters, user_metadata, user_documents
+    )
+
+    # Build knowledge areas
+    knowledge_areas = []
+    for cid, cluster in user_clusters.items():
+        knowledge_areas.append({
+            'name': cluster.name,
+            'document_count': len(cluster.doc_ids),
+            'core_concepts': cluster.primary_concepts,
+            'skill_level': cluster.skill_level
+        })
+
+    # Build validation info
+    validation_info = {
+        'stats': {
+            'total_documents': len(user_documents),
+            'unique_concepts': len(set(
+                c.name for meta in user_metadata.values()
+                for c in meta.concepts
+            )),
+            'total_clusters': len(user_clusters),
+            'skill_distribution': {}
+        }
+    }
+
+    # Calculate skill distribution
+    skill_counts = {}
+    for meta in user_metadata.values():
+        level = meta.skill_level or 'unknown'
+        skill_counts[level] = skill_counts.get(level, 0) + 1
+    validation_info['stats']['skill_distribution'] = skill_counts
+
+    # Initialize LLM provider
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+
+    provider = OpenAIProvider(
+        api_key=api_key,
+        suggestion_model="gpt-4o"
+    )
+
+    # Generate goal-driven suggestions
+    suggestions = await provider.generate_goal_driven_suggestions(
+        knowledge_summary=knowledge_summary,
+        knowledge_areas=knowledge_areas,
+        validation_info=validation_info,
+        user_goals=user_goals,
+        past_attempts=past_attempts,
+        max_suggestions=req.max_suggestions
+    )
+
+    logger.info(f"Generated {len(suggestions)} goal-driven suggestions for {current_user.username}")
+
+    return GoalDrivenSuggestionsResponse(
+        suggestions=suggestions,
+        user_goal=user_goals['primary_goal'],
+        total_documents=len(user_documents),
+        total_clusters=len(user_clusters)
+    )
+
+
+@router.post("/validate-market")
+@limiter.limit("5/minute")
+async def validate_market(
+    req: MarketValidationRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Validate market viability for a project idea.
+
+    Uses AI to analyze competition, market size, and unique advantages.
+
+    Args:
+        req: Market validation request with project details
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Comprehensive market validation analysis
+    """
+    from ..market_validator import MarketValidator
+    from ..llm_providers import OpenAIProvider
+
+    # Get user's knowledge for context
+    kb_id = get_user_default_kb_id(current_user.username, db)
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+
+    # Build knowledge summary
+    user_metadata = {
+        did: meta for did, meta in kb_metadata.items()
+        if meta.owner == current_user.username
+    }
+    user_documents = {
+        did: doc for did, doc in kb_documents.items()
+        if did in user_metadata
+    }
+
+    knowledge_summary = ""
+    for did, content in list(user_documents.items())[:5]:
+        meta = user_metadata.get(did)
+        if meta:
+            knowledge_summary += f"\n{meta.filename or 'Document'}: {content[:500]}...\n"
+
+    # Initialize services
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+
+    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-4o")
+    validator = MarketValidator(provider)
+
+    # Perform validation
+    validation = await validator.validate_idea(
+        project_title=req.project_title,
+        project_description=req.project_description,
+        target_market=req.target_market,
+        user_knowledge_summary=knowledge_summary
+    )
+
+    # Store validation in database
+    db_validation = DBMarketValidation(
+        user_id=current_user.username,
+        market_size_estimate=validation.market_size_estimate,
+        competition_level=validation.competition_level,
+        competitors=validation.competitors,
+        unique_advantage=validation.unique_advantage,
+        potential_revenue_estimate=validation.potential_revenue,
+        validation_sources=validation.validation_sources,
+        recommendation=validation.recommendation,
+        reasoning=validation.reasoning,
+        confidence_score=validation.confidence_score,
+        full_analysis=validation.to_dict()
+    )
+    db.add(db_validation)
+    db.commit()
+    db.refresh(db_validation)
+
+    logger.info(f"Market validation completed for {current_user.username}: {validation.recommendation}")
+
+    return MarketValidationResponse.model_validate(db_validation)
 
 
 # =============================================================================

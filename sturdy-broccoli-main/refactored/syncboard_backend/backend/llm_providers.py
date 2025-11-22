@@ -525,6 +525,426 @@ IMPORTANT:
             logger.error(f"Chat completion failed: {e}")
             raise
 
+    async def generate_goal_driven_suggestions(
+        self,
+        knowledge_summary: str,
+        knowledge_areas: List[Dict],
+        validation_info: Dict,
+        user_goals: Dict,
+        past_attempts: List[Dict],
+        max_suggestions: int = 5
+    ) -> List[Dict]:
+        """
+        Generate suggestions BASED ON USER'S GOALS and past experience.
+
+        This is the enhanced version that considers:
+        - User's primary goal (revenue, learning, portfolio, automation)
+        - Constraints (time, budget, tech stack)
+        - Past project attempts and learnings
+
+        Args:
+            knowledge_summary: Rich summary of knowledge
+            knowledge_areas: Detected knowledge areas
+            validation_info: Knowledge depth validation
+            user_goals: {
+                'primary_goal': 'revenue|learning|portfolio|automation',
+                'constraints': {
+                    'time_available': 'weekends|full-time|evenings',
+                    'budget': 0,
+                    'target_market': 'B2B SaaS|B2C|Internal tools',
+                    'tech_stack_preference': 'Python/FastAPI|JavaScript/React|etc',
+                    'deployment_preference': 'Docker|Heroku|Vercel|etc'
+                }
+            }
+            past_attempts: List of past project attempts with learnings
+            max_suggestions: Number of suggestions to generate
+
+        Returns:
+            List of comprehensive project suggestions with working code
+        """
+
+        # Build past learnings section
+        past_learnings = ""
+        if past_attempts:
+            past_learnings = "\n\n## PAST PROJECT HISTORY:\n"
+            for attempt in past_attempts:
+                status = attempt.get('status', 'unknown')
+                emoji = "✅" if status == "completed" else "❌" if status == "abandoned" else "🔄"
+                past_learnings += f"\n{emoji} {attempt.get('title', 'Project')} ({status})\n"
+                past_learnings += f"   Time spent: {attempt.get('time_spent_hours', 0)} hours\n"
+                if attempt.get('learnings'):
+                    past_learnings += f"   Learnings: {attempt['learnings']}\n"
+
+            past_learnings += "\n**KEY PATTERNS:**\n"
+            completed = [a for a in past_attempts if a.get('status') == 'completed']
+            abandoned = [a for a in past_attempts if a.get('status') == 'abandoned']
+
+            if completed:
+                avg_time = sum(c.get('time_spent_hours', 0) for c in completed) / len(completed)
+                past_learnings += f"- User completes projects in ~{avg_time:.0f} hours on average\n"
+
+            if abandoned:
+                past_learnings += f"- {len(abandoned)} projects abandoned - likely scope was too large\n"
+                past_learnings += "- **RECOMMENDATION:** Suggest smaller, focused projects\n"
+
+        # Build constraints section
+        constraints = user_goals.get('constraints', {})
+        constraints_text = f"""
+## USER CONSTRAINTS:
+- Time Available: {constraints.get('time_available', 'weekends')}
+- Budget: £{constraints.get('budget', 0)}
+- Target Market: {constraints.get('target_market', 'B2B SaaS')}
+- Preferred Stack: {constraints.get('tech_stack_preference', 'Python/FastAPI')}
+- Deployment: {constraints.get('deployment_preference', 'Docker')}
+"""
+
+        # Build goal-specific instructions
+        goal = user_goals.get('primary_goal', 'revenue')
+        goal_instructions = {
+            'revenue': """
+**PRIMARY GOAL: REVENUE GENERATION**
+- Prioritize projects that can generate income within 1-3 months
+- Focus on solving REAL problems people will pay for
+- Suggest SaaS, automation tools, or productized services
+- Include pricing strategy and revenue estimates
+- Validate market demand exists
+- Prefer B2B over B2C (faster sales cycles)
+""",
+            'learning': """
+**PRIMARY GOAL: SKILL DEVELOPMENT**
+- Prioritize projects that teach NEW technologies
+- Include learning path with resources
+- Suggest projects that are challenging but achievable
+- Focus on portfolio-worthy outcomes
+- Include skill progression (current → target)
+""",
+            'portfolio': """
+**PRIMARY GOAL: PORTFOLIO BUILDING**
+- Prioritize impressive, showcase-worthy projects
+- Must have visual/demo-able components
+- Include deployment instructions for live demos
+- Suggest projects that demonstrate full-stack skills
+- Focus on polish and user experience
+""",
+            'automation': """
+**PRIMARY GOAL: PERSONAL AUTOMATION**
+- Prioritize time-saving tools for personal use
+- Focus on practical, daily-use applications
+- Include n8n workflows where applicable
+- Suggest integration-heavy solutions
+- Quick wins over complex builds
+"""
+        }
+
+        stats = validation_info.get("stats", {})
+        areas_text = "\n".join([
+            f"- {area['name']}: {area['document_count']} docs, {len(area.get('core_concepts', []))} concepts ({area.get('skill_level', 'unknown')})"
+            for area in knowledge_areas
+        ])
+
+        prompt = f"""You are an expert project advisor and startup mentor. Generate {max_suggestions} HIGHLY DETAILED, ACTIONABLE project suggestions.
+
+{goal_instructions.get(goal, goal_instructions['revenue'])}
+
+{constraints_text}
+
+{past_learnings}
+
+## KNOWLEDGE VALIDATION:
+✅ {stats.get('total_documents', 0)} documents analyzed
+✅ {stats.get('unique_concepts', 0)} unique concepts extracted
+✅ {stats.get('total_clusters', 0)} knowledge areas identified
+✅ Skill levels: {', '.join(f"{k}: {v}" for k, v in stats.get('skill_distribution', {}).items())}
+
+## KNOWLEDGE AREAS:
+{areas_text}
+
+## DETAILED KNOWLEDGE CONTENT:
+{knowledge_summary}
+
+---
+
+Return ONLY a valid JSON array with this structure:
+
+[
+  {{
+    "title": "Specific Project Name",
+    "description": "Detailed description of what they'll build and WHY it matters for their goal",
+    "goal_alignment_score": 95,
+    "feasibility": "high|medium|low",
+    "effort_estimate_hours": 20,
+    "complexity_level": "beginner|intermediate|advanced",
+
+    "revenue_potential": {{
+      "monthly_estimate": "$500-2000",
+      "pricing_strategy": "Subscription $29/mo or one-time $199",
+      "target_customer": "Small business owners",
+      "time_to_first_sale": "2-4 weeks"
+    }},
+
+    "learning_outcomes": [
+      "Master specific technology",
+      "Understand key concept",
+      "Build production skill"
+    ],
+
+    "required_skills": ["Python", "FastAPI", "PostgreSQL"],
+    "missing_knowledge": ["Specific gaps to fill"],
+    "knowledge_coverage_percent": 85,
+
+    "market_validation": {{
+      "competitors": ["Tool X", "Tool Y"],
+      "unique_advantage": "Your advantage based on knowledge",
+      "market_size": "5000-10000 potential customers",
+      "demand_validation": "Evidence of demand"
+    }},
+
+    "starter_steps": [
+      "1. Set up project: pip install fastapi uvicorn",
+      "2. Create database models",
+      "3. Implement core API endpoints",
+      "4. Add authentication",
+      "5. Deploy to production"
+    ],
+
+    "generated_code": {{
+      "main.py": "from fastapi import FastAPI\\napp = FastAPI()\\n\\n@app.get('/')\\ndef root():\\n    return {{'message': 'API running'}}",
+      "requirements.txt": "fastapi==0.104.1\\nuvicorn[standard]==0.24.0",
+      "Dockerfile": "FROM python:3.11-slim\\nWORKDIR /app\\nCOPY . .\\nRUN pip install -r requirements.txt\\nCMD [\\"uvicorn\\", \\"main:app\\", \\"--host\\", \\"0.0.0.0\\"]"
+    }},
+
+    "learning_path": [
+      {{
+        "topic": "FastAPI Basics",
+        "resources": ["https://fastapi.tiangolo.com/tutorial/"],
+        "estimated_time": "4 hours"
+      }}
+    ],
+
+    "deployment_guide": {{
+      "steps": ["Build image", "Push to registry", "Deploy"],
+      "estimated_cost": "£5-15/month",
+      "recommended_services": ["Railway.app", "Render.com"]
+    }},
+
+    "success_metrics": [
+      "10 beta users signed up",
+      "5 paying customers",
+      "90% uptime"
+    ],
+
+    "potential_challenges": [
+      {{
+        "challenge": "Integration complexity",
+        "solution": "Use established library",
+        "resources": ["Documentation link"]
+      }}
+    ],
+
+    "next_steps_after_mvp": [
+      "Add email notifications",
+      "Create landing page",
+      "Launch on Product Hunt"
+    ]
+  }}
+]
+
+**CRITICAL REQUIREMENTS:**
+1. Generated code MUST be COMPLETE and RUNNABLE
+2. Reference their ACTUAL knowledge from docs
+3. Be SPECIFIC to their tech stack
+4. Calculate knowledge_coverage_percent accurately
+5. Only suggest if coverage >= 70%
+6. Include market validation for revenue goals
+7. Include learning path for learning goals
+8. ALL code must follow best practices
+9. Consider past project patterns"""
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert startup advisor, technical architect, and career mentor. Generate comprehensive, actionable project suggestions with complete working code. Return ONLY valid JSON."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.7,
+                max_tokens=64000
+            )
+
+            suggestions = json.loads(response)
+            logger.info(f"Generated {len(suggestions)} goal-driven suggestions")
+            return suggestions
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            logger.error(f"Response was: {response[:500] if response else 'empty'}...")
+            return []
+        except Exception as e:
+            logger.error(f"Goal-driven suggestion generation failed: {e}")
+            return []
+
+    async def generate_n8n_workflow(
+        self,
+        task_description: str,
+        knowledge_summary: str,
+        available_integrations: List[str],
+        user_examples: List[Dict] = None
+    ) -> Dict:
+        """
+        Generate a COMPLETE n8n workflow JSON from task description.
+
+        Args:
+            task_description: What the workflow should do
+            knowledge_summary: User's knowledge (for context)
+            available_integrations: List of services user has access to
+            user_examples: Existing n8n workflows from user's docs for reference
+
+        Returns:
+            {
+                'workflow': {...},  # Complete n8n JSON
+                'setup_instructions': str,
+                'required_credentials': [...],
+                'testing_steps': [...]
+            }
+        """
+
+        examples_text = ""
+        if user_examples:
+            examples_text = "\n\n## USER'S EXISTING WORKFLOWS (for reference):\n"
+            for ex in user_examples[:3]:
+                examples_text += f"\n{ex.get('name', 'Workflow')}: {ex.get('description', '')}\n"
+                if ex.get('nodes'):
+                    examples_text += f"Nodes: {', '.join(str(n) for n in ex['nodes'][:5])}\n"
+
+        integrations_text = ", ".join(available_integrations) if available_integrations else "All standard n8n nodes"
+
+        # Truncate knowledge summary for token budget
+        truncated_knowledge = knowledge_summary[:3000] if knowledge_summary else ""
+
+        prompt = f"""Generate a COMPLETE n8n workflow for this task:
+
+**TASK:** {task_description}
+
+**AVAILABLE INTEGRATIONS:** {integrations_text}
+
+**USER'S KNOWLEDGE CONTEXT:**
+{truncated_knowledge}
+
+{examples_text}
+
+Return a JSON object with this EXACT structure:
+
+{{
+  "workflow": {{
+    "name": "Workflow Name",
+    "nodes": [
+      {{
+        "parameters": {{}},
+        "name": "Start",
+        "type": "n8n-nodes-base.start",
+        "typeVersion": 1,
+        "position": [250, 300]
+      }},
+      {{
+        "parameters": {{
+          "httpMethod": "POST",
+          "path": "webhook",
+          "responseMode": "responseNode",
+          "options": {{}}
+        }},
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [450, 300],
+        "webhookId": "unique-id-here"
+      }}
+    ],
+    "connections": {{
+      "Start": {{
+        "main": [[{{ "node": "Webhook", "type": "main", "index": 0 }}]]
+      }}
+    }},
+    "settings": {{
+      "executionOrder": "v1"
+    }},
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 1,
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "versionId": "1"
+  }},
+
+  "setup_instructions": "1. Import this JSON into n8n\\n2. Configure credentials\\n3. Activate the workflow\\n4. Test with webhook URL",
+
+  "required_credentials": [
+    {{
+      "service": "Gmail",
+      "type": "gmailOAuth2",
+      "setup_url": "https://docs.n8n.io/integrations/builtin/credentials/google/"
+    }}
+  ],
+
+  "testing_steps": [
+    "1. Send test POST request to webhook URL",
+    "2. Check execution log in n8n",
+    "3. Verify data in destination service"
+  ],
+
+  "workflow_description": "This workflow does X, Y, Z.",
+
+  "trigger_type": "webhook|schedule|manual",
+  "estimated_executions_per_day": 50,
+  "complexity": "simple|medium|complex",
+
+  "potential_improvements": [
+    "Add error notification",
+    "Implement retry logic",
+    "Add logging"
+  ]
+}}
+
+**REQUIREMENTS:**
+1. Workflow MUST be complete and importable into n8n
+2. Use only nodes from available_integrations
+3. Include proper error handling nodes
+4. Set realistic node positions for visual layout
+5. All connections must be valid
+6. Include webhook/trigger configuration"""
+
+        try:
+            response = await self._call_openai(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an n8n workflow automation expert. Generate complete, working n8n workflows in valid JSON format. Follow n8n's exact schema requirements."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.5,
+                max_tokens=16000
+            )
+
+            result = json.loads(response)
+            logger.info(f"Generated n8n workflow: {result.get('workflow', {}).get('name', 'Unknown')}")
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error in n8n generation: {e}")
+            return {
+                "error": "Failed to generate valid workflow JSON",
+                "workflow": None
+            }
+        except Exception as e:
+            logger.error(f"n8n workflow generation failed: {e}")
+            return {
+                "error": str(e),
+                "workflow": None
+            }
+
 
 class MockLLMProvider(LLMProvider):
     """

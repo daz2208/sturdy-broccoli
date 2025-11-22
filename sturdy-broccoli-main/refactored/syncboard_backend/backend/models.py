@@ -513,3 +513,214 @@ class BuildSuggestionList(BaseModel):
     """List of build suggestions."""
     suggestions: List[SavedBuildSuggestion]
     total: int
+
+
+# =============================================================================
+# Phase 10: SyncBoard 3.0 Enhancement Models
+# =============================================================================
+
+class ProjectGoalCreate(BaseModel):
+    """Schema for creating a project goal."""
+    goal_type: str = Field(..., description="Type of goal: 'revenue', 'learning', 'portfolio', 'automation'")
+    priority: int = Field(0, ge=0, le=100, description="Priority level (higher = more important)")
+    constraints: Optional[dict] = Field(None, description="Constraints: time_available, budget, target_market, tech_stack_preference, deployment_preference")
+
+    @field_validator('goal_type')
+    @classmethod
+    def validate_goal_type(cls, v):
+        allowed = ['revenue', 'learning', 'portfolio', 'automation']
+        if v not in allowed:
+            raise ValueError(f"goal_type must be one of: {', '.join(allowed)}")
+        return v
+
+
+class ProjectGoalUpdate(BaseModel):
+    """Schema for updating a project goal."""
+    goal_type: Optional[str] = None
+    priority: Optional[int] = Field(None, ge=0, le=100)
+    constraints: Optional[dict] = None
+
+    @field_validator('goal_type')
+    @classmethod
+    def validate_goal_type(cls, v):
+        if v is None:
+            return v
+        allowed = ['revenue', 'learning', 'portfolio', 'automation']
+        if v not in allowed:
+            raise ValueError(f"goal_type must be one of: {', '.join(allowed)}")
+        return v
+
+
+class ProjectGoalResponse(BaseModel):
+    """Response model for project goal."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    goal_type: str
+    priority: int
+    constraints: Optional[dict]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProjectAttemptCreate(BaseModel):
+    """Schema for creating a project attempt."""
+    suggestion_id: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=255)
+    status: str = Field("planned", description="Status: 'planned', 'in_progress', 'completed', 'abandoned'")
+    repository_url: Optional[str] = Field(None, max_length=500)
+    demo_url: Optional[str] = Field(None, max_length=500)
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        allowed = ['planned', 'in_progress', 'completed', 'abandoned']
+        if v not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(allowed)}")
+        return v
+
+
+class ProjectAttemptUpdate(BaseModel):
+    """Schema for updating a project attempt."""
+    status: Optional[str] = None
+    repository_url: Optional[str] = None
+    demo_url: Optional[str] = None
+    learnings: Optional[str] = None
+    difficulty_rating: Optional[int] = Field(None, ge=1, le=10)
+    time_spent_hours: Optional[int] = Field(None, ge=0)
+    revenue_generated: Optional[float] = Field(None, ge=0)
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v):
+        if v is None:
+            return v
+        allowed = ['planned', 'in_progress', 'completed', 'abandoned']
+        if v not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(allowed)}")
+        return v
+
+
+class ProjectAttemptResponse(BaseModel):
+    """Response model for project attempt."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    suggestion_id: Optional[str]
+    title: str
+    status: str
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    abandoned_at: Optional[datetime]
+    repository_url: Optional[str]
+    demo_url: Optional[str]
+    learnings: Optional[str]
+    difficulty_rating: Optional[int]
+    time_spent_hours: Optional[int]
+    revenue_generated: Optional[float]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProjectStatsResponse(BaseModel):
+    """Response model for project statistics."""
+    total_projects: int
+    completed: int
+    in_progress: int
+    abandoned: int
+    planned: int
+    completion_rate: float
+    average_time_hours: float
+    total_revenue: float
+
+
+class N8nGenerationRequest(BaseModel):
+    """Schema for n8n workflow generation request."""
+    task_description: str = Field(..., min_length=10, max_length=5000, description="Description of what the workflow should do")
+    available_integrations: Optional[List[str]] = Field(None, description="List of available integrations: gmail, slack, openai, etc.")
+
+
+class N8nWorkflowResponse(BaseModel):
+    """Response model for n8n workflow."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    title: str
+    description: Optional[str]
+    workflow_json: dict
+    task_description: str
+    required_integrations: Optional[List[str]]
+    trigger_type: Optional[str]
+    estimated_complexity: Optional[str]
+    tested: bool
+    deployed: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class N8nWorkflowUpdate(BaseModel):
+    """Schema for updating n8n workflow."""
+    tested: Optional[bool] = None
+    deployed: Optional[bool] = None
+
+
+class GeneratedCodeResponse(BaseModel):
+    """Response model for generated code."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    project_attempt_id: Optional[int]
+    generation_type: str
+    language: Optional[str]
+    filename: Optional[str]
+    code_content: str
+    description: Optional[str]
+    dependencies: Optional[List[str]]
+    setup_instructions: Optional[str]
+    created_at: datetime
+
+
+class MarketValidationRequest(BaseModel):
+    """Schema for market validation request."""
+    project_title: str = Field(..., min_length=1, max_length=255)
+    project_description: str = Field(..., min_length=10, max_length=5000)
+    target_market: str = Field(..., min_length=1, max_length=500)
+
+
+class MarketValidationResponse(BaseModel):
+    """Response model for market validation."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_attempt_id: Optional[int]
+    user_id: str
+    validation_date: datetime
+    market_size_estimate: Optional[str]
+    competition_level: Optional[str]
+    competitors: Optional[List[str]]
+    unique_advantage: Optional[str]
+    potential_revenue_estimate: Optional[str]
+    validation_sources: Optional[List[str]]
+    recommendation: Optional[str]
+    reasoning: Optional[str]
+    confidence_score: Optional[float]
+    full_analysis: Optional[dict]
+    created_at: datetime
+
+
+class GoalDrivenSuggestionsRequest(BaseModel):
+    """Schema for goal-driven build suggestions request."""
+    max_suggestions: int = Field(5, ge=1, le=10)
+    enable_quality_filter: bool = Field(True, description="Filter out low-coverage suggestions")
+
+
+class GoalDrivenSuggestionsResponse(BaseModel):
+    """Response model for goal-driven build suggestions."""
+    suggestions: List[dict]
+    user_goal: str
+    total_documents: int
+    total_clusters: int
