@@ -557,7 +557,7 @@ class DBProjectAttempt(Base):
     difficulty_rating = Column(Integer, nullable=True)  # 1-10, actual vs estimated
     time_spent_hours = Column(Integer, nullable=True)
     revenue_generated = Column(Float, nullable=True)  # Decimal for currency
-    metadata = Column(JSON, nullable=True)  # Extra data
+    extra_data = Column(JSON, nullable=True)  # Extra metadata (renamed from 'metadata' which is reserved)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

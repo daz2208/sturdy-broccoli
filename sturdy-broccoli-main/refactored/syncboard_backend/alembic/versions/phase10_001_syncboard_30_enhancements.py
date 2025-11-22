@@ -67,7 +67,7 @@ def upgrade():
         sa.Column('difficulty_rating', sa.Integer(), nullable=True),
         sa.Column('time_spent_hours', sa.Integer(), nullable=True),
         sa.Column('revenue_generated', sa.Float(), nullable=True),
-        sa.Column('metadata', sa.JSON(), nullable=True),
+        sa.Column('extra_data', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
         sa.PrimaryKeyConstraint('id')
