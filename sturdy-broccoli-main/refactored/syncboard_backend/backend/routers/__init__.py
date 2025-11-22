@@ -19,6 +19,10 @@ Each router handles a specific domain:
 - knowledge_bases: Multi-KB support (Phase 8)
 - admin: Admin utilities (Phase 9)
 - knowledge_graph: Knowledge graph and relationships (Phase 10)
+- project_goals: User project goals management (Phase 10)
+- project_tracking: Project attempts and learnings (Phase 10)
+- n8n_workflows: n8n workflow generation (Phase 10)
+- generated_code: Generated code storage (Phase 10)
 """
 
 from . import (
@@ -38,5 +42,10 @@ from . import (
     integrations,
     knowledge_bases,
     admin,
-    knowledge_graph
+    knowledge_graph,
+    # Phase 10: SyncBoard 3.0 Enhancement routers
+    project_goals,
+    project_tracking,
+    n8n_workflows,
+    generated_code
 )
