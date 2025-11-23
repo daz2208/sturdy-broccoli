@@ -961,8 +961,8 @@ class MockLLMProvider(LLMProvider):
         """Return mock concept extraction."""
         return {
             "concepts": [
-                {"name": "test concept", "relevance": 0.9},
-                {"name": "mock data", "relevance": 0.8}
+                {"name": "test concept", "category": "concept", "confidence": 0.9},
+                {"name": "mock data", "category": "concept", "confidence": 0.8}
             ],
             "skill_level": "intermediate",
             "primary_topic": "testing",
