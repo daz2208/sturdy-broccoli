@@ -11,6 +11,7 @@ interface AuthState {
   register: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   checkAuth: () => void;
+  setToken: (token: string, username: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -55,6 +56,12 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: () => {
         const isAuth = api.isAuthenticated();
         set({ isAuthenticated: isAuth });
+      },
+
+      setToken: (token: string, username: string) => {
+        // Set token directly (for OAuth callbacks)
+        api.setToken(token);
+        set({ isAuthenticated: true, username });
       },
     }),
     {
