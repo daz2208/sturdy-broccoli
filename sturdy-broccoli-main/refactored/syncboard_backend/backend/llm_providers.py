@@ -1045,12 +1045,20 @@ class OllamaProvider(LLMProvider):
         """
         import re
 
-        # Try to find JSON array or object
+        # First, try to parse the entire response as JSON
+        try:
+            json.loads(response)
+            return response
+        except json.JSONDecodeError:
+            pass
+
+        # Try to find JSON in code blocks or raw - object patterns before array
+        # to avoid matching nested arrays before the containing object
         json_patterns = [
             r'```json\s*([\s\S]*?)\s*```',  # Markdown code block
             r'```\s*([\s\S]*?)\s*```',       # Generic code block
+            r'(\{[\s\S]*\})',                # JSON object (before array!)
             r'(\[[\s\S]*\])',                # JSON array
-            r'(\{[\s\S]*\})',                # JSON object
         ]
 
         for pattern in json_patterns:

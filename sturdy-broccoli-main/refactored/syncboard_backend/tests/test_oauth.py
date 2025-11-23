@@ -30,7 +30,7 @@ def test_oauth_google_login_not_configured(client):
     """Test Google OAuth login fails gracefully when not configured."""
     # Without GOOGLE_CLIENT_ID/SECRET env vars, should return 503
     with patch.dict('os.environ', {'GOOGLE_CLIENT_ID': '', 'GOOGLE_CLIENT_SECRET': ''}):
-        response = client.get("/auth/google/login", allow_redirects=False)
+        response = client.get("/auth/google/login", follow_redirects=False)
         # Either redirects to provider (if configured) or returns error
         assert response.status_code in [307, 503]
 
@@ -38,13 +38,13 @@ def test_oauth_google_login_not_configured(client):
 def test_oauth_github_login_not_configured(client):
     """Test GitHub OAuth login fails gracefully when not configured."""
     with patch.dict('os.environ', {'GITHUB_CLIENT_ID': '', 'GITHUB_CLIENT_SECRET': ''}):
-        response = client.get("/auth/github/login", allow_redirects=False)
+        response = client.get("/auth/github/login", follow_redirects=False)
         assert response.status_code in [307, 503]
 
 
 def test_oauth_invalid_provider(client):
     """Test invalid OAuth provider returns 400."""
-    response = client.get("/auth/invalid_provider/login", allow_redirects=False)
+    response = client.get("/auth/invalid_provider/login", follow_redirects=False)
     assert response.status_code == 400
     assert "Unsupported OAuth provider" in response.json()["detail"]
 
@@ -57,7 +57,7 @@ def test_oauth_google_login_redirect(client):
     }):
         with patch('backend.routers.auth.redis_client.setex', new_callable=AsyncMock) as mock_redis:
             mock_redis.return_value = True
-            response = client.get("/auth/google/login", allow_redirects=False)
+            response = client.get("/auth/google/login", follow_redirects=False)
 
             if response.status_code == 307:  # Redirect
                 location = response.headers.get("location", "")
@@ -74,7 +74,7 @@ def test_oauth_github_login_redirect(client):
     }):
         with patch('backend.routers.auth.redis_client.setex', new_callable=AsyncMock) as mock_redis:
             mock_redis.return_value = True
-            response = client.get("/auth/github/login", allow_redirects=False)
+            response = client.get("/auth/github/login", follow_redirects=False)
 
             if response.status_code == 307:  # Redirect
                 location = response.headers.get("location", "")
@@ -88,7 +88,7 @@ def test_oauth_github_login_redirect(client):
 
 def test_oauth_callback_missing_params(client):
     """Test OAuth callback with missing params redirects with error."""
-    response = client.get("/auth/google/callback", allow_redirects=False)
+    response = client.get("/auth/google/callback", follow_redirects=False)
     assert response.status_code == 307
     location = response.headers.get("location", "")
     assert "error=missing_params" in location
@@ -96,7 +96,7 @@ def test_oauth_callback_missing_params(client):
 
 def test_oauth_callback_with_error(client):
     """Test OAuth callback with error from provider."""
-    response = client.get("/auth/google/callback?error=access_denied", allow_redirects=False)
+    response = client.get("/auth/google/callback?error=access_denied", follow_redirects=False)
     assert response.status_code == 307
     location = response.headers.get("location", "")
     assert "error=access_denied" in location
@@ -109,7 +109,7 @@ def test_oauth_callback_invalid_state(client):
 
         response = client.get(
             "/auth/google/callback?code=test_code&state=invalid_state",
-            allow_redirects=False
+            follow_redirects=False
         )
         assert response.status_code == 307
         location = response.headers.get("location", "")
@@ -124,7 +124,7 @@ def test_oauth_callback_state_mismatch(client):
 
         response = client.get(
             "/auth/google/callback?code=test_code&state=valid_state",
-            allow_redirects=False
+            follow_redirects=False
         )
         assert response.status_code == 307
         location = response.headers.get("location", "")
@@ -171,7 +171,7 @@ async def test_oauth_callback_successful_google_flow():
         client = TestClient(app)
         response = client.get(
             "/auth/google/callback?code=valid_code&state=valid_state",
-            allow_redirects=False
+            follow_redirects=False
         )
 
         # Should redirect to frontend with token
