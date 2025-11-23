@@ -1,0 +1,683 @@
+// =============================================================================
+// SyncBoard 3.0 - Complete API Client (120+ Endpoints)
+// =============================================================================
+
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import * as Types from '@/types/api';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+class ApiClient {
+  private client: AxiosInstance;
+  private token: string | null = null;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_BASE,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    // Add auth token to requests
+    this.client.interceptors.request.use((config) => {
+      if (this.token) {
+        config.headers.Authorization = `Bearer ${this.token}`;
+      }
+      return config;
+    });
+
+    // Handle errors globally
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        if (error.response?.status === 401) {
+          this.clearToken();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+        }
+        throw error;
+      }
+    );
+
+    // Load token from localStorage
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('token');
+    }
+  }
+
+  setToken(token: string) {
+    this.token = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', token);
+    }
+  }
+
+  clearToken() {
+    this.token = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+    }
+  }
+
+  isAuthenticated() {
+    return !!this.token;
+  }
+
+  // ==========================================================================
+  // HEALTH
+  // ==========================================================================
+  async getHealth(): Promise<Types.HealthResponse> {
+    const { data } = await this.client.get('/health');
+    return data;
+  }
+
+  // ==========================================================================
+  // AUTH
+  // ==========================================================================
+  async register(username: string, password: string): Promise<Types.User> {
+    const { data } = await this.client.post('/users', { username, password });
+    return data;
+  }
+
+  async login(username: string, password: string): Promise<Types.TokenResponse> {
+    const { data } = await this.client.post('/token', { username, password });
+    this.setToken(data.access_token);
+    return data;
+  }
+
+  logout() {
+    this.clearToken();
+  }
+
+  // ==========================================================================
+  // UPLOADS
+  // ==========================================================================
+  async uploadText(content: string, title?: string, skill_level?: string): Promise<Types.UploadResponse> {
+    const { data } = await this.client.post('/upload_text', { content, title, skill_level });
+    return data;
+  }
+
+  async uploadUrl(url: string, title?: string): Promise<Types.UploadResponse> {
+    const { data } = await this.client.post('/upload', { url, title });
+    return data;
+  }
+
+  async uploadFile(file_base64: string, filename: string, skill_level?: string): Promise<Types.UploadResponse> {
+    const { data } = await this.client.post('/upload_file', { file_base64, filename, skill_level });
+    return data;
+  }
+
+  async uploadImage(image_base64: string, filename?: string): Promise<Types.UploadResponse> {
+    const { data } = await this.client.post('/upload_image', { image_base64, filename });
+    return data;
+  }
+
+  async uploadBatch(files: { file_base64: string; filename: string }[]): Promise<Types.BatchUploadResponse> {
+    const { data } = await this.client.post('/upload_batch', { files });
+    return data;
+  }
+
+  async uploadBatchUrls(urls: string[]): Promise<Types.BatchUploadResponse> {
+    const { data } = await this.client.post('/upload_batch_urls', { urls });
+    return data;
+  }
+
+  // ==========================================================================
+  // SEARCH
+  // ==========================================================================
+  async search(params: {
+    q: string;
+    top_k?: number;
+    cluster_id?: number;
+    full_content?: boolean;
+    source_type?: string;
+    skill_level?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<Types.SearchResponse> {
+    const { data } = await this.client.get('/search_full', { params });
+    return data;
+  }
+
+  async searchSummaries(q: string, top_k?: number): Promise<{ results: Types.SearchResult[] }> {
+    const { data } = await this.client.get('/search/summaries', { params: { q, top_k } });
+    return data;
+  }
+
+  async getSummaryStats(): Promise<{ total_summaries: number; average_length: number; coverage_percentage: number }> {
+    const { data } = await this.client.get('/search/summaries/stats');
+    return data;
+  }
+
+  // ==========================================================================
+  // DOCUMENTS
+  // ==========================================================================
+  async getDocuments(): Promise<{ documents: Types.Document[]; total: number; knowledge_base_id: number }> {
+    const { data } = await this.client.get('/documents');
+    return data;
+  }
+
+  async getDocument(docId: number): Promise<Types.Document & { cluster: Types.Cluster }> {
+    const { data } = await this.client.get(`/documents/${docId}`);
+    return data;
+  }
+
+  async deleteDocument(docId: number): Promise<{ message: string; document_id: number }> {
+    const { data } = await this.client.delete(`/documents/${docId}`);
+    return data;
+  }
+
+  async updateDocumentMetadata(docId: number, metadata: Types.DocumentMetadata): Promise<{ message: string; updated_metadata: Types.DocumentMetadata }> {
+    const { data } = await this.client.put(`/documents/${docId}/metadata`, metadata);
+    return data;
+  }
+
+  async getDocumentSummaries(docId: number): Promise<{ summaries: { text: string; length: number; creation_date: string }[] }> {
+    const { data } = await this.client.get(`/documents/${docId}/summaries`);
+    return data;
+  }
+
+  async summarizeDocument(docId: number, summary_type?: string): Promise<{ summaries: { text: string; length: number }[]; job_id?: string }> {
+    const { data } = await this.client.post(`/documents/${docId}/summarize`, { summary_type });
+    return data;
+  }
+
+  // ==========================================================================
+  // CLUSTERS
+  // ==========================================================================
+  async getClusters(): Promise<{ clusters: Types.Cluster[]; total: number; knowledge_base_id: number }> {
+    const { data } = await this.client.get('/clusters');
+    return data;
+  }
+
+  async updateCluster(clusterId: number, updates: { name?: string; skill_level?: string }): Promise<{ message: string; cluster: Types.Cluster }> {
+    const { data } = await this.client.put(`/clusters/${clusterId}`, updates);
+    return data;
+  }
+
+  async exportCluster(clusterId: number, format: 'json' | 'markdown' = 'json'): Promise<Blob> {
+    const { data } = await this.client.get(`/export/cluster/${clusterId}`, { params: { format }, responseType: 'blob' });
+    return data;
+  }
+
+  async exportAll(format: 'json' | 'markdown' = 'json'): Promise<Blob> {
+    const { data } = await this.client.get('/export/all', { params: { format }, responseType: 'blob' });
+    return data;
+  }
+
+  // ==========================================================================
+  // BUILD SUGGESTIONS
+  // ==========================================================================
+  async whatCanIBuild(max_suggestions?: number, enable_quality_filter?: boolean): Promise<Types.BuildSuggestionsResponse> {
+    const { data } = await this.client.post('/what_can_i_build', { max_suggestions, enable_quality_filter });
+    return data;
+  }
+
+  async whatCanIBuildGoalDriven(max_suggestions?: number, enable_quality_filter?: boolean, goal_id?: number): Promise<Types.BuildSuggestionsResponse> {
+    const { data } = await this.client.post('/what_can_i_build/goal-driven', { max_suggestions, enable_quality_filter, goal_id });
+    return data;
+  }
+
+  async getIdeaSeeds(difficulty?: string, limit?: number): Promise<{ idea_seeds: Types.BuildSuggestion[] }> {
+    const { data } = await this.client.get('/idea-seeds', { params: { difficulty, limit } });
+    return data;
+  }
+
+  async generateIdeaSeeds(doc_id: number): Promise<{ idea_seeds: Types.BuildSuggestion[] }> {
+    const { data } = await this.client.post('/idea-seeds/generate', { doc_id });
+    return data;
+  }
+
+  async getCombinedIdeaSeeds(doc_ids: number[]): Promise<{ idea_seeds: Types.BuildSuggestion[] }> {
+    const { data } = await this.client.get('/idea-seeds/combined', { params: { doc_ids } });
+    return data;
+  }
+
+  // ==========================================================================
+  // ANALYTICS
+  // ==========================================================================
+  async getAnalytics(time_period?: number): Promise<Types.AnalyticsResponse> {
+    const { data } = await this.client.get('/analytics', { params: { time_period } });
+    return data;
+  }
+
+  // ==========================================================================
+  // AI GENERATION
+  // ==========================================================================
+  async generate(req: Types.GenerateRequest): Promise<Types.GenerateResponse> {
+    const { data } = await this.client.post('/generate', req);
+    return data;
+  }
+
+  async generateEnhanced(req: Types.GenerateRequest & { retrieve_top_k?: number }): Promise<Types.GenerateResponse & { metadata: Record<string, unknown> }> {
+    const { data } = await this.client.post('/generate/enhanced', req);
+    return data;
+  }
+
+  // ==========================================================================
+  // DUPLICATES
+  // ==========================================================================
+  async findDuplicates(threshold?: number, limit?: number): Promise<{ duplicate_groups: Types.DuplicateGroup[] }> {
+    const { data } = await this.client.get('/duplicates', { params: { threshold, limit } });
+    return data;
+  }
+
+  async compareDuplicates(doc_id1: number, doc_id2: number): Promise<{ doc_id1: number; doc_id2: number; similarity_score: number; content_comparison: { matches: string[]; differences: string[] } }> {
+    const { data } = await this.client.get(`/duplicates/${doc_id1}/${doc_id2}`);
+    return data;
+  }
+
+  async mergeDuplicates(keep_doc_id: number, delete_doc_ids: number[]): Promise<{ message: string; merged_count: number; deleted_count: number }> {
+    const { data } = await this.client.post('/duplicates/merge', { keep_doc_id, delete_doc_ids });
+    return data;
+  }
+
+  // ==========================================================================
+  // TAGS
+  // ==========================================================================
+  async createTag(name: string, color?: string): Promise<Types.Tag> {
+    const { data } = await this.client.post('/tags', { name, color });
+    return data;
+  }
+
+  async getTags(): Promise<{ tags: Types.Tag[] }> {
+    const { data } = await this.client.get('/tags');
+    return data;
+  }
+
+  async addTagToDocument(docId: number, tagId: number): Promise<{ message: string }> {
+    const { data } = await this.client.post(`/documents/${docId}/tags/${tagId}`);
+    return data;
+  }
+
+  async removeTagFromDocument(docId: number, tagId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/documents/${docId}/tags/${tagId}`);
+    return data;
+  }
+
+  async getDocumentTags(docId: number): Promise<{ tags: Types.Tag[] }> {
+    const { data } = await this.client.get(`/documents/${docId}/tags`);
+    return data;
+  }
+
+  async deleteTag(tagId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/tags/${tagId}`);
+    return data;
+  }
+
+  // ==========================================================================
+  // SAVED SEARCHES
+  // ==========================================================================
+  async saveSearch(name: string, query: string, filters?: Record<string, unknown>): Promise<Types.SavedSearch> {
+    const { data } = await this.client.post('/saved-searches', { name, query, filters });
+    return data;
+  }
+
+  async getSavedSearches(): Promise<{ saved_searches: Types.SavedSearch[] }> {
+    const { data } = await this.client.get('/saved-searches');
+    return data;
+  }
+
+  async useSavedSearch(searchId: number): Promise<{ query: string; filters: Record<string, unknown>; id: number }> {
+    const { data } = await this.client.post(`/saved-searches/${searchId}/use`);
+    return data;
+  }
+
+  async deleteSavedSearch(searchId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/saved-searches/${searchId}`);
+    return data;
+  }
+
+  // ==========================================================================
+  // RELATIONSHIPS
+  // ==========================================================================
+  async createRelationship(sourceDocId: number, targetDocId: number, relationship_type: string, strength?: number): Promise<Types.DocumentRelationship> {
+    const { data } = await this.client.post(`/documents/${sourceDocId}/relationships`, { target_doc_id: targetDocId, relationship_type, strength });
+    return data;
+  }
+
+  async getRelationships(docId: number, relationship_type?: string): Promise<{ relationships: Types.DocumentRelationship[] }> {
+    const { data } = await this.client.get(`/documents/${docId}/relationships`, { params: { relationship_type } });
+    return data;
+  }
+
+  async deleteRelationship(sourceDocId: number, targetDocId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/documents/${sourceDocId}/relationships/${targetDocId}`);
+    return data;
+  }
+
+  async discoverRelatedDocuments(docId: number, top_k?: number, min_similarity?: number): Promise<{ doc_id: number; related_documents: { doc_id: number; similarity_score: number }[]; count: number }> {
+    const { data } = await this.client.get(`/documents/${docId}/discover-related`, { params: { top_k, min_similarity } });
+    return data;
+  }
+
+  // ==========================================================================
+  // JOBS
+  // ==========================================================================
+  async getJobStatus(jobId: string): Promise<Types.JobStatus> {
+    const { data } = await this.client.get(`/jobs/${jobId}/status`);
+    return data;
+  }
+
+  async cancelJob(jobId: string): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/jobs/${jobId}`);
+    return data;
+  }
+
+  async getJobs(limit?: number): Promise<{ jobs: Types.JobStatus[] }> {
+    const { data } = await this.client.get('/jobs', { params: { limit } });
+    return data;
+  }
+
+  // ==========================================================================
+  // INTEGRATIONS
+  // ==========================================================================
+  getOAuthUrl(service: string): string {
+    return `${API_BASE}/integrations/${service}/authorize`;
+  }
+
+  async getIntegrationStatus(): Promise<{ integrations: Record<string, Types.IntegrationStatus> }> {
+    const { data } = await this.client.get('/integrations/status');
+    return data;
+  }
+
+  async disconnectIntegration(service: string): Promise<{ message: string }> {
+    const { data } = await this.client.post(`/integrations/${service}/disconnect`);
+    return data;
+  }
+
+  async listCloudFiles(service: string, path?: string, limit?: number): Promise<{ files: Types.CloudFile[] }> {
+    const { data } = await this.client.get(`/integrations/${service}/files`, { params: { path, limit } });
+    return data;
+  }
+
+  async importCloudFile(service: string, file_path: string, folder_path?: string): Promise<{ document_id: number; title: string; import_status: string }> {
+    const { data } = await this.client.post(`/integrations/${service}/import`, { file_path, folder_path });
+    return data;
+  }
+
+  async getGithubRepos(org?: string): Promise<{ repos: { name: string; url: string; stars: number; description: string }[] }> {
+    const { data } = await this.client.get('/integrations/github/repos', { params: { org } });
+    return data;
+  }
+
+  // ==========================================================================
+  // KNOWLEDGE BASES
+  // ==========================================================================
+  async getKnowledgeBases(): Promise<{ knowledge_bases: Types.KnowledgeBase[]; total: number }> {
+    const { data } = await this.client.get('/knowledge-bases');
+    return data;
+  }
+
+  async createKnowledgeBase(name: string, description?: string, is_default?: boolean): Promise<Types.KnowledgeBase> {
+    const { data } = await this.client.post('/knowledge-bases', { name, description, is_default });
+    return data;
+  }
+
+  async getKnowledgeBase(kbId: number): Promise<Types.KnowledgeBase> {
+    const { data } = await this.client.get(`/knowledge-bases/${kbId}`);
+    return data;
+  }
+
+  async updateKnowledgeBase(kbId: number, updates: { name?: string; description?: string; is_default?: boolean }): Promise<Types.KnowledgeBase> {
+    const { data } = await this.client.patch(`/knowledge-bases/${kbId}`, updates);
+    return data;
+  }
+
+  async deleteKnowledgeBase(kbId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/knowledge-bases/${kbId}`);
+    return data;
+  }
+
+  async getKnowledgeBaseStats(kbId: number): Promise<{ total_documents: number; total_clusters: number; total_concepts: number; disk_usage_mb: number }> {
+    const { data } = await this.client.get(`/knowledge-bases/${kbId}/stats`);
+    return data;
+  }
+
+  // ==========================================================================
+  // ADMIN
+  // ==========================================================================
+  async getChunkStatus(): Promise<{ total_documents: number; chunked_documents: number; pending_documents: number; failed_documents: number; total_chunks: number; chunks_with_embeddings: number }> {
+    const { data } = await this.client.get('/admin/chunk-status');
+    return data;
+  }
+
+  async backfillChunks(max_documents?: number, generate_embeddings?: boolean): Promise<{ processed: number; succeeded: number; failed: number; skipped: number; results: { doc_id: number; status: string; chunk_count: number }[] }> {
+    const { data } = await this.client.post('/admin/backfill-chunks', { max_documents, generate_embeddings });
+    return data;
+  }
+
+  // ==========================================================================
+  // KNOWLEDGE GRAPH
+  // ==========================================================================
+  async getKnowledgeGraphStats(): Promise<{ knowledge_base_id: number; stats: Types.KnowledgeGraphStats }> {
+    const { data } = await this.client.get('/knowledge-graph/stats');
+    return data;
+  }
+
+  async buildKnowledgeGraph(): Promise<{ status: string; knowledge_base_id: number; stats: Types.KnowledgeGraphStats }> {
+    const { data } = await this.client.post('/knowledge-graph/build');
+    return data;
+  }
+
+  async getGraphRelated(docId: number, relationship_type?: string, min_strength?: number, limit?: number): Promise<{ doc_id: number; related_documents: { doc_id: number; relationship_type: string; strength: number }[] }> {
+    const { data } = await this.client.get(`/knowledge-graph/related/${docId}`, { params: { relationship_type, min_strength, limit } });
+    return data;
+  }
+
+  async getConcepts(limit?: number): Promise<{ concepts: Types.ConceptCloud[] }> {
+    const { data } = await this.client.get('/knowledge-graph/concepts', { params: { limit } });
+    return data;
+  }
+
+  async getTechnologies(limit?: number): Promise<{ technologies: { tech: string; frequency: number; documents: number[] }[] }> {
+    const { data } = await this.client.get('/knowledge-graph/technologies', { params: { limit } });
+    return data;
+  }
+
+  async findLearningPath(source_concept: string, target_concept: string): Promise<{ path: { concept: string; distance: number }[]; total_steps: number }> {
+    const { data } = await this.client.get('/knowledge-graph/path', { params: { source_concept, target_concept } });
+    return data;
+  }
+
+  async getDocumentsByConcept(concept: string, limit?: number): Promise<{ concept: string; documents: { doc_id: number; title: string; relevance: number }[] }> {
+    const { data } = await this.client.get(`/knowledge-graph/by-concept/${encodeURIComponent(concept)}`, { params: { limit } });
+    return data;
+  }
+
+  async getDocumentsByTech(technology: string, limit?: number): Promise<{ technology: string; documents: { doc_id: number; title: string; relevance: number }[] }> {
+    const { data } = await this.client.get(`/knowledge-graph/by-tech/${encodeURIComponent(technology)}`, { params: { limit } });
+    return data;
+  }
+
+  // ==========================================================================
+  // PROJECT GOALS
+  // ==========================================================================
+  async getProjectGoals(): Promise<Types.ProjectGoal[]> {
+    const { data } = await this.client.get('/project-goals');
+    return data;
+  }
+
+  async getPrimaryGoal(): Promise<Types.ProjectGoal> {
+    const { data } = await this.client.get('/project-goals/primary');
+    return data;
+  }
+
+  async getProjectGoal(goalId: number): Promise<Types.ProjectGoal> {
+    const { data } = await this.client.get(`/project-goals/${goalId}`);
+    return data;
+  }
+
+  async createProjectGoal(goal_type: string, priority: number, constraints?: Record<string, unknown>): Promise<Types.ProjectGoal> {
+    const { data } = await this.client.post('/project-goals', { goal_type, priority, constraints });
+    return data;
+  }
+
+  async updateProjectGoal(goalId: number, updates: { goal_type?: string; priority?: number; constraints?: Record<string, unknown> }): Promise<Types.ProjectGoal> {
+    const { data } = await this.client.put(`/project-goals/${goalId}`, updates);
+    return data;
+  }
+
+  async deleteProjectGoal(goalId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/project-goals/${goalId}`);
+    return data;
+  }
+
+  // ==========================================================================
+  // PROJECT TRACKING
+  // ==========================================================================
+  async getProjects(status?: string, limit?: number, offset?: number): Promise<Types.ProjectAttempt[]> {
+    const { data } = await this.client.get('/projects', { params: { status, limit, offset } });
+    return data;
+  }
+
+  async getProjectStats(): Promise<Types.ProjectStats> {
+    const { data } = await this.client.get('/projects/stats');
+    return data;
+  }
+
+  async getProject(projectId: number): Promise<Types.ProjectAttempt> {
+    const { data } = await this.client.get(`/projects/${projectId}`);
+    return data;
+  }
+
+  async createProject(title: string, description: string, goal_id?: number): Promise<Types.ProjectAttempt> {
+    const { data } = await this.client.post('/projects', { title, description, goal_id });
+    return data;
+  }
+
+  async updateProject(projectId: number, updates: { title?: string; status?: string; time_spent_hours?: number; revenue_generated?: number }): Promise<Types.ProjectAttempt> {
+    const { data } = await this.client.put(`/projects/${projectId}`, updates);
+    return data;
+  }
+
+  async deleteProject(projectId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/projects/${projectId}`);
+    return data;
+  }
+
+  // ==========================================================================
+  // N8N WORKFLOWS
+  // ==========================================================================
+  async generateN8NWorkflow(task_description: string, available_integrations?: string[]): Promise<{ workflow_id: number; workflow: Record<string, unknown>; setup_instructions: string; required_credentials: string[]; testing_steps: string[]; potential_improvements: string[]; download_url: string }> {
+    const { data } = await this.client.post('/n8n-workflows/generate', { task_description, available_integrations });
+    return data;
+  }
+
+  async getN8NWorkflows(limit?: number, offset?: number): Promise<Types.N8NWorkflow[]> {
+    const { data } = await this.client.get('/n8n-workflows', { params: { limit, offset } });
+    return data;
+  }
+
+  async getN8NWorkflow(workflowId: number): Promise<Types.N8NWorkflow> {
+    const { data } = await this.client.get(`/n8n-workflows/${workflowId}`);
+    return data;
+  }
+
+  async updateN8NWorkflow(workflowId: number, updates: { title?: string; description?: string }): Promise<Types.N8NWorkflow> {
+    const { data } = await this.client.put(`/n8n-workflows/${workflowId}`, updates);
+    return data;
+  }
+
+  async deleteN8NWorkflow(workflowId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/n8n-workflows/${workflowId}`);
+    return data;
+  }
+
+  getN8NWorkflowDownloadUrl(workflowId: number): string {
+    return `${API_BASE}/n8n-workflows/${workflowId}/download`;
+  }
+
+  // ==========================================================================
+  // GENERATED CODE
+  // ==========================================================================
+  async getGeneratedCode(project_id?: number, language?: string, generation_type?: string, limit?: number, offset?: number): Promise<Types.GeneratedCode[]> {
+    const { data } = await this.client.get('/generated-code', { params: { project_id, language, generation_type, limit, offset } });
+    return data;
+  }
+
+  async getGeneratedCodeFile(codeId: number): Promise<Types.GeneratedCode> {
+    const { data } = await this.client.get(`/generated-code/${codeId}`);
+    return data;
+  }
+
+  getCodeDownloadUrl(codeId: number): string {
+    return `${API_BASE}/generated-code/${codeId}/download`;
+  }
+
+  async getProjectCodeFiles(projectId: number): Promise<Types.GeneratedCode[]> {
+    const { data } = await this.client.get(`/generated-code/project/${projectId}/files`);
+    return data;
+  }
+
+  getProjectZipUrl(projectId: number): string {
+    return `${API_BASE}/generated-code/project/${projectId}/zip`;
+  }
+
+  // ==========================================================================
+  // KNOWLEDGE TOOLS
+  // ==========================================================================
+  async analyzeKnowledgeGaps(): Promise<Types.GapAnalysisResponse> {
+    const { data } = await this.client.get('/knowledge/gaps');
+    return data;
+  }
+
+  async generateFlashcards(docId: number, num_cards?: number, difficulty_mix?: string): Promise<{ flashcards: Types.Flashcard[]; cards_generated: number; doc_id: number }> {
+    const { data } = await this.client.post(`/knowledge/flashcards/${docId}`, { num_cards, difficulty_mix });
+    return data;
+  }
+
+  async getWeeklyDigest(days?: number): Promise<Types.WeeklyDigest & { status: string; period: { start: string; end: string; days: number } }> {
+    const { data } = await this.client.get('/knowledge/digest', { params: { days } });
+    return data;
+  }
+
+  async optimizeLearningPath(goal: string): Promise<Types.LearningPath & { status: string }> {
+    const { data } = await this.client.post('/knowledge/learning-path', { goal });
+    return data;
+  }
+
+  async scoreDocumentQuality(docId: number): Promise<{ status: string; doc_id: number; scores: { information_density: number; actionability: number; currency: number; uniqueness: number; overall: number }; key_excerpts: string[]; sections_to_skip: string[]; missing_context: string[] }> {
+    const { data } = await this.client.get(`/knowledge/quality/${docId}`);
+    return data;
+  }
+
+  async knowledgeChat(query: string, conversation_history?: { role: string; content: string }[]): Promise<{ status: string; response: string; follow_ups?: string[] }> {
+    const { data } = await this.client.post('/knowledge/chat', { query, conversation_history });
+    return data;
+  }
+
+  async generateCodeFromKB(project_type?: string, language?: string): Promise<{ status: string; files?: Record<string, string>; concepts_used?: string[]; setup_instructions?: string }> {
+    const { data } = await this.client.post('/knowledge/generate-code', { project_type, language });
+    return data;
+  }
+
+  async compareDocuments(doc_a_id: number, doc_b_id: number): Promise<Types.DocumentComparison & { status: string }> {
+    const { data } = await this.client.post('/knowledge/compare', { doc_a_id, doc_b_id });
+    return data;
+  }
+
+  async explainELI5(topic: string): Promise<{ status: string; simple_explanation: string; analogy?: string; why_it_matters?: string; simple_example?: string; learn_next?: string[] }> {
+    const { data } = await this.client.post('/knowledge/eli5', { topic });
+    return data;
+  }
+
+  async generateInterviewPrep(role?: string, level?: string): Promise<Types.InterviewPrep & { status: string; topics_covered: string[] }> {
+    const { data } = await this.client.post('/knowledge/interview-prep', { role, level });
+    return data;
+  }
+
+  async debugError(error_message: string, code_snippet?: string, context?: string): Promise<Types.DebugResult & { status: string }> {
+    const { data } = await this.client.post('/knowledge/debug', { error_message, code_snippet, context });
+    return data;
+  }
+
+  async getKnowledgeToolsStatus(): Promise<{ status: string; services_available: boolean; features: Record<string, boolean>; endpoints: string[] }> {
+    const { data } = await this.client.get('/knowledge/status');
+    return data;
+  }
+}
+
+// Export singleton instance
+export const api = new ApiClient();
+export default api;
