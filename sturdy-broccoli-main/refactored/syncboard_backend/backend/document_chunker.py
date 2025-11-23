@@ -19,14 +19,15 @@ logger = logging.getLogger(__name__)
 # Try to import tiktoken, fall back to character-based estimation
 try:
     import tiktoken
-    TIKTOKEN_AVAILABLE = True
     # Use cl100k_base encoding (GPT-4, GPT-3.5-turbo)
     _encoding = tiktoken.get_encoding("cl100k_base")
+    TIKTOKEN_AVAILABLE = True
     logger.info("tiktoken loaded for accurate token counting")
-except ImportError:
+except (ImportError, Exception) as e:
+    # Handle both import errors and network errors (e.g., 403 when downloading encodings)
     TIKTOKEN_AVAILABLE = False
     _encoding = None
-    logger.warning("tiktoken not available, using character-based estimation")
+    logger.warning(f"tiktoken not available ({e}), using character-based estimation")
 
 
 @dataclass
