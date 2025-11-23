@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, Upload, Trash2, ExternalLink, Filter } from 'lucide-react';
+import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import type { Document } from '@/types/api';
 
@@ -12,7 +12,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadMode, setUploadMode] = useState<'file' | 'url' | 'text'>('file');
+  const [uploadMode, setUploadMode] = useState<'file' | 'url' | 'text' | 'image'>('file');
   const [textContent, setTextContent] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [filter, setFilter] = useState({ source_type: '', skill_level: '' });
@@ -55,10 +55,75 @@ export default function DocumentsPage() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
+      // Documents
       'application/pdf': ['.pdf'],
-      'text/plain': ['.txt', '.md'],
-      'audio/*': ['.mp3', '.wav', '.m4a'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'text/plain': ['.txt', '.md', '.rst', '.tex'],
+      'text/csv': ['.csv'],
+      // Spreadsheets
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
+      // Presentations
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      // Audio (transcription)
+      'audio/*': ['.mp3', '.wav', '.m4a', '.ogg', '.flac'],
+      // Notebooks & Data
       'application/json': ['.json', '.ipynb'],
+      'application/x-yaml': ['.yaml', '.yml'],
+      'text/xml': ['.xml'],
+      'application/toml': ['.toml'],
+      // Code files
+      'text/x-python': ['.py'],
+      'text/javascript': ['.js', '.jsx'],
+      'text/typescript': ['.ts', '.tsx'],
+      'text/x-java': ['.java'],
+      'text/x-c': ['.c', '.cpp', '.cc', '.cxx', '.h', '.hpp'],
+      'text/x-go': ['.go'],
+      'text/x-rust': ['.rs'],
+      'text/x-ruby': ['.rb'],
+      'text/x-php': ['.php'],
+      'text/x-swift': ['.swift'],
+      'text/x-kotlin': ['.kt'],
+      'text/x-scala': ['.scala'],
+      'text/x-r': ['.r'],
+      'text/html': ['.html', '.vue'],
+      'text/css': ['.css', '.scss', '.sass'],
+      'text/x-sh': ['.sh', '.bash', '.zsh', '.fish'],
+      'text/x-powershell': ['.ps1'],
+      'text/x-sql': ['.sql'],
+      'text/x-ini': ['.ini', '.conf'],
+      // Archives & Books
+      'application/zip': ['.zip'],
+      'application/epub+zip': ['.epub'],
+      // Subtitles
+      'text/vtt': ['.vtt', '.srt'],
+    },
+  });
+
+  // Image upload dropzone (separate for OCR)
+  const onDropImage = useCallback(async (acceptedFiles: File[]) => {
+    setUploading(true);
+    let successCount = 0;
+
+    for (const file of acceptedFiles) {
+      try {
+        const base64 = await fileToBase64(file);
+        await api.uploadImage(base64, file.name);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to upload image ${file.name}:`, err);
+      }
+    }
+
+    toast.success(`Uploaded ${successCount}/${acceptedFiles.length} images for OCR processing`);
+    setUploading(false);
+    loadDocuments();
+  }, []);
+
+  const { getRootProps: getImageRootProps, getInputProps: getImageInputProps, isDragActive: isImageDragActive } = useDropzone({
+    onDrop: onDropImage,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff'],
     },
   });
 
@@ -137,14 +202,20 @@ export default function DocumentsPage() {
       {/* Upload Panel */}
       {showUpload && (
         <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
-          <div className="flex gap-4 mb-4">
-            {(['file', 'url', 'text'] as const).map(mode => (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {[
+              { mode: 'file' as const, icon: Upload, label: 'Files' },
+              { mode: 'image' as const, icon: Image, label: 'Images (OCR)' },
+              { mode: 'url' as const, icon: Link, label: 'URL' },
+              { mode: 'text' as const, icon: Type, label: 'Text' },
+            ].map(({ mode, icon: Icon, label }) => (
               <button
                 key={mode}
                 onClick={() => setUploadMode(mode)}
-                className={`px-4 py-2 rounded-lg ${uploadMode === mode ? 'bg-primary text-black' : 'bg-dark-200 text-gray-300'}`}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${uploadMode === mode ? 'bg-primary text-black' : 'bg-dark-200 text-gray-300 hover:bg-dark-300'}`}
               >
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                <Icon className="w-4 h-4" />
+                {label}
               </button>
             ))}
           </div>
@@ -165,7 +236,34 @@ export default function DocumentsPage() {
               ) : (
                 <p className="text-gray-400">Drag & drop files here, or click to select</p>
               )}
-              <p className="text-xs text-gray-500 mt-2">PDF, TXT, MD, Audio, Jupyter notebooks, and more</p>
+              <div className="text-xs text-gray-500 mt-4 space-y-1">
+                <p><strong>Documents:</strong> PDF, DOCX, TXT, MD, CSV, XLSX, XLS, PPTX</p>
+                <p><strong>Audio:</strong> MP3, WAV, M4A, OGG, FLAC (auto-transcribed)</p>
+                <p><strong>Code:</strong> Python, JS, TS, Java, Go, Rust, C/C++, Ruby, PHP, and 20+ more</p>
+                <p><strong>Data:</strong> JSON, YAML, XML, TOML, Jupyter notebooks</p>
+                <p><strong>Other:</strong> ZIP archives, EPUB books, SRT/VTT subtitles</p>
+              </div>
+            </div>
+          )}
+
+          {uploadMode === 'image' && (
+            <div
+              {...getImageRootProps()}
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                isImageDragActive ? 'border-primary bg-primary/10' : 'border-dark-300 hover:border-dark-200'
+              }`}
+            >
+              <input {...getImageInputProps()} />
+              <Image className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+              {uploading ? (
+                <p className="text-gray-400">Processing with OCR...</p>
+              ) : isImageDragActive ? (
+                <p className="text-primary">Drop images here</p>
+              ) : (
+                <p className="text-gray-400">Drag & drop images here, or click to select</p>
+              )}
+              <p className="text-xs text-gray-500 mt-2">PNG, JPG, JPEG, GIF, WebP, BMP, TIFF</p>
+              <p className="text-xs text-primary mt-1">Text will be extracted using OCR</p>
             </div>
           )}
 
@@ -175,9 +273,10 @@ export default function DocumentsPage() {
                 type="url"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="Enter URL (YouTube, web articles, etc.)"
-                className="input"
+                placeholder="Enter URL (YouTube, web articles, GitHub repos, etc.)"
+                className="input w-full"
               />
+              <p className="text-xs text-gray-500">Supports: YouTube videos (transcribed), web articles, blog posts, documentation pages</p>
               <button onClick={uploadUrl} disabled={uploading} className="btn btn-primary">
                 {uploading ? 'Processing...' : 'Upload URL'}
               </button>
@@ -189,9 +288,9 @@ export default function DocumentsPage() {
               <textarea
                 value={textContent}
                 onChange={(e) => setTextContent(e.target.value)}
-                placeholder="Paste your content here..."
+                placeholder="Paste your content here (notes, articles, code snippets, etc.)..."
                 rows={6}
-                className="input"
+                className="input w-full"
               />
               <button onClick={uploadText} disabled={uploading} className="btn btn-primary">
                 {uploading ? 'Uploading...' : 'Upload Text'}
