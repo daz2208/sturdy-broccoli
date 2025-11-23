@@ -95,7 +95,7 @@ async def test_ollama_extract_concepts():
         }
     }
 
-    with patch('httpx.AsyncClient') as mock_client_class:
+    with patch('backend.llm_providers.httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -104,7 +104,7 @@ async def test_ollama_extract_concepts():
         mock_post_response.status_code = 200
         mock_post_response.json.return_value = mock_response
         mock_post_response.raise_for_status = MagicMock()
-        mock_client.post.return_value = mock_post_response
+        mock_client.post = AsyncMock(return_value=mock_post_response)
 
         mock_client_class.return_value = mock_client
 
@@ -141,7 +141,7 @@ async def test_ollama_generate_build_suggestions():
         }
     }
 
-    with patch('httpx.AsyncClient') as mock_client_class:
+    with patch('backend.llm_providers.httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -150,7 +150,7 @@ async def test_ollama_generate_build_suggestions():
         mock_post_response.status_code = 200
         mock_post_response.json.return_value = mock_response
         mock_post_response.raise_for_status = MagicMock()
-        mock_client.post.return_value = mock_post_response
+        mock_client.post = AsyncMock(return_value=mock_post_response)
 
         mock_client_class.return_value = mock_client
 
@@ -177,7 +177,7 @@ async def test_ollama_chat_completion():
         }
     }
 
-    with patch('httpx.AsyncClient') as mock_client_class:
+    with patch('backend.llm_providers.httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
@@ -186,7 +186,7 @@ async def test_ollama_chat_completion():
         mock_post_response.status_code = 200
         mock_post_response.json.return_value = mock_response
         mock_post_response.raise_for_status = MagicMock()
-        mock_client.post.return_value = mock_post_response
+        mock_client.post = AsyncMock(return_value=mock_post_response)
 
         mock_client_class.return_value = mock_client
 
@@ -205,11 +205,11 @@ async def test_ollama_connection_error_handling():
 
     provider = OllamaProvider()
 
-    with patch('httpx.AsyncClient') as mock_client_class:
+    with patch('backend.llm_providers.httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
-        mock_client.post.side_effect = httpx.ConnectError("Connection refused")
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         mock_client_class.return_value = mock_client
 

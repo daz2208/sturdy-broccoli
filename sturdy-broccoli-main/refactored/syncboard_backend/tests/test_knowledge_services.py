@@ -349,11 +349,12 @@ class TestWeeklyDigest:
             Mock(doc_id=2, filename="doc2.md", source_type="url", skill_level="intermediate", content="...", ingested_at=datetime.utcnow()),
         ]
 
-        # Mock concepts
-        mock_concepts = [
-            Mock(name="Python", category="language"),
-            Mock(name="FastAPI", category="framework"),
-        ]
+        # Mock concepts - use MagicMock and configure_mock since 'name' is special in Mock
+        mock_concept1 = MagicMock()
+        mock_concept1.configure_mock(name="Python", category="language")
+        mock_concept2 = MagicMock()
+        mock_concept2.configure_mock(name="FastAPI", category="framework")
+        mock_concepts = [mock_concept1, mock_concept2]
 
         # Set up mock returns
         call_count = [0]
