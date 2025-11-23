@@ -12,6 +12,11 @@ slowapi
 sqlalchemy
 psycopg2-binary
 alembic
+pgvector  # Native PostgreSQL vector operations
+
+# RAG Improvements
+sentence-transformers  # Cross-encoder reranking
+tiktoken  # Accurate token counting
 
 # Authentication
 passlib

@@ -7,9 +7,9 @@
 version: '3.8'
 
 services:
-  # PostgreSQL database
+  # PostgreSQL database with pgvector extension for native vector search
   db:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: syncboard-db
     restart: unless-stopped
     environment:
