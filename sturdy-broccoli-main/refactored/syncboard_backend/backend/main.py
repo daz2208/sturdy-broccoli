@@ -42,7 +42,11 @@ from .routers import (
     # Phase 10: SyncBoard 3.0 Enhancement routers
     project_goals, project_tracking, n8n_workflows, generated_code,
     # Knowledge tools (gap analysis, flashcards, etc.)
-    knowledge_tools
+    knowledge_tools,
+    # Real-time WebSocket support
+    websocket,
+    # Team collaboration
+    teams
 )
 
 # Import dependencies and shared state
@@ -332,6 +336,12 @@ app.include_router(generated_code.router)
 
 # Knowledge Tools (gap analysis, flashcards, learning paths, etc.)
 app.include_router(knowledge_tools.router)
+
+# Real-time WebSocket support
+app.include_router(websocket.router)
+
+# Team collaboration
+app.include_router(teams.router)
 
 # =============================================================================
 # Health Check Endpoint

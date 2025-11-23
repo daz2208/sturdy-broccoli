@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#6366f1"/>
+  <g fill="white">
+    <!-- S for SyncBoard -->
+    <path d="M256 128c-70.7 0-128 57.3-128 128s57.3 128 128 128 128-57.3 128-128-57.3-128-128-128zm0 208c-44.2 0-80-35.8-80-80s35.8-80 80-80 80 35.8 80 80-35.8 80-80 80z"/>
+    <!-- Knowledge nodes -->
+    <circle cx="256" cy="176" r="24"/>
+    <circle cx="176" cy="288" r="24"/>
+    <circle cx="336" cy="288" r="24"/>
+    <circle cx="256" cy="336" r="24"/>
+    <!-- Connection lines -->
+    <path d="M256 200v60M200 276l32-16M312 276l-32-16M256 312v-20" stroke="white" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

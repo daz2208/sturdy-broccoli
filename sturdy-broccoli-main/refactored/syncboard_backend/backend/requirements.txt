@@ -53,3 +53,4 @@ pytesseract
 celery[redis]  # Task queue with Redis support
 redis  # Message broker and cache
 flower  # Celery monitoring dashboard
+python-slugify>=8.0.0
