@@ -56,8 +56,8 @@ class DocumentChunker:
 
     def __init__(
         self,
-        target_chunk_tokens: int = 512,
-        max_chunk_tokens: int = 1024,
+        target_chunk_tokens: int = 8192,
+        max_chunk_tokens: int = 16384,
         min_chunk_tokens: int = 100,
         overlap_tokens: int = 50
     ):
@@ -65,8 +65,8 @@ class DocumentChunker:
         Initialize chunker with configurable parameters.
 
         Args:
-            target_chunk_tokens: Ideal chunk size (default 512 ~ 2KB)
-            max_chunk_tokens: Maximum chunk size before forced split
+            target_chunk_tokens: Ideal chunk size (default 8192 ~ 32KB)
+            max_chunk_tokens: Maximum chunk size before forced split (default 16384 ~ 65KB)
             min_chunk_tokens: Minimum chunk size (avoid tiny chunks)
             overlap_tokens: Token overlap between chunks for context
         """

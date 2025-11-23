@@ -257,13 +257,28 @@ services:
       dockerfile: Dockerfile
     container_name: syncboard-flower
     restart: unless-stopped
-    command: celery -A backend.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    command: celery -A backend.celery_app --broker=redis://redis:6379/0 flower --port=5555
     depends_on:
       redis:
         condition: service_healthy
     environment:
+      # Database connection (needed for module imports)
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+
+      # Redis connection
+      REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      # Security (required by backend.auth module)
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+
+      # OpenAI API (needed for module imports)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+
+      # Flower authentication
       FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
     ports:
       - "5555:5555"

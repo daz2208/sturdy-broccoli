@@ -52,10 +52,11 @@ class ImprovedBuildSuggester:
         metadata: Dict[int, DocumentMetadata],
         documents: Dict[int, str],
         max_suggestions: int = 5,
-        enable_quality_filter: bool = True
+        enable_quality_filter: bool = True,
+        idea_seeds: List[Dict] = None
     ) -> List[BuildSuggestion]:
         """
-        Analyze user's knowledge with depth validation.
+        Analyze user's knowledge with depth validation (Tier 2: Enhanced with idea seeds).
 
         Args:
             clusters: User's content clusters
@@ -63,6 +64,7 @@ class ImprovedBuildSuggester:
             documents: Full document content
             max_suggestions: Number of suggestions to return
             enable_quality_filter: If True, filter out low-coverage suggestions
+            idea_seeds: Pre-computed idea seeds from database (Tier 2 enhancement)
 
         Returns:
             List of BuildSuggestion objects (empty if insufficient knowledge)
@@ -82,13 +84,14 @@ class ImprovedBuildSuggester:
         knowledge_areas = self._detect_knowledge_areas(clusters, metadata)
 
         try:
-            # Generate suggestions with context
+            # Generate suggestions with context (enhanced with idea seeds)
             suggestions_data = await self.provider.generate_build_suggestions_improved(
                 knowledge_summary=knowledge_summary,
                 knowledge_areas=knowledge_areas,
                 validation_info=validation,
                 max_suggestions=max_suggestions,
-                enable_quality_filter=enable_quality_filter
+                enable_quality_filter=enable_quality_filter,
+                idea_seeds=idea_seeds or []  # Pass idea seeds for enhancement
             )
 
             # Convert to BuildSuggestion objects

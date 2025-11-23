@@ -121,14 +121,27 @@ async def what_can_i_build(
         logger.info(f"Cache HIT: Build suggestions for {current_user.username}")
         return cached_suggestions
 
-    # Cache miss - generate suggestions (expensive LLM call)
-    logger.info(f"Cache MISS: Generating build suggestions for {current_user.username}")
+    # Tier 2 Enhancement: Pull pre-computed idea seeds first
+    from ..idea_seeds_service import get_user_idea_seeds
+
+    idea_seeds = await get_user_idea_seeds(
+        db=db,
+        knowledge_base_id=kb_id,
+        difficulty=None,  # Get all difficulties
+        limit=50  # Get more seeds for better context
+    )
+
+    logger.info(f"Found {len(idea_seeds)} pre-computed idea seeds for enhanced suggestions")
+
+    # Cache miss - generate suggestions (enhanced with idea seeds)
+    logger.info(f"Cache MISS: Generating ENHANCED build suggestions for {current_user.username}")
     suggestions = await build_suggester.analyze_knowledge_bank(
         clusters=user_clusters,
         metadata=user_metadata,
         documents=user_documents,
         max_suggestions=max_suggestions,
-        enable_quality_filter=req.enable_quality_filter
+        enable_quality_filter=req.enable_quality_filter,
+        idea_seeds=idea_seeds  # Pass idea seeds for enhancement
     )
 
     result = {
@@ -401,6 +414,61 @@ async def validate_market(
     logger.info(f"Market validation completed for {current_user.username}: {validation.recommendation}")
 
     return MarketValidationResponse.model_validate(db_validation)
+
+
+# =============================================================================
+# Quick Ideas Endpoint (Tier 1: Instant, Free)
+# =============================================================================
+
+@router.get("/quick-ideas")
+@limiter.limit("30/minute")
+async def quick_ideas(
+    request: Request,
+    difficulty: str = None,
+    limit: int = 15,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get instant build ideas from pre-computed idea seeds (Tier 1).
+
+    Fast, free, no AI calls - pulls from database only.
+
+    Args:
+        difficulty: Optional filter by difficulty (beginner, intermediate, advanced)
+        limit: Maximum results (default 15)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Instant build ideas from knowledge bank
+    """
+    from ..idea_seeds_service import get_user_idea_seeds
+
+    # Validate difficulty
+    if difficulty and difficulty not in ["beginner", "intermediate", "advanced"]:
+        raise HTTPException(400, "Invalid difficulty. Use: beginner, intermediate, advanced")
+
+    # Validate limit
+    limit = min(max(1, limit), 30)
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Get stored idea seeds (instant, from DB)
+    ideas = await get_user_idea_seeds(
+        db=db,
+        knowledge_base_id=kb_id,
+        difficulty=difficulty,
+        limit=limit
+    )
+
+    return {
+        "count": len(ideas),
+        "ideas": ideas,
+        "tier": "quick",
+        "message": "Pre-computed ideas from your knowledge bank (instant, free)"
+    }
 
 
 # =============================================================================

@@ -115,7 +115,7 @@ class OpenAIProvider(LLMProvider):
     def __init__(
         self,
         api_key: str = None,
-        concept_model: str = "gpt-5-mini",
+        concept_model: str = "gpt-5-nano",
         suggestion_model: str = "gpt-5-mini"
     ):
         """
@@ -364,12 +364,14 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
         knowledge_areas: List[Dict],
         validation_info: Dict,
         max_suggestions: int,
-        enable_quality_filter: bool = True
+        enable_quality_filter: bool = True,
+        idea_seeds: List[Dict] = None
     ) -> List[Dict]:
         """
-        Generate IMPROVED build suggestions with depth analysis.
+        Generate IMPROVED build suggestions with depth analysis (Tier 2: Enhanced).
 
         Includes:
+        - Pre-computed idea seeds (fast, already generated)
         - Actual content snippets (not just concept names)
         - Knowledge area detection
         - Minimum threshold validation
@@ -382,6 +384,7 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             validation_info: Knowledge depth validation info
             max_suggestions: Number of suggestions to generate
             enable_quality_filter: If True, filter out low-coverage suggestions
+            idea_seeds: Pre-computed ideas from database (Tier 2 enhancement)
         """
         stats = validation_info["stats"]
 
@@ -391,7 +394,16 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             for area in knowledge_areas
         ])
 
-        prompt = f"""Based on this VALIDATED knowledge bank, suggest {max_suggestions} DETAILED practical projects.
+        # Build idea seeds summary (if available)
+        idea_seeds_text = ""
+        if idea_seeds and len(idea_seeds) > 0:
+            idea_seeds_text = "\n\nPRE-COMPUTED IDEA SEEDS (use these as a starting point):\n"
+            for i, seed in enumerate(idea_seeds[:15], 1):  # Limit to 15 seeds
+                idea_seeds_text += f"{i}. {seed.get('title', 'Untitled')} ({seed.get('difficulty', 'unknown')})\n"
+                idea_seeds_text += f"   - {seed.get('description', 'No description')[:150]}...\n"
+            idea_seeds_text += f"\n✨ ENHANCE, COMBINE, and REFINE these {len(idea_seeds)} pre-computed ideas into {max_suggestions} comprehensive suggestions.\n"
+
+        prompt = f"""Based on this VALIDATED knowledge bank, suggest {max_suggestions} DETAILED practical projects.{idea_seeds_text}
 
 KNOWLEDGE VALIDATION:
 ✅ {stats['total_documents']} documents analyzed

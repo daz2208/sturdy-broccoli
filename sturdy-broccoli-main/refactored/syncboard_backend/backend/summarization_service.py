@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
+SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", "gpt-5-nano")
 CHUNKS_PER_SECTION = 4  # Number of chunks to combine into a section
 
 

@@ -666,7 +666,8 @@
                             <h2>🔍 Search & Explore</h2>
                             <div style="display: flex; gap: 10px; align-items: center;">
                                 <button onclick="showAIGenerator()">✨ AI Generate</button>
-                                <button onclick="whatCanIBuild(event)">What Can I Build?</button>
+                                <button onclick="quickIdeas(event)" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" title="Instant build ideas from your uploads (free, no AI call)">💡 Quick Ideas</button>
+                                <button onclick="whatCanIBuild(event)" title="Deep analysis with GPT (enhanced with your quick ideas)">What Can I Build?</button>
                                 <label style="display: flex; align-items: center; gap: 5px; font-size: 0.85rem; color: #aaa;" title="Maximum number of suggestions to generate (up to 20)">
                                     Max: <input type="number" id="maxSuggestionsInput" value="5" min="1" max="20" style="width: 50px; padding: 4px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;">
                                 </label>

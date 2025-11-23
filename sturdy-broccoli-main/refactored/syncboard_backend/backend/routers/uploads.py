@@ -255,7 +255,7 @@ async def upload_text_content(
                                 document_id=db_doc.id,
                                 knowledge_base_id=kb_id,
                                 chunks=chunks_data,
-                                generate_ideas=False
+                                generate_ideas=True
                             )
 
                             # Update document summary status

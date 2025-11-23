@@ -1047,6 +1047,35 @@ async function saveDocumentMetadata(docId, modalElement) {
 // BUILD SUGGESTIONS
 // =============================================================================
 
+// Tier 1: Quick Ideas (instant, free)
+async function quickIdeas(event) {
+    const button = event ? event.target : null;
+
+    if (button) setButtonLoading(button, true);
+
+    try {
+        const res = await fetch(`${API_BASE}/quick-ideas?limit=15`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            displayQuickIdeas(data.ideas, data.count);
+        } else {
+            const errorMsg = await getErrorMessage(res);
+            showToast(errorMsg, 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '💡 Quick Ideas');
+    }
+}
+
+// Tier 2: What Can I Build (enhanced with idea seeds)
 async function whatCanIBuild(event) {
     const button = event ? event.target : null;
 
@@ -1226,6 +1255,55 @@ function displayBuildSuggestions(suggestions, summary) {
                         </ul>
                     </div>
                 </details>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function displayQuickIdeas(ideas, count) {
+    const area = document.getElementById('resultsArea');
+
+    if (ideas.length === 0) {
+        area.innerHTML = `
+            <p style="color: #666;">
+                No pre-computed ideas yet. Upload some documents first!
+            </p>
+        `;
+        return;
+    }
+
+    area.innerHTML = `
+        <h3>⚡ Quick Ideas (Tier 1)</h3>
+        <p style="color: #aaa; margin-bottom: 10px;">
+            ${count} pre-computed build ideas from your knowledge bank (instant, free)
+        </p>
+        <p style="color: #777; font-size: 0.9rem; margin-bottom: 20px;">
+            💡 For deeper analysis with GPT, use "What Can I Build?" (Tier 2)
+        </p>
+    ` + ideas.map((idea, i) => `
+        <div class="build-suggestion feasibility-${idea.feasibility || 'medium'}">
+            <h3>${i + 1}. ${idea.title}</h3>
+            <p style="color: #ddd; margin-bottom: 15px;">${idea.description}</p>
+
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+                <span style="background: #222; padding: 5px 12px; border-radius: 4px; font-size: 0.9rem;">
+                    📊 ${idea.difficulty || 'Unknown'} level
+                </span>
+                <span style="background: #222; padding: 5px 12px; border-radius: 4px; font-size: 0.9rem;">
+                    ⏱️ ${idea.effort_estimate || 'Unknown timeframe'}
+                </span>
+                <span style="background: #222; padding: 5px 12px; border-radius: 4px; font-size: 0.9rem;">
+                    🎯 ${idea.feasibility || 'medium'} feasibility
+                </span>
+            </div>
+
+            ${idea.dependencies && idea.dependencies.length > 0 ? `
+                <div style="margin-top: 10px;">
+                    <strong style="color: #ff4444;">Dependencies:</strong>
+                    <ul style="margin-left: 20px; color: #ddd;">
+                        ${idea.dependencies.map(dep => `<li style="margin: 5px 0;">${dep}</li>`).join('')}
+                    </ul>
+                </div>
             ` : ''}
         </div>
     `).join('');
