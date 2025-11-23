@@ -48,7 +48,9 @@ from .routers import (
     # Team collaboration
     teams,
     # Usage & billing
-    usage
+    usage,
+    # Multi-industry content generation
+    content_generation,
 )
 
 # Import dependencies and shared state
@@ -382,6 +384,9 @@ app.include_router(teams.router)
 
 # Usage & billing
 app.include_router(usage.router)
+
+# Multi-industry content generation
+app.include_router(content_generation.router)
 
 # =============================================================================
 # Health Check Endpoint

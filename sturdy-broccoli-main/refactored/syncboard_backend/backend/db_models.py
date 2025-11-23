@@ -354,6 +354,9 @@ class DBKnowledgeBase(Base):
     owner_username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
     is_default = Column(Boolean, default=False, nullable=False, index=True)
 
+    # Settings (JSON for industry config, preferences, etc.)
+    settings = Column(JSON, nullable=True, default=dict)
+
     # Metadata
     document_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
