@@ -3195,13 +3195,35 @@ async function pollJobStatus(jobId, button = null, buttonDefaultText = 'Done') {
                 clearInterval(interval);
                 if (button) setButtonLoading(button, false, buttonDefaultText);
 
-                // Show success message
-                if (data.document_id) {
+                // Check if multi-document ZIP upload (smart extraction)
+                if (data.status === 'multi_document_success') {
+                    // Multi-document ZIP upload
+                    const totalDocs = data.total_documents || 0;
+                    const zipName = data.original_filename || 'archive.zip';
+
                     showToast(
-                        `✅ Uploaded! Doc ${data.document_id} → Cluster ${data.cluster_id}`,
+                        `✅ ZIP extracted! ${totalDocs} documents created from ${zipName}`,
                         'success'
                     );
-                } else {
+
+                    // Show detailed breakdown if available
+                    if (data.filenames && data.filenames.length > 0) {
+                        const fileList = data.filenames.slice(0, 5).join(', ');
+                        const remaining = data.filenames.length > 5 ? ` (+${data.filenames.length - 5} more)` : '';
+                        console.log(`📦 Extracted files: ${fileList}${remaining}`);
+                    }
+                }
+                // Single document upload
+                else if (data.document_id || data.doc_id) {
+                    const docId = data.document_id || data.doc_id;
+                    const clusterId = data.cluster_id;
+                    showToast(
+                        `✅ Uploaded! Doc ${docId} → Cluster ${clusterId}`,
+                        'success'
+                    );
+                }
+                // Fallback
+                else {
                     showToast('✅ Processing complete!', 'success');
                 }
 

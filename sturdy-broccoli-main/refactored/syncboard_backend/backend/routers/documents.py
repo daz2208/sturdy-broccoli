@@ -30,6 +30,11 @@ from ..database import get_db
 from sqlalchemy.orm import Session
 from ..constants import SKILL_LEVELS
 from ..db_storage_adapter import save_storage_to_db
+from ..redis_client import (
+    invalidate_analytics,
+    invalidate_build_suggestions,
+    invalidate_search
+)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -210,6 +215,12 @@ async def delete_document(
         if kb:
             kb.document_count = len(kb_documents)
             db.commit()
+
+    # Invalidate caches (knowledge bank content changed)
+    invalidate_analytics(user.username)
+    invalidate_build_suggestions(user.username)
+    invalidate_search(user.username)
+    logger.info(f"Invalidated caches for {user.username} after document deletion")
 
     # Structured logging with request context
     logger.info(

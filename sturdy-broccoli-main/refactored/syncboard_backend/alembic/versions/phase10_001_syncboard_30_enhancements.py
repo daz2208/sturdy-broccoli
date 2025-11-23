@@ -12,7 +12,7 @@ Also adds columns to documents table:
 - related_project_id: Foreign key to project_attempts
 
 Revision ID: phase10_001
-Revises: hier_001_add_hierarchical_summarization
+Revises: c3dc67ca08ff
 Create Date: 2025-01-15 12:00:00.000000
 """
 
@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'phase10_001'
-down_revision = 'hier_001_add_hierarchical_summarization'
+down_revision = 'c3dc67ca08ff'
 branch_labels = None
 depends_on = None
 

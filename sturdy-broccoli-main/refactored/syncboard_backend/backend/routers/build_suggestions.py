@@ -33,6 +33,7 @@ from ..database import get_db, get_db_context
 from ..sanitization import validate_positive_integer
 from ..constants import MAX_SUGGESTIONS
 from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation
+from ..redis_client import get_cached_build_suggestions, cache_build_suggestions
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -112,8 +113,16 @@ async def what_can_i_build(
                 "clusters": []
             }
         }
-    
-    # Generate suggestions
+
+    # Check cache first (100x faster for cached results)
+    cached_suggestions = get_cached_build_suggestions(user_id=current_user.username)
+
+    if cached_suggestions:
+        logger.info(f"Cache HIT: Build suggestions for {current_user.username}")
+        return cached_suggestions
+
+    # Cache miss - generate suggestions (expensive LLM call)
+    logger.info(f"Cache MISS: Generating build suggestions for {current_user.username}")
     suggestions = await build_suggester.analyze_knowledge_bank(
         clusters=user_clusters,
         metadata=user_metadata,
@@ -121,8 +130,8 @@ async def what_can_i_build(
         max_suggestions=max_suggestions,
         enable_quality_filter=req.enable_quality_filter
     )
-    
-    return {
+
+    result = {
         "suggestions": [s.dict() for s in suggestions],
         "knowledge_summary": {
             "total_docs": len(user_documents),
@@ -130,6 +139,15 @@ async def what_can_i_build(
             "clusters": [c.dict() for c in user_clusters.values()]
         }
     }
+
+    # Cache the result for 30 minutes (1800 seconds)
+    cache_build_suggestions(
+        user_id=current_user.username,
+        suggestions=result,
+        ttl=1800
+    )
+
+    return result
 
 
 # =============================================================================
