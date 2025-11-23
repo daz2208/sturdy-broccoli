@@ -439,17 +439,25 @@ class DBDocumentChunk(Base):
     concepts = Column(JSON, nullable=True)  # Extracted concepts from this chunk
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # Enhanced RAG: Parent-child chunking support
+    parent_chunk_id = Column(Integer, ForeignKey("document_chunks.id", ondelete="SET NULL"), nullable=True, index=True)
+    chunk_type = Column(String(20), default='child', nullable=False)  # 'parent' or 'child'
+    # Note: embedding_vector column is added via pgvector migration (vector type not in SQLAlchemy)
+
     # Relationships
     document = relationship("DBDocument", back_populates="chunks")
     knowledge_base = relationship("DBKnowledgeBase", back_populates="document_chunks")
+    parent_chunk = relationship("DBDocumentChunk", remote_side=[id], backref="child_chunks")
 
     # Indexes
     __table_args__ = (
         Index('idx_chunks_doc_index', 'document_id', 'chunk_index'),
+        Index('idx_chunks_parent', 'parent_chunk_id'),
+        Index('idx_chunks_type', 'chunk_type'),
     )
 
     def __repr__(self):
-        return f"<DBDocumentChunk(doc_id={self.document_id}, chunk={self.chunk_index}, tokens={self.end_token - self.start_token})>"
+        return f"<DBDocumentChunk(doc_id={self.document_id}, chunk={self.chunk_index}, type={self.chunk_type})>"
 
 
 class DBDocumentSummary(Base):
