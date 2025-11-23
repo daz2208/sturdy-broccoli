@@ -44,7 +44,9 @@ from .routers import (
     # Knowledge tools (gap analysis, flashcards, etc.)
     knowledge_tools,
     # Real-time WebSocket support
-    websocket
+    websocket,
+    # Team collaboration
+    teams
 )
 
 # Import dependencies and shared state
@@ -337,6 +339,9 @@ app.include_router(knowledge_tools.router)
 
 # Real-time WebSocket support
 app.include_router(websocket.router)
+
+# Team collaboration
+app.include_router(teams.router)
 
 # =============================================================================
 # Health Check Endpoint
