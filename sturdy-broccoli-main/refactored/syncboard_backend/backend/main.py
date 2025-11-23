@@ -40,7 +40,9 @@ from .routers import (
     analytics, ai_generation, duplicates, tags, saved_searches, relationships, jobs,
     integrations, knowledge_bases, admin, knowledge_graph,
     # Phase 10: SyncBoard 3.0 Enhancement routers
-    project_goals, project_tracking, n8n_workflows, generated_code
+    project_goals, project_tracking, n8n_workflows, generated_code,
+    # Knowledge tools (gap analysis, flashcards, etc.)
+    knowledge_tools
 )
 
 # Import dependencies and shared state
@@ -327,6 +329,9 @@ app.include_router(project_goals.router)
 app.include_router(project_tracking.router)
 app.include_router(n8n_workflows.router)
 app.include_router(generated_code.router)
+
+# Knowledge Tools (gap analysis, flashcards, learning paths, etc.)
+app.include_router(knowledge_tools.router)
 
 # =============================================================================
 # Health Check Endpoint
