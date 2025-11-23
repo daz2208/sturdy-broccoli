@@ -142,13 +142,13 @@ export default function UsageDashboard() {
     try {
       setLoading(true);
       const [usageRes, subRes, plansRes] = await Promise.all([
-        api.get('/usage'),
-        api.get('/usage/subscription'),
-        api.get('/usage/plans')
+        api.getUsage(),
+        api.getSubscription(),
+        api.getPlans()
       ]);
-      setUsage(usageRes);
-      setSubscription(subRes);
-      setPlans(plansRes);
+      setUsage(usageRes as Usage);
+      setSubscription(subRes as Subscription);
+      setPlans(plansRes as Plan[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load usage data');
     } finally {
@@ -161,7 +161,7 @@ export default function UsageDashboard() {
 
     try {
       setUpgrading(true);
-      await api.post('/usage/subscription/upgrade', { plan: planId });
+      await api.upgradeSubscription(planId);
       await loadData();
       alert('Plan upgraded successfully!');
     } catch (err) {

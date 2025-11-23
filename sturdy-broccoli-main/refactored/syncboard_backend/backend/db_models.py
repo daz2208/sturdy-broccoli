@@ -5,8 +5,8 @@ Maps application domain models to PostgreSQL tables.
 Separate from Pydantic models (models.py) which handle API validation.
 """
 
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime, JSON, ForeignKey, Boolean, Index
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Text, DateTime, JSON, ForeignKey, Boolean, Index
+from sqlalchemy.orm import relationship, declarative_base, backref
 from datetime import datetime
 
 Base = declarative_base()
@@ -889,7 +889,7 @@ class DBActivityLog(Base):
     resource_name = Column(String(255), nullable=True)
 
     # Additional context (JSON)
-    metadata = Column(Text, nullable=True)
+    details = Column(Text, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

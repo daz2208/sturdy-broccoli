@@ -14,6 +14,9 @@ from jose import JWTError, jwt
 
 from .constants import JWT_ALGORITHM, DEFAULT_TOKEN_EXPIRE_MINUTES
 
+# Export ALGORITHM as an alias for JWT_ALGORITHM (for backwards compatibility)
+ALGORITHM = JWT_ALGORITHM
+
 # =============================================================================
 # Configuration
 # =============================================================================
