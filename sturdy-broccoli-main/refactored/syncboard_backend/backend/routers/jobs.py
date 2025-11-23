@@ -240,11 +240,21 @@ async def list_user_jobs(
 
     Returns:
         List of recent jobs
+
+    Raises:
+        HTTPException 501: Feature not yet implemented
     """
-    # TODO: Implement job tracking in Redis
-    # For now, return placeholder
-    return {
-        "message": "Job listing not yet implemented",
-        "user": current_user.username,
-        "jobs": []
-    }
+    # Return 501 Not Implemented with clear message
+    # Job tracking requires Redis-based implementation (planned feature)
+    raise HTTPException(
+        status_code=501,
+        detail={
+            "message": "Job listing feature is not yet implemented",
+            "planned_features": [
+                "View recent background jobs",
+                "Track document processing status",
+                "Monitor batch import progress"
+            ],
+            "workaround": "Use the /admin/chunk-status endpoint for document processing status"
+        }
+    )

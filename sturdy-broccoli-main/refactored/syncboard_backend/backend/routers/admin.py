@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends, BackgroundTasks
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from pydantic import BaseModel, Field
 
 from ..models import User
@@ -86,47 +87,34 @@ async def get_chunk_status(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Count documents by status
-    total = db.query(DBDocument).filter(
+    # Single query for all document status counts using conditional aggregation
+    # Reduces 4 separate queries to 1 (75% reduction in DB load)
+    doc_stats = db.query(
+        func.count(DBDocument.id).label('total'),
+        func.sum(case((DBDocument.chunking_status == 'completed', 1), else_=0)).label('chunked'),
+        func.sum(case((DBDocument.chunking_status == 'pending', 1), else_=0)).label('pending'),
+        func.sum(case((DBDocument.chunking_status == 'failed', 1), else_=0)).label('failed')
+    ).filter(
         DBDocument.knowledge_base_id == kb_id,
         DBDocument.owner_username == current_user.username
-    ).count()
+    ).first()
 
-    chunked = db.query(DBDocument).filter(
-        DBDocument.knowledge_base_id == kb_id,
-        DBDocument.owner_username == current_user.username,
-        DBDocument.chunking_status == 'completed'
-    ).count()
-
-    pending = db.query(DBDocument).filter(
-        DBDocument.knowledge_base_id == kb_id,
-        DBDocument.owner_username == current_user.username,
-        DBDocument.chunking_status == 'pending'
-    ).count()
-
-    failed = db.query(DBDocument).filter(
-        DBDocument.knowledge_base_id == kb_id,
-        DBDocument.owner_username == current_user.username,
-        DBDocument.chunking_status == 'failed'
-    ).count()
-
-    # Count chunks
-    total_chunks = db.query(DBDocumentChunk).filter(
+    # Single query for chunk counts using conditional aggregation
+    # Reduces 2 separate queries to 1
+    chunk_stats = db.query(
+        func.count(DBDocumentChunk.id).label('total_chunks'),
+        func.sum(case((DBDocumentChunk.embedding.isnot(None), 1), else_=0)).label('with_embeddings')
+    ).filter(
         DBDocumentChunk.knowledge_base_id == kb_id
-    ).count()
-
-    chunks_with_embeddings = db.query(DBDocumentChunk).filter(
-        DBDocumentChunk.knowledge_base_id == kb_id,
-        DBDocumentChunk.embedding.isnot(None)
-    ).count()
+    ).first()
 
     return ChunkStatusResponse(
-        total_documents=total,
-        chunked_documents=chunked,
-        pending_documents=pending,
-        failed_documents=failed,
-        total_chunks=total_chunks,
-        chunks_with_embeddings=chunks_with_embeddings
+        total_documents=doc_stats.total or 0,
+        chunked_documents=int(doc_stats.chunked or 0),
+        pending_documents=int(doc_stats.pending or 0),
+        failed_documents=int(doc_stats.failed or 0),
+        total_chunks=chunk_stats.total_chunks or 0,
+        chunks_with_embeddings=int(chunk_stats.with_embeddings or 0)
     )
 
 

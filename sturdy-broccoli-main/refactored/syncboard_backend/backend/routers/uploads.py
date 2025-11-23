@@ -301,7 +301,8 @@ async def upload_text_content(
             "cluster_id": cluster_id,
             "knowledge_base_id": kb_id,
             "concepts": extraction.get("concepts", []),
-            "chunks_created": chunk_result.get("chunks", 0) if chunk_result else 0
+            "chunks_created": chunk_result.get("chunks", 0) if chunk_result else 0,
+            "chunking_status": "completed" if chunk_result and chunk_result.get("chunks", 0) > 0 else "pending"
         }
 
 # =============================================================================

@@ -13,7 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
-from ..models import User
+from ..models import User, ClusterUpdate, ExportFormat
 from ..dependencies import (
     get_current_user,
     get_documents,
@@ -95,16 +95,16 @@ async def get_user_clusters(
 @router.put("/clusters/{cluster_id}")
 async def update_cluster(
     cluster_id: int,
-    updates: dict,
+    updates: ClusterUpdate,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Update cluster information (rename, etc).
+    Update cluster information (rename, change skill level).
 
     Args:
         cluster_id: ID of cluster to update
-        updates: Dictionary of fields to update
+        updates: Validated ClusterUpdate model with optional name and skill_level
         user: Authenticated user
         db: Database session
 
@@ -113,6 +113,7 @@ async def update_cluster(
 
     Raises:
         HTTPException 404: If cluster not found
+        HTTPException 422: If validation fails (handled by Pydantic)
     """
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
@@ -134,14 +135,13 @@ async def update_cluster(
     async with storage_lock:
         cluster = kb_clusters[cluster_id]
 
-        # Update allowed fields
-        if 'name' in updates:
-            # Sanitize cluster name
-            cluster.name = sanitize_cluster_name(updates['name'])
+        # Update fields if provided (Pydantic already validated)
+        if updates.name is not None:
+            # Additional sanitization for safety
+            cluster.name = sanitize_cluster_name(updates.name)
 
-        if 'skill_level' in updates:
-            if updates['skill_level'] in SKILL_LEVELS:
-                cluster.skill_level = updates['skill_level']
+        if updates.skill_level is not None:
+            cluster.skill_level = updates.skill_level.value
 
         # Save to database
         save_storage_to_db(documents, metadata, clusters, users)
@@ -308,7 +308,7 @@ async def delete_cluster(
 @router.get("/export/cluster/{cluster_id}")
 async def export_cluster(
     cluster_id: int,
-    format: str = "json",
+    format: ExportFormat = ExportFormat.JSON,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -317,7 +317,7 @@ async def export_cluster(
 
     Args:
         cluster_id: ID of cluster to export
-        format: Export format ("json" or "markdown")
+        format: Export format (json or markdown)
         user: Authenticated user
         db: Database session
 
@@ -326,6 +326,7 @@ async def export_cluster(
 
     Raises:
         HTTPException 404: If cluster not found
+        HTTPException 422: If invalid format (handled by Enum validation)
     """
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
@@ -351,7 +352,7 @@ async def export_cluster(
                 "metadata": meta.dict() if meta else None
             })
     
-    if format == "markdown":
+    if format == ExportFormat.MARKDOWN:
         # Build markdown export
         md_content = f"# {cluster.name}\n\n"
         md_content += f"**Skill Level:** {cluster.skill_level}\n"
@@ -390,7 +391,7 @@ async def export_cluster(
 
 @router.get("/export/all")
 async def export_all(
-    format: str = "json",
+    format: ExportFormat = ExportFormat.JSON,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -398,12 +399,15 @@ async def export_all(
     Export entire knowledge bank.
 
     Args:
-        format: Export format ("json" or "markdown")
+        format: Export format (json or markdown)
         user: Authenticated user
         db: Database session
 
     Returns:
         Exported knowledge bank data
+
+    Raises:
+        HTTPException 422: If invalid format (handled by Enum validation)
     """
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
@@ -426,7 +430,7 @@ async def export_all(
             "cluster_name": cluster_name
         })
 
-    if format == "markdown":
+    if format == ExportFormat.MARKDOWN:
         md_content = f"# Knowledge Bank Export\n\n"
         md_content += f"**Export Date:** {datetime.utcnow().isoformat()}\n"
         md_content += f"**Total Documents:** {len(all_docs)}\n"
