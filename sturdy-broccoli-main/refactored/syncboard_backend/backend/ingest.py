@@ -27,6 +27,23 @@ import subprocess
 from typing import Optional, Union, List, Dict
 from pathlib import Path
 
+try:
+    from .constants import (
+        ZIP_MAX_RECURSION_DEPTH,
+        ZIP_MAX_FILE_COUNT,
+        ZIP_MAX_FILE_SIZE,
+        ZIP_MAX_TOTAL_SIZE,
+        ZIP_MAX_COMPRESSION_RATIO,
+    )
+except ImportError:
+    from constants import (
+        ZIP_MAX_RECURSION_DEPTH,
+        ZIP_MAX_FILE_COUNT,
+        ZIP_MAX_FILE_SIZE,
+        ZIP_MAX_TOTAL_SIZE,
+        ZIP_MAX_COMPRESSION_RATIO,
+    )
+
 logger = logging.getLogger(__name__)
 
 # Check for required API keys
@@ -630,8 +647,8 @@ def ingest_upload_file(filename: str, content_bytes: bytes, clean_for_ai: bool =
         except UnicodeDecodeError:
             try:
                 return content_bytes.decode('latin-1')
-            except:
-                raise Exception("Failed to decode text file")
+            except (UnicodeDecodeError, LookupError) as e:
+                raise ValueError(f"Failed to decode text file: {e}")
 
     # PDF files
     elif file_ext == '.pdf':
@@ -1375,8 +1392,8 @@ def _extract_zip_file_based(zip_file, original_filename: str, file_counter: dict
             logger.warning(f"File count limit reached ({file_counter['max_count']}), stopping extraction")
             break
 
-        # Skip large files (> 10MB per file)
-        if file_info.file_size > 10 * 1024 * 1024:
+        # Skip large files
+        if file_info.file_size > ZIP_MAX_FILE_SIZE:
             logger.warning(f"Skipping large file: {file_info.filename} ({file_info.file_size / (1024*1024):.2f} MB)")
             continue
 
@@ -1473,7 +1490,7 @@ def _extract_zip_folder_based(zip_file, original_filename: str, file_counter: di
 
         for file_info in folder_files:
             # Skip large files
-            if file_info.file_size > 10 * 1024 * 1024:
+            if file_info.file_size > ZIP_MAX_FILE_SIZE:
                 continue
 
             # Skip hidden files
@@ -1524,7 +1541,7 @@ def extract_zip_archive(
     content_bytes: bytes,
     filename: str,
     current_depth: int = 0,
-    max_depth: int = 5,
+    max_depth: int = ZIP_MAX_RECURSION_DEPTH,
     file_counter: Optional[dict] = None,
     multi_document: bool = True
 ) -> Union[str, List[Dict]]:
@@ -1588,8 +1605,10 @@ def extract_zip_archive(
     if file_counter is None:
         file_counter = {
             "count": 0,
-            "max_count": 1000,
-            "nested_zips": 0
+            "max_count": ZIP_MAX_FILE_COUNT,
+            "nested_zips": 0,
+            "total_extracted_size": 0,
+            "max_total_size": ZIP_MAX_TOTAL_SIZE,
         }
 
     # Safety check: Recursion depth limit
@@ -1608,6 +1627,36 @@ def extract_zip_archive(
 
     try:
         zip_file = zipfile.ZipFile(io.BytesIO(content_bytes))
+
+        # ====================================================================
+        # ZIP BOMB DETECTION (Safety check)
+        # ====================================================================
+        compressed_size = len(content_bytes)
+        uncompressed_size = sum(f.file_size for f in zip_file.infolist() if not f.is_dir())
+
+        # Check compression ratio (zip bombs have very high ratios)
+        if compressed_size > 0:
+            compression_ratio = uncompressed_size / compressed_size
+            if compression_ratio > ZIP_MAX_COMPRESSION_RATIO:
+                raise ValueError(
+                    f"Potential ZIP bomb detected: compression ratio {compression_ratio:.1f}x "
+                    f"exceeds maximum {ZIP_MAX_COMPRESSION_RATIO}x"
+                )
+
+        # Check if total uncompressed size would exceed limit
+        if uncompressed_size > ZIP_MAX_TOTAL_SIZE:
+            raise ValueError(
+                f"ZIP contents too large: {uncompressed_size / (1024*1024):.1f}MB "
+                f"exceeds maximum {ZIP_MAX_TOTAL_SIZE / (1024*1024):.0f}MB"
+            )
+
+        # Check cumulative extracted size (across nested ZIPs)
+        if file_counter["total_extracted_size"] + uncompressed_size > file_counter["max_total_size"]:
+            raise ValueError(
+                f"Total extraction size limit exceeded: "
+                f"{(file_counter['total_extracted_size'] + uncompressed_size) / (1024*1024):.1f}MB "
+                f"> {file_counter['max_total_size'] / (1024*1024):.0f}MB"
+            )
 
         # ====================================================================
         # SMART MULTI-DOCUMENT EXTRACTION (NEW!)
@@ -1671,10 +1720,10 @@ def extract_zip_archive(
                 text_parts.append("")
                 break
 
-            # Skip large files (> 10MB per file)
-            if file_info.file_size > 10 * 1024 * 1024:
+            # Skip large files
+            if file_info.file_size > ZIP_MAX_FILE_SIZE:
                 text_parts.append(f"⚠️  SKIPPED (too large): {file_info.filename}")
-                text_parts.append(f"   Size: {file_info.file_size / (1024*1024):.2f} MB")
+                text_parts.append(f"   Size: {file_info.file_size / (1024*1024):.2f} MB (max: {ZIP_MAX_FILE_SIZE / (1024*1024):.0f} MB)")
                 text_parts.append("")
                 skipped_files += 1
                 continue
@@ -1836,20 +1885,20 @@ def extract_epub_text(content_bytes: bytes, filename: str) -> str:
         try:
             if book.get_metadata('DC', 'title'):
                 title = book.get_metadata('DC', 'title')[0][0]
-        except:
-            pass
+        except (IndexError, KeyError, TypeError):
+            pass  # Use default filename as title
 
         try:
             if book.get_metadata('DC', 'creator'):
                 author = book.get_metadata('DC', 'creator')[0][0]
-        except:
-            pass
+        except (IndexError, KeyError, TypeError):
+            pass  # Use default "Unknown" author
 
         try:
             if book.get_metadata('DC', 'language'):
                 language = book.get_metadata('DC', 'language')[0][0]
-        except:
-            pass
+        except (IndexError, KeyError, TypeError):
+            pass  # Use default "unknown" language
 
         text_parts.append(f"EPUB BOOK: {title}")
         text_parts.append("=" * 60)
