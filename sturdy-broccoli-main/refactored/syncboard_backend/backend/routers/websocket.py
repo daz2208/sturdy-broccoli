@@ -164,8 +164,17 @@ async def websocket_endpoint(
                         )
                     )
 
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 logger.warning(f"Invalid JSON from {username}: {data[:100]}")
+                # Send error event back to client so they know the message was rejected
+                await websocket.send_json({
+                    "event": "error",
+                    "data": {
+                        "error": "invalid_json",
+                        "message": f"Malformed JSON message: {str(e)}",
+                        "hint": "Messages must be valid JSON with 'event' and optional 'data' fields"
+                    }
+                })
 
     except WebSocketDisconnect:
         await manager.disconnect(websocket, username)

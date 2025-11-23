@@ -15,6 +15,34 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..models import User
+
+
+def validate_iso_date(date_str: Optional[str], param_name: str) -> Optional[datetime]:
+    """
+    Validate and parse ISO format date string.
+
+    Args:
+        date_str: Date string in ISO format (e.g., "2024-01-15" or "2024-01-15T10:30:00Z")
+        param_name: Parameter name for error messages
+
+    Returns:
+        Parsed datetime object or None
+
+    Raises:
+        HTTPException 400 if date format is invalid
+    """
+    if date_str is None:
+        return None
+
+    try:
+        # Handle various ISO formats
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    except (ValueError, AttributeError) as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid date format for '{param_name}': '{date_str}'. "
+                   f"Expected ISO format (e.g., '2024-01-15' or '2024-01-15T10:30:00Z')"
+        )
 from ..dependencies import (
     get_current_user,
     get_documents,
@@ -94,7 +122,14 @@ async def search_full_content(
 
     Returns:
         Search results with metadata and cluster information
+
+    Raises:
+        HTTPException 400: If date_from or date_to have invalid format
     """
+    # Validate date parameters early (fail fast with clear error message)
+    parsed_date_from = validate_iso_date(date_from, "date_from")
+    parsed_date_to = validate_iso_date(date_to, "date_to")
+
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
@@ -142,8 +177,8 @@ async def search_full_content(
             if kb_metadata[doc_id].skill_level == skill_level
         ]
 
-    # Filter by date range
-    if date_from or date_to:
+    # Filter by date range (using pre-validated dates)
+    if parsed_date_from or parsed_date_to:
         date_filtered = []
         for doc_id in filtered_ids:
             meta = kb_metadata[doc_id]
@@ -153,19 +188,15 @@ async def search_full_content(
             try:
                 doc_date = datetime.fromisoformat(meta.ingested_at.replace('Z', '+00:00'))
 
-                if date_from:
-                    from_date = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-                    if doc_date < from_date:
-                        continue
+                if parsed_date_from and doc_date < parsed_date_from:
+                    continue
 
-                if date_to:
-                    to_date = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-                    if doc_date > to_date:
-                        continue
+                if parsed_date_to and doc_date > parsed_date_to:
+                    continue
 
                 date_filtered.append(doc_id)
-            except (ValueError, TypeError, KeyError):
-                # Skip documents with invalid or missing dates
+            except (ValueError, TypeError):
+                # Skip documents with invalid or missing dates in metadata
                 continue
 
         filtered_ids = date_filtered

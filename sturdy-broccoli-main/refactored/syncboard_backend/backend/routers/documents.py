@@ -71,16 +71,18 @@ async def list_documents(
     # Get KB-scoped storage
     kb_metadata = get_kb_metadata(kb_id)
 
-    # Filter documents by user ownership
+    # Filter documents by user ownership with null coalescing for all optional fields
     user_docs = [
         {
             "id": doc_id,
-            "title": getattr(meta, 'title', f"Document {doc_id}"),
-            "source_type": meta.source_type,
+            "title": getattr(meta, 'title', None) or f"Document {doc_id}",
+            "source_type": meta.source_type or "unknown",
             "ingested_at": meta.ingested_at,
-            "chunking_status": getattr(meta, 'chunking_status', 'unknown'),
+            "chunking_status": getattr(meta, 'chunking_status', None) or "unknown",
             "cluster_id": meta.cluster_id,
-            "primary_topic": getattr(meta, 'primary_topic', None)
+            "primary_topic": getattr(meta, 'primary_topic', None) or "Uncategorized",
+            "skill_level": getattr(meta, 'skill_level', None) or "unknown",
+            "filename": getattr(meta, 'filename', None)
         }
         for doc_id, meta in kb_metadata.items()
         if meta.owner == user.username

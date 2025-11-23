@@ -111,7 +111,13 @@ async def what_can_i_build(
                 "total_docs": 0,
                 "total_clusters": 0,
                 "clusters": []
-            }
+            },
+            "empty_reason": "No clusters found in your knowledge base",
+            "empty_actions": [
+                "Upload documents to create your first clusters",
+                "Add content via URL, file upload, or direct text input",
+                "Import from connected integrations (GitHub, Google Drive, etc.)"
+            ]
         }
 
     # Check cache first (100x faster for cached results)

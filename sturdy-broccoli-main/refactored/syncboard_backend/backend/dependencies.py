@@ -56,10 +56,16 @@ storage_lock = asyncio.Lock()
 llm_provider = None
 try:
     api_key = os.environ.get("OPENAI_API_KEY")
-    if api_key:
+    if api_key and api_key != "sk-replace-with-your-actual-openai-key":
         llm_provider = OpenAIProvider(api_key=api_key)
-except Exception:
-    pass  # LLM provider is optional - system works without it
+        logger.info("OpenAI LLM provider initialized successfully")
+    else:
+        logger.info("OpenAI API key not configured - LLM features will use fallback")
+except ValueError as e:
+    logger.warning(f"Failed to initialize OpenAI provider (invalid config): {e}")
+except Exception as e:
+    logger.error(f"Unexpected error initializing LLM provider: {e}", exc_info=True)
+# LLM provider is optional - system works without it, but logging helps debugging
 
 # Semantic dictionary (with or without LLM learning)
 semantic_dictionary = SemanticDictionaryManager(llm_provider=llm_provider)
@@ -149,33 +155,104 @@ def get_build_suggester() -> ImprovedBuildSuggester:
 # =============================================================================
 # Knowledge Base Scoped Access Functions
 # =============================================================================
+#
+# SECURITY NOTICE: KB-Scoping Architecture
+# ========================================
+# These functions implement tenant isolation by knowledge base (KB).
+# Each user's data is stored in separate KB namespaces to prevent data leakage.
+#
+# IMPORTANT: Always use these KB-scoped functions when accessing user data.
+# NEVER use the global get_documents(), get_metadata(), get_clusters() directly
+# for user-facing operations - those are for system-level tasks only.
+#
+# Pattern for safe data access:
+#   1. Get user's KB ID: kb_id = get_user_default_kb_id(username, db)
+#   2. Get KB-scoped data: kb_docs = get_kb_documents(kb_id)
+#   3. Filter further by ownership if needed: [d for d in kb_docs if meta.owner == username]
+#
+# This prevents:
+#   - User A accessing User B's documents
+#   - Data leakage between knowledge bases
+#   - Cross-tenant information disclosure
+# =============================================================================
 
 def get_kb_documents(kb_id: str) -> Dict[int, str]:
-    """Get documents for a specific knowledge base."""
+    """
+    Get documents for a specific knowledge base (KB-scoped access).
+
+    SECURITY: Always use this for user-facing document operations.
+    Never use global get_documents() directly - it bypasses KB isolation.
+
+    Args:
+        kb_id: Knowledge base ID from get_user_default_kb_id()
+
+    Returns:
+        Dict[doc_id, content] for documents in this KB only
+    """
     if kb_id not in documents:
         documents[kb_id] = {}
     return documents[kb_id]
 
 def get_kb_metadata(kb_id: str) -> Dict[int, DocumentMetadata]:
-    """Get metadata for a specific knowledge base."""
+    """
+    Get metadata for a specific knowledge base (KB-scoped access).
+
+    SECURITY: Always use this for user-facing metadata operations.
+    Never use global get_metadata() directly - it bypasses KB isolation.
+
+    Args:
+        kb_id: Knowledge base ID from get_user_default_kb_id()
+
+    Returns:
+        Dict[doc_id, DocumentMetadata] for documents in this KB only
+    """
     if kb_id not in metadata:
         metadata[kb_id] = {}
     return metadata[kb_id]
 
 def get_kb_clusters(kb_id: str) -> Dict[int, Cluster]:
-    """Get clusters for a specific knowledge base."""
+    """
+    Get clusters for a specific knowledge base (KB-scoped access).
+
+    SECURITY: Always use this for user-facing cluster operations.
+    Never use global get_clusters() directly - it bypasses KB isolation.
+
+    Args:
+        kb_id: Knowledge base ID from get_user_default_kb_id()
+
+    Returns:
+        Dict[cluster_id, Cluster] for clusters in this KB only
+    """
     if kb_id not in clusters:
         clusters[kb_id] = {}
     return clusters[kb_id]
 
 def get_kb_doc_ids(kb_id: str) -> list:
-    """Get list of document IDs in a knowledge base (for vector store filtering)."""
+    """
+    Get list of document IDs in a knowledge base (for vector store filtering).
+
+    Used primarily for search operations to scope vector similarity searches.
+
+    Args:
+        kb_id: Knowledge base ID from get_user_default_kb_id()
+
+    Returns:
+        List of doc_ids in this KB
+    """
     if kb_id not in documents:
         return []
     return list(documents[kb_id].keys())
 
 def ensure_kb_exists(kb_id: str) -> None:
-    """Ensure knowledge base exists in all dictionaries."""
+    """
+    Ensure knowledge base exists in all in-memory dictionaries.
+
+    Called during KB creation and on startup when loading from database.
+    Creates empty containers if KB namespace doesn't exist.
+
+    Args:
+        kb_id: Knowledge base ID to initialize
+    """
     if kb_id not in documents:
         documents[kb_id] = {}
     if kb_id not in metadata:

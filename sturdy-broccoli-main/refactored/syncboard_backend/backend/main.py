@@ -70,8 +70,9 @@ STORAGE_PATH = os.environ.get('SYNCBOARD_STORAGE_PATH', DEFAULT_STORAGE_PATH)
 ALLOWED_ORIGINS = os.environ.get('SYNCBOARD_ALLOWED_ORIGINS', '*')
 TESTING = os.environ.get('TESTING') == 'true'
 
-# Logging setup
-logging.basicConfig(level=logging.INFO)
+# Logging setup (configurable via environment variable)
+LOG_LEVEL = os.environ.get('SYNCBOARD_LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -213,11 +214,45 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Custom rate limit handler with Retry-After header
+async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """
+    Custom handler for rate limit exceeded errors.
+    Includes Retry-After header for better client handling.
+    """
+    from fastapi.responses import JSONResponse
+
+    # Extract retry time from the exception message (format: "X per Y")
+    retry_after = 60  # Default to 60 seconds
+    if hasattr(exc, 'detail') and 'per' in str(exc.detail):
+        try:
+            # Parse "N per minute/hour/etc" format
+            parts = str(exc.detail).split()
+            if 'minute' in str(exc.detail).lower():
+                retry_after = 60
+            elif 'hour' in str(exc.detail).lower():
+                retry_after = 3600
+            elif 'second' in str(exc.detail).lower():
+                retry_after = int(parts[0]) if parts[0].isdigit() else 1
+        except (IndexError, ValueError):
+            pass
+
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": str(exc.detail),
+            "error": "rate_limit_exceeded",
+            "retry_after_seconds": retry_after,
+            "message": f"Rate limit exceeded. Please wait {retry_after} seconds before retrying."
+        },
+        headers={"Retry-After": str(retry_after)}
+    )
+
 # Rate limiting (disabled in test mode)
 if not TESTING:
     limiter = Limiter(key_func=get_remote_address)
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
     logger.info("🚦 Rate limiting enabled")
 else:
     # Create dummy limiter for tests

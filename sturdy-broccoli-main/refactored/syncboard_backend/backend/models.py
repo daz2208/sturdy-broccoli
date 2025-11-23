@@ -1,8 +1,28 @@
 """Data models and schemas for SyncBoard 3.0 Knowledge Bank."""
 
+import os
+from enum import Enum
 from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 from typing import List, Optional
 from datetime import datetime
+
+
+# =============================================================================
+# Enums for validated parameters
+# =============================================================================
+
+class ExportFormat(str, Enum):
+    """Supported export formats."""
+    JSON = "json"
+    MARKDOWN = "markdown"
+
+
+class SkillLevel(str, Enum):
+    """Skill level classifications."""
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    UNKNOWN = "unknown"
 
 # =============================================================================
 # REMOVED: Board, BoardCreate (entire board system deleted)
@@ -43,9 +63,18 @@ class BatchFileItem(BaseModel):
     content: str  # base64 encoded
 
 
+# Configurable batch upload limit from environment
+MAX_BATCH_FILES = int(os.getenv("MAX_BATCH_FILES", "20"))
+
+
 class BatchFileUpload(BaseModel):
     """Schema for uploading multiple files in one request."""
-    files: List[BatchFileItem] = Field(..., min_length=1, max_length=20, description="List of files to upload (max 20)")
+    files: List[BatchFileItem] = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_BATCH_FILES,
+        description=f"List of files to upload (max {MAX_BATCH_FILES})"
+    )
 
 
 class BatchUrlUpload(BaseModel):
@@ -198,6 +227,23 @@ class Cluster(BaseModel):
         # Auto-compute doc_count from doc_ids if not provided
         if self.doc_count is None:
             self.doc_count = len(self.doc_ids)
+
+
+class ClusterUpdate(BaseModel):
+    """Schema for updating cluster information with validated fields."""
+    name: Optional[str] = Field(None, min_length=1, max_length=255, description="New cluster name")
+    skill_level: Optional[SkillLevel] = Field(None, description="Skill level classification")
+
+    @field_validator('name')
+    @classmethod
+    def sanitize_name(cls, v):
+        """Sanitize cluster name if provided."""
+        if v is not None:
+            # Basic sanitization - strip whitespace
+            v = v.strip()
+            if not v:
+                raise ValueError("Cluster name cannot be empty")
+        return v
 
 
 class BuildSuggestion(BaseModel):
