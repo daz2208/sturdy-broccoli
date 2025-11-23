@@ -190,6 +190,204 @@ def initialize_worker_state(**kwargs):
 
 
 # =============================================================================
+# Multi-Document ZIP Processing Helper
+# =============================================================================
+
+def process_multi_document_zip(
+    self: Task,
+    user_id: str,
+    filename: str,
+    documents_list: List[Dict],
+    kb_id: str
+) -> Dict:
+    """
+    Process multiple documents from a ZIP file (smart extraction).
+
+    Each document in the list gets:
+    - AI concept extraction
+    - Clustering
+    - Vector store addition
+    - Database persistence
+    - Chunking and summarization
+
+    Args:
+        self: Celery task instance
+        user_id: Username
+        filename: Original ZIP filename
+        documents_list: List of document dicts from smart ZIP extraction
+        kb_id: Knowledge base ID
+
+    Returns:
+        dict: {doc_ids: [...], filenames: [...], total_documents: N}
+    """
+    import asyncio
+
+    logger.info(f"Processing multi-document ZIP: {filename} with {len(documents_list)} documents")
+
+    # Get KB-scoped storage
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+
+    processed_docs = []
+    total_docs = len(documents_list)
+
+    for idx, doc_dict in enumerate(documents_list):
+        try:
+            # Extract document info
+            doc_filename = doc_dict.get('filename', f'file_{idx+1}')
+            document_text = doc_dict.get('content', '')
+            doc_metadata = doc_dict.get('metadata', {})
+
+            # Progress update
+            progress = 25 + int((idx / total_docs) * 70)  # 25% to 95%
+
+            self.update_state(
+                state="PROCESSING",
+                meta={
+                    "stage": "processing_zip_files",
+                    "message": f"Processing file {idx+1}/{total_docs}: {doc_filename[:40]}...",
+                    "percent": progress,
+                    "current_file": idx + 1,
+                    "total_files": total_docs
+                }
+            )
+
+            # Skip empty documents
+            if not document_text or len(document_text.strip()) < 10:
+                logger.warning(f"Skipping empty document: {doc_filename}")
+                continue
+
+            # Stage: AI analysis
+            extraction = asyncio.run(
+                concept_extractor.extract(document_text, "file")
+            )
+
+            # Add to vector store
+            doc_id = vector_store.add_document(document_text)
+            kb_documents[doc_id] = document_text
+
+            # Create metadata
+            meta = DocumentMetadata(
+                doc_id=doc_id,
+                owner=user_id,
+                source_type="file",
+                filename=doc_filename,
+                concepts=[Concept(**c) for c in extraction.get("concepts", [])],
+                skill_level=extraction.get("skill_level", "unknown"),
+                cluster_id=None,
+                knowledge_base_id=kb_id,
+                ingested_at=datetime.utcnow().isoformat(),
+                content_length=len(document_text)
+            )
+            kb_metadata[doc_id] = meta
+
+            # Find or create cluster
+            cluster_id = find_or_create_cluster_sync(
+                doc_id=doc_id,
+                suggested_cluster=extraction.get("suggested_cluster", "General"),
+                concepts_list=extraction.get("concepts", []),
+                skill_level=meta.skill_level,
+                kb_id=kb_id
+            )
+            kb_metadata[doc_id].cluster_id = cluster_id
+
+            # Save document metadata to database immediately
+            # This ensures doc_id exists before chunking
+            save_storage_to_db(documents, metadata, clusters, users)
+
+            # Chunk document for RAG
+            chunk_result = chunk_document_sync(doc_id, document_text, kb_id)
+
+            # Document Summarization
+            summarization_result = {}
+            if chunk_result.get('chunks', 0) > 0:
+                try:
+                    from .summarization_service import generate_hierarchical_summaries
+
+                    with get_db_context() as db:
+                        db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                        if db_doc:
+                            from .db_models import DBDocumentChunk
+
+                            db_chunks = db.query(DBDocumentChunk).filter_by(
+                                document_id=db_doc.id
+                            ).order_by(DBDocumentChunk.chunk_index).all()
+
+                            if db_chunks:
+                                chunks_data = [
+                                    {
+                                        'id': chunk.id,
+                                        'content': chunk.content,
+                                        'chunk_index': chunk.chunk_index
+                                    }
+                                    for chunk in db_chunks
+                                ]
+
+                                try:
+                                    loop = asyncio.get_event_loop()
+                                except RuntimeError:
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+
+                                summarization_result = loop.run_until_complete(
+                                    generate_hierarchical_summaries(
+                                        db=db,
+                                        document_id=db_doc.id,
+                                        knowledge_base_id=kb_id,
+                                        chunks=chunks_data,
+                                        generate_ideas=False
+                                    )
+                                )
+
+                                db_doc.summary_status = 'completed'
+                                db.commit()
+                except Exception as e:
+                    logger.warning(f"Summarization failed for {doc_filename}: {e}")
+
+            # Track processed document
+            processed_docs.append({
+                "doc_id": doc_id,
+                "filename": doc_filename,
+                "cluster_id": cluster_id,
+                "concepts": len(extraction.get("concepts", [])),
+                "chunks": chunk_result.get("chunks", 0),
+                "folder": doc_dict.get('folder'),
+                "original_zip": filename
+            })
+
+            logger.info(
+                f"Processed ZIP document {idx+1}/{total_docs}: {doc_filename} → "
+                f"doc_id={doc_id}, cluster={cluster_id}, chunks={chunk_result.get('chunks', 0)}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to process ZIP document {doc_filename}: {e}", exc_info=True)
+            continue
+
+    # Final save and cache reload
+    save_storage_to_db(documents, metadata, clusters, users)
+    reload_cache_from_db()
+    notify_data_changed()
+
+    logger.info(
+        f"Multi-document ZIP processing complete: {filename} → "
+        f"{len(processed_docs)}/{total_docs} documents successfully processed"
+    )
+
+    # Return summary
+    return {
+        "status": "multi_document_success",
+        "original_filename": filename,
+        "total_documents": len(processed_docs),
+        "doc_ids": [d["doc_id"] for d in processed_docs],
+        "filenames": [d["filename"] for d in processed_docs],
+        "documents": processed_docs,
+        "user_id": user_id,
+        "knowledge_base_id": kb_id
+    }
+
+
+# =============================================================================
 # File Upload Task
 # =============================================================================
 
@@ -259,7 +457,21 @@ def process_file_upload(
 
         # Use clean_for_ai=True to remove formatting metadata from ZIP files
         # This helps AI concept extraction work better on archived content
-        document_text = ingest.ingest_upload_file(filename_safe, file_bytes, clean_for_ai=True)
+        document_text_or_list = ingest.ingest_upload_file(filename_safe, file_bytes, clean_for_ai=True)
+
+        # Check if ZIP returned multiple documents (smart extraction)
+        if isinstance(document_text_or_list, list):
+            # MULTI-DOCUMENT ZIP EXTRACTION: Process each file separately
+            return process_multi_document_zip(
+                self=self,
+                user_id=user_id,
+                filename=filename_safe,
+                documents_list=document_text_or_list,
+                kb_id=kb_id
+            )
+
+        # SINGLE DOCUMENT: Continue with existing flow
+        document_text = document_text_or_list
 
         # Stage 3: AI analysis
         content_length = len(document_text)

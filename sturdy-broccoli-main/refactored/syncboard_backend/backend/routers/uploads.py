@@ -48,6 +48,11 @@ from ..dependencies import (
 )
 from ..database import get_db
 from sqlalchemy.orm import Session
+from ..redis_client import (
+    invalidate_analytics,
+    invalidate_build_suggestions,
+    invalidate_search
+)
 from ..sanitization import (
     sanitize_filename,
     sanitize_text_content,
@@ -285,6 +290,11 @@ async def upload_text_content(
             f"[{request.state.request_id}] User {current_user.username} uploaded text as doc {doc_id} "
             f"to KB {kb_id} (cluster: {cluster_id}, concepts: {len(extraction.get('concepts', []))})"
         )
+
+        # Invalidate caches (new document added)
+        invalidate_analytics(current_user.username)
+        invalidate_build_suggestions(current_user.username)
+        invalidate_search(current_user.username)
 
         return {
             "document_id": doc_id,

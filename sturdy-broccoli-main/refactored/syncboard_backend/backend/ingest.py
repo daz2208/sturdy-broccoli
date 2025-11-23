@@ -24,7 +24,7 @@ import os
 import tempfile
 import logging
 import subprocess
-from typing import Optional
+from typing import Optional, Union, List, Dict
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -1250,18 +1250,260 @@ def clean_zip_content_for_ai(zip_output: str) -> str:
 
     return cleaned.strip()
 
+def detect_zip_extraction_strategy(zip_file) -> str:
+    """
+    Analyze ZIP contents and determine best extraction strategy.
+
+    Smart detection for optimal document organization:
+    - n8n/automation JSON collections → file-based (each JSON = separate doc)
+    - Code projects with folders → folder-based (each folder = separate doc)
+    - Mixed content → single-document (concatenated, current behavior)
+
+    Args:
+        zip_file: zipfile.ZipFile object
+
+    Returns:
+        'file-based' | 'folder-based' | 'single-document'
+    """
+    import zipfile
+
+    # Get all files (exclude directories)
+    files = [f for f in zip_file.infolist() if not f.is_dir()]
+
+    if not files:
+        return 'single-document'
+
+    # Count file types
+    json_count = sum(1 for f in files if f.filename.lower().endswith('.json'))
+    total_count = len(files)
+
+    # Check structure
+    has_folders = any('/' in f.filename for f in files)
+    unique_folders = set()
+    for f in files:
+        if '/' in f.filename:
+            # Get top-level folder
+            folder = f.filename.split('/')[0]
+            unique_folders.add(folder)
+
+    # Decision logic (from ZIP_EXTRACTION_IMPROVEMENTS.md)
+
+    # Rule 1: >70% JSON files + flat or simple structure → file-based
+    # Perfect for n8n workflows, config collections, etc.
+    if json_count / total_count > 0.7:
+        logger.info(
+            f"ZIP strategy: file-based (detected {json_count}/{total_count} JSON files = "
+            f"{json_count/total_count*100:.1f}% - likely n8n/automation templates)"
+        )
+        return 'file-based'
+
+    # Rule 2: Clear folder structure + multiple folders + code files → folder-based
+    # Good for multi-project repositories
+    if has_folders and len(unique_folders) > 2:
+        code_extensions = {'.py', '.js', '.ts', '.java', '.cpp', '.go', '.rs'}
+        code_count = sum(1 for f in files if any(f.filename.lower().endswith(ext) for ext in code_extensions))
+        if code_count / total_count > 0.3:  # >30% code files
+            logger.info(
+                f"ZIP strategy: folder-based (detected {len(unique_folders)} folders with "
+                f"{code_count} code files - likely multi-project structure)"
+            )
+            return 'folder-based'
+
+    # Default: Single document with all content concatenated
+    logger.info(
+        f"ZIP strategy: single-document (default - {total_count} files, {len(unique_folders)} folders, "
+        f"{json_count} JSON files)"
+    )
+    return 'single-document'
+
+
+def _extract_zip_file_based(zip_file, original_filename: str, file_counter: dict) -> List[Dict]:
+    """
+    Extract ZIP with file-based strategy: each file becomes a separate document.
+
+    Perfect for n8n workflows, configuration collections, etc.
+
+    Args:
+        zip_file: zipfile.ZipFile object
+        original_filename: Original ZIP filename
+        file_counter: File counter dict (for safety limits)
+
+    Returns:
+        List of document dicts with filename, content, folder, metadata
+    """
+    from pathlib import Path
+
+    documents = []
+    files = [f for f in zip_file.infolist() if not f.is_dir()]
+
+    logger.info(f"File-based extraction: processing {len(files)} files from {original_filename}")
+
+    for file_info in files:
+        # Check file count limit
+        if file_counter["count"] >= file_counter["max_count"]:
+            logger.warning(f"File count limit reached ({file_counter['max_count']}), stopping extraction")
+            break
+
+        # Skip large files (> 10MB per file)
+        if file_info.file_size > 10 * 1024 * 1024:
+            logger.warning(f"Skipping large file: {file_info.filename} ({file_info.file_size / (1024*1024):.2f} MB)")
+            continue
+
+        # Skip hidden files and system files
+        if file_info.filename.startswith('.') or '__MACOSX' in file_info.filename:
+            continue
+
+        try:
+            file_content_bytes = zip_file.read(file_info.filename)
+            file_path = Path(file_info.filename)
+
+            # Extract folder path (for organization)
+            folder = str(file_path.parent) if file_path.parent != Path('.') else None
+
+            # Process the file content
+            extracted_text = ingest_upload_file(file_info.filename, file_content_bytes)
+
+            # Create document dict
+            doc = {
+                "filename": file_path.name,  # Just the filename, not full path
+                "content": extracted_text,
+                "folder": folder,  # Preserve folder structure info
+                "source_file": file_info.filename,  # Full path within ZIP
+                "original_zip": original_filename,
+                "file_size": file_info.file_size,
+                "metadata": {
+                    "source_type": "file",
+                    "from_zip": original_filename,
+                    "zip_path": file_info.filename,
+                    "folder": folder
+                }
+            }
+
+            documents.append(doc)
+            file_counter["count"] += 1
+
+            logger.debug(f"Extracted file {file_counter['count']}: {file_info.filename}")
+
+        except Exception as e:
+            logger.warning(f"Failed to extract {file_info.filename}: {e}")
+            continue
+
+    logger.info(f"File-based extraction complete: {len(documents)} documents created from {original_filename}")
+    return documents
+
+
+def _extract_zip_folder_based(zip_file, original_filename: str, file_counter: dict) -> List[Dict]:
+    """
+    Extract ZIP with folder-based strategy: each top-level folder becomes a document.
+
+    Perfect for multi-project code repositories.
+
+    Args:
+        zip_file: zipfile.ZipFile object
+        original_filename: Original ZIP filename
+        file_counter: File counter dict (for safety limits)
+
+    Returns:
+        List of document dicts with folder name, concatenated content, metadata
+    """
+    from pathlib import Path
+    from collections import defaultdict
+
+    # Group files by top-level folder
+    folders = defaultdict(list)
+    files = [f for f in zip_file.infolist() if not f.is_dir()]
+
+    for file_info in files:
+        if '/' in file_info.filename:
+            top_folder = file_info.filename.split('/')[0]
+            folders[top_folder].append(file_info)
+        else:
+            # Root-level files go into a special "root" folder
+            folders['_root'].append(file_info)
+
+    documents = []
+    logger.info(f"Folder-based extraction: processing {len(folders)} folders from {original_filename}")
+
+    for folder_name, folder_files in folders.items():
+        # Check file count limit
+        if file_counter["count"] >= file_counter["max_count"]:
+            logger.warning(f"File count limit reached, stopping extraction")
+            break
+
+        folder_parts = []
+        folder_parts.append(f"FOLDER: {folder_name}")
+        folder_parts.append("=" * 60)
+        folder_parts.append("")
+
+        processed_count = 0
+
+        for file_info in folder_files:
+            # Skip large files
+            if file_info.file_size > 10 * 1024 * 1024:
+                continue
+
+            # Skip hidden files
+            if file_info.filename.startswith('.') or '__MACOSX' in file_info.filename:
+                continue
+
+            try:
+                file_content_bytes = zip_file.read(file_info.filename)
+                extracted_text = ingest_upload_file(file_info.filename, file_content_bytes)
+
+                folder_parts.append(f"=== {file_info.filename} ===")
+                folder_parts.append(extracted_text)
+                folder_parts.append("")
+                folder_parts.append("-" * 60)
+                folder_parts.append("")
+
+                processed_count += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to extract {file_info.filename}: {e}")
+                continue
+
+        # Create one document per folder
+        if processed_count > 0:
+            doc = {
+                "filename": f"{folder_name} (from {original_filename})",
+                "content": "\n".join(folder_parts),
+                "folder": folder_name,
+                "source_file": None,
+                "original_zip": original_filename,
+                "file_size": sum(f.file_size for f in folder_files),
+                "metadata": {
+                    "source_type": "folder",
+                    "from_zip": original_filename,
+                    "folder": folder_name,
+                    "file_count": processed_count
+                }
+            }
+
+            documents.append(doc)
+            file_counter["count"] += processed_count
+
+    logger.info(f"Folder-based extraction complete: {len(documents)} folders from {original_filename}")
+    return documents
+
+
 def extract_zip_archive(
     content_bytes: bytes,
     filename: str,
     current_depth: int = 0,
     max_depth: int = 5,
-    file_counter: Optional[dict] = None
-) -> str:
+    file_counter: Optional[dict] = None,
+    multi_document: bool = True
+) -> Union[str, List[Dict]]:
     """
-    Extract and process ZIP archive contents with recursive extraction.
+    Extract and process ZIP archive contents with smart multi-document support.
 
-    ✨ NEW: Recursively extracts nested ZIP files up to max_depth levels.
-    ✨ NEW: Enforces file count limit (1000 files) to prevent zip bombs.
+    ✨ NEW: Smart extraction strategies based on ZIP contents:
+       - n8n/JSON collections → Each file becomes a separate document
+       - Code projects with folders → Each folder becomes a separate document
+       - Mixed content → Single concatenated document (original behavior)
+
+    ✨ Recursively extracts nested ZIP files up to max_depth levels.
+    ✨ Enforces file count limit (1000 files) to prevent zip bombs.
 
     Recursively processes all supported file types within the archive.
     Skips directories and files larger than 10MB to prevent resource exhaustion.
@@ -1333,6 +1575,29 @@ def extract_zip_archive(
     try:
         zip_file = zipfile.ZipFile(io.BytesIO(content_bytes))
 
+        # ====================================================================
+        # SMART MULTI-DOCUMENT EXTRACTION (NEW!)
+        # ====================================================================
+        # Detect extraction strategy at root level only
+        if current_depth == 0 and multi_document:
+            strategy = detect_zip_extraction_strategy(zip_file)
+
+            # FILE-BASED EXTRACTION: Each file becomes a separate document
+            if strategy == 'file-based':
+                logger.info(f"Using file-based extraction for {filename}")
+                return _extract_zip_file_based(zip_file, filename, file_counter)
+
+            # FOLDER-BASED EXTRACTION: Each top-level folder becomes a document
+            elif strategy == 'folder-based':
+                logger.info(f"Using folder-based extraction for {filename}")
+                return _extract_zip_folder_based(zip_file, filename, file_counter)
+
+            # Otherwise fall through to single-document (original behavior)
+            logger.info(f"Using single-document extraction for {filename}")
+
+        # ====================================================================
+        # SINGLE-DOCUMENT EXTRACTION (ORIGINAL BEHAVIOR)
+        # ====================================================================
         # Gather file statistics
         total_files = 0
         total_size = 0

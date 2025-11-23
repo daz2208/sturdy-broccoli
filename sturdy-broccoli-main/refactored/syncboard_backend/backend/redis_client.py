@@ -363,6 +363,68 @@ def decrement_user_job_count(user_id: str) -> int:
 
 
 # =============================================================================
+# Search Results Caching
+# =============================================================================
+
+def get_cached_search(user_id: str, query: str, filters: dict) -> Optional[dict]:
+    """
+    Get cached search results.
+
+    Args:
+        user_id: Username
+        query: Search query
+        filters: Search filters (cluster_id, source_type, skill_level, etc.)
+
+    Returns:
+        Cached search results dict or None
+    """
+    import hashlib
+    import json
+
+    # Create cache key from query + filters
+    filter_str = json.dumps(filters, sort_keys=True)
+    cache_hash = hashlib.md5(f"{query}:{filter_str}".encode()).hexdigest()
+    cache_key = f"search:{user_id}:{cache_hash}"
+    return get_cache(cache_key)
+
+
+def cache_search(user_id: str, query: str, filters: dict, results: dict, ttl: int = 300) -> bool:
+    """
+    Cache search results.
+
+    Args:
+        user_id: Username
+        query: Search query
+        filters: Search filters
+        results: Search results to cache
+        ttl: Time-to-live in seconds (default: 5 minutes)
+
+    Returns:
+        True if successful
+    """
+    import hashlib
+    import json
+
+    filter_str = json.dumps(filters, sort_keys=True)
+    cache_hash = hashlib.md5(f"{query}:{filter_str}".encode()).hexdigest()
+    cache_key = f"search:{user_id}:{cache_hash}"
+    return set_cache(cache_key, results, ttl)
+
+
+def invalidate_search(user_id: str) -> int:
+    """
+    Invalidate all search cache for a user.
+
+    Args:
+        user_id: Username
+
+    Returns:
+        Number of keys deleted
+    """
+    return invalidate_pattern(f"search:{user_id}*")
+
+
+# =============================================================================
 # Data Change Notifications (Pub/Sub)
 # =============================================================================
 
@@ -400,6 +462,9 @@ __all__ = [
     "get_cached_duplicates",
     "cache_duplicates",
     "invalidate_duplicates",
+    "get_cached_search",
+    "cache_search",
+    "invalidate_search",
     "increment_user_job_count",
     "get_user_job_count",
     "decrement_user_job_count",
