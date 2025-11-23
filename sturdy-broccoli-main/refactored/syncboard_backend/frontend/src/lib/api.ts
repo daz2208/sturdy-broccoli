@@ -642,7 +642,7 @@ class ApiClient {
     return data;
   }
 
-  async knowledgeChat(query: string, conversation_history?: { role: string; content: string }[]): Promise<{ status: string; response: string; follow_ups?: string[] }> {
+  async knowledgeChat(query: string, conversation_history?: { user: string; assistant: string }[]): Promise<{ status: string; response: string; follow_ups?: string[] }> {
     const { data } = await this.client.post('/knowledge/chat', { query, conversation_history });
     return data;
   }

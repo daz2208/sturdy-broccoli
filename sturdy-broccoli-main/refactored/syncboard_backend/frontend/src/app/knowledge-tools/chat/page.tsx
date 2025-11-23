@@ -32,7 +32,16 @@ export default function KBChatPage() {
     setLoading(true);
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      // Transform messages into paired format expected by backend: { user: '...', assistant: '...' }
+      const history: { user: string; assistant: string }[] = [];
+      for (let i = 0; i < messages.length - 1; i += 2) {
+        if (messages[i]?.role === 'user' && messages[i + 1]?.role === 'assistant') {
+          history.push({
+            user: messages[i].content,
+            assistant: messages[i + 1].content
+          });
+        }
+      }
       const response = await api.knowledgeChat(text, history);
 
       const assistantMessage: Message = { role: 'assistant', content: response.response };
