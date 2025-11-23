@@ -11,7 +11,7 @@ from datetime import datetime
 
 # revision identifiers, used by Alembic.
 revision = 'teams_usage_001'
-down_revision = 'rag_001_add_pgvector_support'
+down_revision = ('rag_001', 'phase10_001')  # Merge both heads
 branch_labels = None
 depends_on = None
 
