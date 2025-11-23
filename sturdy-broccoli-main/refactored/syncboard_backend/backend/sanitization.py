@@ -13,6 +13,8 @@ All user inputs should pass through these functions before processing.
 
 import re
 import os
+import ipaddress
+import socket
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -321,23 +323,48 @@ def validate_url(url: str) -> str:
         raise HTTPException(status_code=400, detail="URL must have a hostname")
 
     # Block localhost variations
-    localhost_patterns = [
-        'localhost',
-        '127.0.0.1',
-        '0.0.0.0',
-        '::1',
-        '169.254.',  # Link-local
-        '10.',  # Private network
-        '172.16.',  # Private network
-        '192.168.',  # Private network
-    ]
+    blocked_hostnames = {'localhost', 'localhost.localdomain', 'ip6-localhost'}
+    if hostname.lower() in blocked_hostnames:
+        raise HTTPException(
+            status_code=400,
+            detail="Access to internal/private URLs is forbidden for security"
+        )
 
-    for pattern in localhost_patterns:
-        if hostname.startswith(pattern) or hostname == pattern:
+    # Try to resolve hostname to IP and check if it's private/reserved
+    try:
+        # Get IP address (handles both direct IPs and hostnames)
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            # It's a hostname, try to resolve it
+            try:
+                resolved_ip = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(resolved_ip)
+            except socket.gaierror:
+                # Can't resolve - allow it (will fail at fetch time if invalid)
+                return url
+
+        # Block private, reserved, loopback, and link-local addresses
+        if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
             raise HTTPException(
                 status_code=400,
-                detail=f"Access to internal/private URLs is forbidden for security"
+                detail="Access to internal/private URLs is forbidden for security"
             )
+
+        # Block cloud metadata endpoints (AWS/GCP/Azure use 169.254.169.254)
+        metadata_ips = {'169.254.169.254', 'fd00:ec2::254'}
+        if str(ip) in metadata_ips:
+            raise HTTPException(
+                status_code=400,
+                detail="Access to cloud metadata endpoints is forbidden for security"
+            )
+
+    except HTTPException:
+        raise
+    except Exception:
+        # If IP parsing fails for other reasons, allow the URL
+        # It will fail at fetch time if truly invalid
+        pass
 
     return url
 

@@ -40,6 +40,16 @@ MAX_CLUSTER_NAME_LENGTH = 100
 MAX_URL_LENGTH = 2048
 
 # =============================================================================
+# ZIP Extraction Safety Limits
+# =============================================================================
+
+ZIP_MAX_RECURSION_DEPTH = 5  # Maximum nested ZIP levels
+ZIP_MAX_FILE_COUNT = 1000  # Maximum files to extract
+ZIP_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB max per file
+ZIP_MAX_TOTAL_SIZE = 100 * 1024 * 1024  # 100MB total extracted size
+ZIP_MAX_COMPRESSION_RATIO = 1500  # Max ratio of uncompressed/compressed size (text compresses ~1000x)
+
+# =============================================================================
 # Authentication Configuration
 # =============================================================================
 

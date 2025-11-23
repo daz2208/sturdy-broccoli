@@ -164,8 +164,8 @@ async def search_full_content(
                         continue
 
                 date_filtered.append(doc_id)
-            except:
-                # Skip documents with invalid dates
+            except (ValueError, TypeError, KeyError):
+                # Skip documents with invalid or missing dates
                 continue
 
         filtered_ids = date_filtered
