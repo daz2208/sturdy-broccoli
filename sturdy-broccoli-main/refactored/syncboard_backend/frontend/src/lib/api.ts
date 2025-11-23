@@ -676,6 +676,143 @@ class ApiClient {
     const { data } = await this.client.get('/knowledge/status');
     return data;
   }
+
+  // ==========================================================================
+  // USAGE & BILLING
+  // ==========================================================================
+  async getUsage(): Promise<Types.UsageResponse> {
+    const { data } = await this.client.get('/usage');
+    return data;
+  }
+
+  async getUsageHistory(months?: number): Promise<Types.UsageHistoryRecord[]> {
+    const { data } = await this.client.get('/usage/history', { params: { months } });
+    return data;
+  }
+
+  async getSubscription(): Promise<Types.SubscriptionResponse> {
+    const { data } = await this.client.get('/usage/subscription');
+    return data;
+  }
+
+  async upgradeSubscription(plan: string): Promise<{ message: string; plan: string; limits: Record<string, unknown> }> {
+    const { data } = await this.client.post('/usage/subscription/upgrade', { plan });
+    return data;
+  }
+
+  async getPlans(): Promise<Types.PlanResponse[]> {
+    const { data } = await this.client.get('/usage/plans');
+    return data;
+  }
+
+  // ==========================================================================
+  // TEAMS
+  // ==========================================================================
+  async createTeam(name: string, description?: string): Promise<Types.Team> {
+    const { data } = await this.client.post('/teams', { name, description });
+    return data;
+  }
+
+  async getTeams(): Promise<Types.Team[]> {
+    const { data } = await this.client.get('/teams');
+    return data;
+  }
+
+  async getTeam(teamId: number): Promise<Types.Team> {
+    const { data } = await this.client.get(`/teams/${teamId}`);
+    return data;
+  }
+
+  async updateTeam(teamId: number, updates: { name?: string; description?: string }): Promise<Types.Team> {
+    const { data } = await this.client.patch(`/teams/${teamId}`, updates);
+    return data;
+  }
+
+  async deleteTeam(teamId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/teams/${teamId}`);
+    return data;
+  }
+
+  async getTeamMembers(teamId: number): Promise<Types.TeamMember[]> {
+    const { data } = await this.client.get(`/teams/${teamId}/members`);
+    return data;
+  }
+
+  async updateTeamMember(teamId: number, username: string, updates: { role?: string; can_invite?: boolean; can_edit_docs?: boolean; can_delete_docs?: boolean }): Promise<Types.TeamMember> {
+    const { data } = await this.client.patch(`/teams/${teamId}/members/${username}`, updates);
+    return data;
+  }
+
+  async removeTeamMember(teamId: number, username: string): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/teams/${teamId}/members/${username}`);
+    return data;
+  }
+
+  async createTeamInvitation(teamId: number, email: string, role?: string): Promise<Types.TeamInvitation> {
+    const { data } = await this.client.post(`/teams/${teamId}/invitations`, { email, role });
+    return data;
+  }
+
+  async getTeamInvitations(teamId: number): Promise<Types.TeamInvitation[]> {
+    const { data } = await this.client.get(`/teams/${teamId}/invitations`);
+    return data;
+  }
+
+  async cancelTeamInvitation(teamId: number, invitationId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/teams/${teamId}/invitations/${invitationId}`);
+    return data;
+  }
+
+  async acceptTeamInvitation(token: string): Promise<{ message: string; team_id: number; team_name: string }> {
+    const { data } = await this.client.post(`/teams/invitations/${token}/accept`);
+    return data;
+  }
+
+  async getTeamActivity(teamId: number, limit?: number): Promise<Types.TeamActivity[]> {
+    const { data } = await this.client.get(`/teams/${teamId}/activity`, { params: { limit } });
+    return data;
+  }
+
+  async linkKnowledgeBaseToTeam(teamId: number, kbId: number, permission?: string): Promise<{ message: string }> {
+    const { data } = await this.client.post(`/teams/${teamId}/knowledge-bases`, { knowledge_base_id: kbId, permission });
+    return data;
+  }
+
+  async getTeamKnowledgeBases(teamId: number): Promise<{ knowledge_base_id: number; name: string; permission: string }[]> {
+    const { data } = await this.client.get(`/teams/${teamId}/knowledge-bases`);
+    return data;
+  }
+
+  async unlinkKnowledgeBaseFromTeam(teamId: number, kbId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/teams/${teamId}/knowledge-bases/${kbId}`);
+    return data;
+  }
+
+  // Generic request methods for flexibility
+  async get<T = unknown>(path: string, params?: Record<string, unknown>): Promise<T> {
+    const { data } = await this.client.get(path, { params });
+    return data;
+  }
+
+  async post<T = unknown>(path: string, body?: Record<string, unknown>): Promise<T> {
+    const { data } = await this.client.post(path, body);
+    return data;
+  }
+
+  async put<T = unknown>(path: string, body?: Record<string, unknown>): Promise<T> {
+    const { data } = await this.client.put(path, body);
+    return data;
+  }
+
+  async patch<T = unknown>(path: string, body?: Record<string, unknown>): Promise<T> {
+    const { data } = await this.client.patch(path, body);
+    return data;
+  }
+
+  async delete<T = unknown>(path: string): Promise<T> {
+    const { data } = await this.client.delete(path);
+    return data;
+  }
 }
 
 // Export singleton instance

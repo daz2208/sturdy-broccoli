@@ -907,3 +907,108 @@ class DBActivityLog(Base):
 
     def __repr__(self):
         return f"<DBActivityLog(id={self.id}, action='{self.action}', resource='{self.resource_type}')>"
+
+
+# =============================================================================
+# API Rate Tiers & Usage Tracking Models
+# =============================================================================
+
+class DBUserSubscription(Base):
+    """User subscription/tier for rate limiting and monetization."""
+    __tablename__ = "user_subscriptions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # Plan: free, starter, pro, enterprise
+    plan = Column(String(20), default="free", nullable=False)
+
+    # Status: active, cancelled, expired, trial
+    status = Column(String(20), default="active", nullable=False)
+
+    # Billing
+    stripe_customer_id = Column(String(100), nullable=True)
+    stripe_subscription_id = Column(String(100), nullable=True)
+
+    # Trial
+    trial_ends_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="subscription")
+    usage = relationship("DBUsageRecord", back_populates="subscription", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_subscription_plan', 'plan'),
+        Index('idx_subscription_status', 'status'),
+    )
+
+    def __repr__(self):
+        return f"<DBUserSubscription(user='{self.username}', plan='{self.plan}', status='{self.status}')>"
+
+
+class DBUsageRecord(Base):
+    """Track API usage for billing and rate limiting."""
+    __tablename__ = "usage_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    subscription_id = Column(Integer, ForeignKey("user_subscriptions.id", ondelete="CASCADE"), nullable=False, index=True)
+    username = Column(String(50), nullable=False, index=True)
+
+    # Usage period (monthly)
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+
+    # Counters
+    api_calls = Column(Integer, default=0, nullable=False)
+    documents_uploaded = Column(Integer, default=0, nullable=False)
+    ai_requests = Column(Integer, default=0, nullable=False)
+    storage_bytes = Column(BigInteger, default=0, nullable=False)
+    search_queries = Column(Integer, default=0, nullable=False)
+    build_suggestions = Column(Integer, default=0, nullable=False)
+
+    # Timestamps
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    subscription = relationship("DBUserSubscription", back_populates="usage")
+
+    __table_args__ = (
+        Index('idx_usage_subscription_period', 'subscription_id', 'period_start'),
+        Index('idx_usage_user_period', 'username', 'period_start'),
+    )
+
+    def __repr__(self):
+        return f"<DBUsageRecord(user='{self.username}', calls={self.api_calls}, period='{self.period_start}')>"
+
+
+class DBRateLimitOverride(Base):
+    """Custom rate limit overrides for specific users."""
+    __tablename__ = "rate_limit_overrides"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # Override limits (null means use plan defaults)
+    max_api_calls_per_minute = Column(Integer, nullable=True)
+    max_api_calls_per_day = Column(Integer, nullable=True)
+    max_documents_per_month = Column(Integer, nullable=True)
+    max_ai_requests_per_day = Column(Integer, nullable=True)
+    max_storage_bytes = Column(BigInteger, nullable=True)
+
+    # Metadata
+    reason = Column(Text, nullable=True)
+    granted_by = Column(String(50), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="rate_limit_override")
+
+    def __repr__(self):
+        return f"<DBRateLimitOverride(user='{self.username}')>"
