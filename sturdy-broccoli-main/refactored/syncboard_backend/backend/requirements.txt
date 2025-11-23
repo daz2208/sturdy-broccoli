@@ -61,3 +61,8 @@ email-validator  # Email validation for team invitations
 
 # WebSocket support (included in starlette, but explicit for clarity)
 websockets
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
