@@ -50,5 +50,13 @@ from . import (
     n8n_workflows,
     generated_code,
     # Knowledge enhancement tools
-    knowledge_tools
+    knowledge_tools,
+    # Real-time collaboration
+    websocket,
+    # Team collaboration
+    teams,
+    # Usage & billing
+    usage,
+    # Multi-industry content generation
+    content_generation,
 )
