@@ -192,6 +192,90 @@ services:
       retries: 3
       start_period: 30s
 
+  # Celery worker 3 (dedicated uploads worker)
+  celery-worker-uploads:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-uploads
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q uploads --concurrency=2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+    volumes:
+      - ./storage:/app/storage
+      - ./images:/app/images
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
+  # Celery worker 4 (dedicated analysis worker)
+  celery-worker-analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-analysis
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q analysis --concurrency=2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+    volumes:
+      - ./storage:/app/storage
+      - ./images:/app/images
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
+  # Flower - Celery monitoring dashboard
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-flower
+    restart: unless-stopped
+    command: celery -A backend.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    ports:
+      - "5555:5555"
+    networks:
+      - syncboard-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5555/healthcheck').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
 # Named volumes for data persistence
 volumes:
   postgres_data:
