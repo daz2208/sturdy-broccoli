@@ -577,6 +577,165 @@
         .toggle-switch:hover .toggle-slider {
             opacity: 0.9;
         }
+
+        /* Knowledge Tools Styles */
+        .knowledge-tool-section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #a78bfa;
+        }
+
+        .knowledge-tool-section.hidden {
+            display: none;
+        }
+
+        .knowledge-tool-section h3 {
+            color: #a78bfa;
+            margin-bottom: 10px;
+        }
+
+        .flashcard {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #f59e0b;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .flashcard:hover {
+            transform: translateX(5px);
+            background: #222;
+        }
+
+        .flashcard .front {
+            font-size: 1.1rem;
+            color: #e0e0e0;
+            font-weight: 600;
+        }
+
+        .flashcard .back {
+            color: #888;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .flashcard.flipped .back {
+            display: block;
+            color: #4ade80;
+        }
+
+        .flashcard .difficulty-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 10px;
+        }
+
+        .difficulty-easy { background: #4ade8033; color: #4ade80; }
+        .difficulty-medium { background: #f59e0b33; color: #f59e0b; }
+        .difficulty-hard { background: #ef444433; color: #ef4444; }
+
+        .gap-card {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+        }
+
+        .gap-critical { border-left-color: #ef4444; }
+        .gap-high { border-left-color: #f59e0b; }
+        .gap-medium { border-left-color: #eab308; }
+        .gap-low { border-left-color: #4ade80; }
+
+        .quality-meter {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .quality-meter-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .chat-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+
+        .chat-message.user {
+            background: #00d4ff22;
+            margin-left: auto;
+            border: 1px solid #00d4ff44;
+        }
+
+        .chat-message.assistant {
+            background: #1a1a1a;
+            border: 1px solid #333;
+        }
+
+        .code-block {
+            background: #111;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+
+        .learning-step {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .learning-step .step-number {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .interview-question {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #60a5fa;
+        }
+
+        .interview-question summary {
+            cursor: pointer;
+            color: #e0e0e0;
+            font-weight: 600;
+        }
+
+        .interview-question .answer {
+            margin-top: 10px;
+            color: #4ade80;
+            padding: 10px;
+            background: #0a0a0a;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -658,6 +817,7 @@
                         <button id="analyticsTab" class="tab-button" onclick="showTab('analytics')">📊 Analytics Dashboard</button>
                         <button id="integrationsTab" class="tab-button" onclick="showTab('integrations')">☁️ Cloud Integrations</button>
                         <button id="advancedTab" class="tab-button" onclick="showTab('advanced')">⚡ Advanced Features</button>
+                        <button id="knowledgeToolsTab" class="tab-button" onclick="showTab('knowledgeTools')">🧠 Knowledge Tools</button>
                     </div>
 
                     <!-- Search Tab Content -->
@@ -1012,6 +1172,176 @@
                                     <div id="kgTechResults" style="margin-top: 15px; max-height: 300px; overflow-y: auto;"></div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Knowledge Tools Tab Content (NEW) -->
+                    <div id="knowledgeToolsContent" class="tab-content hidden">
+                        <h2>🧠 Knowledge Enhancement Tools</h2>
+                        <p style="color: #888; margin-bottom: 20px;">AI-powered tools to enhance your learning and knowledge management</p>
+
+                        <!-- Sub-tabs for Knowledge Tools -->
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                            <button id="gapsSubTab" class="sub-tab-button active" onclick="showKnowledgeTool('gaps')">📊 Gap Analysis</button>
+                            <button id="flashcardsSubTab" class="sub-tab-button" onclick="showKnowledgeTool('flashcards')">🎴 Flashcards</button>
+                            <button id="digestSubTab" class="sub-tab-button" onclick="showKnowledgeTool('digest')">📰 Weekly Digest</button>
+                            <button id="learningPathSubTab" class="sub-tab-button" onclick="showKnowledgeTool('learningPath')">🛤️ Learning Path</button>
+                            <button id="qualitySubTab" class="sub-tab-button" onclick="showKnowledgeTool('quality')">⭐ Doc Quality</button>
+                            <button id="chatSubTab" class="sub-tab-button" onclick="showKnowledgeTool('chat')">💬 KB Chat</button>
+                            <button id="codeGenSubTab" class="sub-tab-button" onclick="showKnowledgeTool('codeGen')">💻 Code Gen</button>
+                            <button id="compareSubTab" class="sub-tab-button" onclick="showKnowledgeTool('compare')">⚖️ Compare</button>
+                            <button id="eli5SubTab" class="sub-tab-button" onclick="showKnowledgeTool('eli5')">🎈 ELI5</button>
+                            <button id="interviewSubTab" class="sub-tab-button" onclick="showKnowledgeTool('interview')">🎤 Interview Prep</button>
+                            <button id="debugSubTab" class="sub-tab-button" onclick="showKnowledgeTool('debug')">🐛 Debug Assistant</button>
+                        </div>
+
+                        <!-- Knowledge Gap Analysis -->
+                        <div id="gapsTool" class="knowledge-tool-section">
+                            <h3>📊 Knowledge Gap Analysis</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Identify what's missing in your knowledge base and get learning recommendations</p>
+                            <button onclick="analyzeKnowledgeGaps(event)" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔍 Analyze My Knowledge</button>
+                            <div id="gapsResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Flashcard Generator -->
+                        <div id="flashcardsTool" class="knowledge-tool-section hidden">
+                            <h3>🎴 Flashcard Generator</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Generate study flashcards from any document</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <input type="number" id="flashcardDocId" placeholder="Document ID" style="width: 150px;">
+                                <input type="number" id="flashcardCount" placeholder="# of cards" value="10" min="1" max="30" style="width: 120px;">
+                                <select id="flashcardDifficulty" style="width: 140px;">
+                                    <option value="balanced">Balanced</option>
+                                    <option value="easy">Easy</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                                <button onclick="generateFlashcards(event)">🎴 Generate Cards</button>
+                            </div>
+                            <div id="flashcardsResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Weekly Digest -->
+                        <div id="digestTool" class="knowledge-tool-section hidden">
+                            <h3>📰 Weekly Learning Digest</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Get a summary of your recent learning activity and recommendations</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <label style="color: #888;">Look back:</label>
+                                <select id="digestDays" style="width: 140px;">
+                                    <option value="7" selected>7 days</option>
+                                    <option value="14">14 days</option>
+                                    <option value="30">30 days</option>
+                                </select>
+                                <button onclick="generateDigest(event)">📰 Generate Digest</button>
+                            </div>
+                            <div id="digestResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Learning Path Optimizer -->
+                        <div id="learningPathTool" class="knowledge-tool-section hidden">
+                            <h3>🛤️ Learning Path Optimizer</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Get a personalized learning path based on your goals</p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <input type="text" id="learningGoal" placeholder="Enter your learning goal (e.g., 'Master React and TypeScript')" style="flex: 1;">
+                                <button onclick="optimizeLearningPath(event)">🛤️ Create Path</button>
+                            </div>
+                            <div id="learningPathResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Document Quality Scorer -->
+                        <div id="qualityTool" class="knowledge-tool-section hidden">
+                            <h3>⭐ Document Quality Scorer</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Analyze any document for quality, actionability, and usefulness</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <input type="number" id="qualityDocId" placeholder="Document ID" style="width: 150px;">
+                                <button onclick="scoreDocumentQuality(event)">⭐ Analyze Quality</button>
+                            </div>
+                            <div id="qualityResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Knowledge Base Chat -->
+                        <div id="chatTool" class="knowledge-tool-section hidden">
+                            <h3>💬 Knowledge Base Chat</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Have a conversation with your knowledge base</p>
+                            <div id="chatHistory" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px; padding: 15px; background: #1a1a1a; border-radius: 8px;"></div>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="chatQuery" placeholder="Ask anything about your knowledge..." style="flex: 1;" onkeypress="if(event.key==='Enter') sendChatMessage(event)">
+                                <button onclick="sendChatMessage(event)">💬 Send</button>
+                                <button onclick="clearChatHistory()" style="background: #555;">🗑️ Clear</button>
+                            </div>
+                        </div>
+
+                        <!-- Code Generator -->
+                        <div id="codeGenTool" class="knowledge-tool-section hidden">
+                            <h3>💻 Code Generator</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Generate starter code based on concepts in your knowledge base</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <select id="codeGenProject" style="width: 160px;">
+                                    <option value="starter">Starter Project</option>
+                                    <option value="api">REST API</option>
+                                    <option value="cli">CLI Tool</option>
+                                    <option value="webapp">Web App</option>
+                                </select>
+                                <select id="codeGenLang" style="width: 140px;">
+                                    <option value="python">Python</option>
+                                    <option value="javascript">JavaScript</option>
+                                    <option value="typescript">TypeScript</option>
+                                    <option value="go">Go</option>
+                                    <option value="rust">Rust</option>
+                                </select>
+                                <button onclick="generateCode(event)">💻 Generate Code</button>
+                            </div>
+                            <div id="codeGenResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Document Comparison -->
+                        <div id="compareTool" class="knowledge-tool-section hidden">
+                            <h3>⚖️ Document Comparison</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Compare two documents for overlaps, contradictions, and complementary information</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <input type="number" id="compareDocA" placeholder="Doc A ID" style="width: 120px;">
+                                <span style="color: #888;">vs</span>
+                                <input type="number" id="compareDocB" placeholder="Doc B ID" style="width: 120px;">
+                                <button onclick="compareDocuments(event)">⚖️ Compare</button>
+                            </div>
+                            <div id="compareResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- ELI5 Explainer -->
+                        <div id="eli5Tool" class="knowledge-tool-section hidden">
+                            <h3>🎈 ELI5 Explainer</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Get simple, beginner-friendly explanations of complex topics</p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <input type="text" id="eli5Topic" placeholder="Enter a topic to explain (e.g., 'Docker containers')" style="flex: 1;">
+                                <button onclick="explainELI5(event)">🎈 Explain Simply</button>
+                            </div>
+                            <div id="eli5Results" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Interview Prep -->
+                        <div id="interviewTool" class="knowledge-tool-section hidden">
+                            <h3>🎤 Interview Prep Generator</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Generate interview questions based on your knowledge base</p>
+                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                                <input type="text" id="interviewRole" placeholder="Target role (optional)" style="flex: 1;">
+                                <select id="interviewLevel" style="width: 140px;">
+                                    <option value="junior">Junior</option>
+                                    <option value="mid" selected>Mid-Level</option>
+                                    <option value="senior">Senior</option>
+                                </select>
+                                <button onclick="generateInterviewPrep(event)">🎤 Generate Questions</button>
+                            </div>
+                            <div id="interviewResults" style="margin-top: 20px;"></div>
+                        </div>
+
+                        <!-- Debug Assistant -->
+                        <div id="debugTool" class="knowledge-tool-section hidden">
+                            <h3>🐛 Debugging Assistant</h3>
+                            <p style="color: #888; margin-bottom: 20px;">Paste an error message and get debugging help using your knowledge base</p>
+                            <textarea id="debugError" rows="4" placeholder="Paste your error message here..."></textarea>
+                            <textarea id="debugCode" rows="4" placeholder="(Optional) Paste the code that caused the error..." style="margin-top: 10px;"></textarea>
+                            <input type="text" id="debugContext" placeholder="(Optional) Additional context..." style="margin-top: 10px;">
+                            <button onclick="debugError(event)" style="margin-top: 15px;">🐛 Debug This Error</button>
+                            <div id="debugResults" style="margin-top: 20px;"></div>
                         </div>
                     </div>
                 </div>

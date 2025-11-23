@@ -12,6 +12,7 @@ Endpoints for advanced knowledge enhancement features:
 - POST /knowledge/compare - Compare two documents
 - POST /knowledge/eli5 - Explain topic simply
 - POST /knowledge/interview-prep - Generate interview materials
+- POST /knowledge/debug - Debug errors with KB context
 """
 
 import logging
@@ -52,6 +53,7 @@ try:
         DocumentQuality,
         DocumentComparison,
         InterviewPrep,
+        DebugAssistantResult,
     )
     KNOWLEDGE_SERVICES_AVAILABLE = True
     logger.info("[SUCCESS] Knowledge services loaded")
@@ -95,6 +97,12 @@ class InterviewPrepRequest(BaseModel):
 class CodeGenerateRequest(BaseModel):
     project_type: str = Field(default="starter")
     language: str = Field(default="python")
+
+
+class DebugRequest(BaseModel):
+    error_message: str = Field(..., min_length=1, max_length=5000)
+    code_snippet: Optional[str] = Field(default=None, max_length=10000)
+    context: Optional[str] = Field(default=None, max_length=2000)
 
 
 # =============================================================================
@@ -598,6 +606,61 @@ async def generate_interview_prep(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/debug")
+@limiter.limit("10/minute")
+async def debug_error(
+    req: DebugRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Debug an error using knowledge base context.
+
+    Paste in an error message and optional code snippet, get:
+    - Likely cause analysis
+    - Step-by-step fix instructions
+    - Code suggestions if applicable
+    - Related documentation from your KB
+    - Prevention tips for the future
+
+    Args:
+    - error_message: The error or exception message
+    - code_snippet: Optional code that caused the error
+    - context: Optional additional context
+
+    Rate limited: 10/minute
+    """
+    check_services()
+
+    kb_id = get_user_default_kb_id(current_user.username, db)
+    services = get_knowledge_services(db)
+
+    try:
+        result = await services.debug_error(
+            error_message=req.error_message,
+            code_snippet=req.code_snippet,
+            context=req.context,
+            kb_id=kb_id
+        )
+
+        return {
+            "status": "success",
+            "error_message": result.error_message,
+            "likely_cause": result.likely_cause,
+            "step_by_step_fix": result.step_by_step_fix,
+            "explanation": result.explanation,
+            "prevention_tips": result.prevention_tips,
+            "related_docs": result.related_docs,
+            "code_suggestion": result.code_suggestion,
+            "confidence": result.confidence
+        }
+
+    except Exception as e:
+        logger.error(f"Debug assistant failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/status")
 async def get_knowledge_tools_status():
     """
@@ -619,6 +682,7 @@ async def get_knowledge_tools_status():
             "document_comparison": KNOWLEDGE_SERVICES_AVAILABLE,
             "eli5_explainer": KNOWLEDGE_SERVICES_AVAILABLE,
             "interview_prep": KNOWLEDGE_SERVICES_AVAILABLE,
+            "debugging_assistant": KNOWLEDGE_SERVICES_AVAILABLE,
         },
         "endpoints": [
             "GET /knowledge/gaps",
@@ -631,5 +695,6 @@ async def get_knowledge_tools_status():
             "POST /knowledge/compare",
             "POST /knowledge/eli5",
             "POST /knowledge/interview-prep",
+            "POST /knowledge/debug",
         ]
     }

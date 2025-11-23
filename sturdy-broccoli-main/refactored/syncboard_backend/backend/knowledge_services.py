@@ -12,6 +12,7 @@ This module provides LLM-powered knowledge enhancement features:
 8. Document Comparison - Compare documents
 9. ELI5 Explainer - Simplify complex topics
 10. Interview Prep Generator - Create interview questions
+11. Debugging Assistant - Help debug errors using KB context
 
 Usage:
     from backend.knowledge_services import KnowledgeServices
@@ -134,6 +135,19 @@ class InterviewPrep:
     system_design_questions: List[Dict]
     gotcha_questions: List[Dict]
     study_recommendations: List[str]
+
+
+@dataclass
+class DebugAssistantResult:
+    """Result from debugging assistant."""
+    error_message: str
+    likely_cause: str
+    step_by_step_fix: List[str]
+    explanation: str
+    prevention_tips: List[str]
+    related_docs: List[Dict]  # {doc_id, title, relevance}
+    code_suggestion: Optional[str] = None
+    confidence: float = 0.0
 
 
 # =============================================================================
@@ -1251,6 +1265,192 @@ Return JSON:
                 gotcha_questions=[],
                 study_recommendations=["Error generating interview prep"]
             )
+
+    # =========================================================================
+    # 11. Debugging Assistant
+    # =========================================================================
+
+    async def debug_error(
+        self,
+        error_message: str,
+        kb_id: str,
+        code_context: Optional[str] = None,
+        stack_trace: Optional[str] = None,
+        language: str = "python"
+    ) -> DebugAssistantResult:
+        """
+        Help debug an error using knowledge base context.
+
+        Uses the user's KB to provide personalized debugging help
+        based on their specific frameworks, libraries, and code patterns.
+
+        Args:
+            error_message: The error message or exception
+            kb_id: Knowledge base ID for context
+            code_context: Optional code snippet where error occurred
+            stack_trace: Optional full stack trace
+            language: Programming language (default: python)
+
+        Returns:
+            DebugAssistantResult with cause, fix steps, and related docs
+        """
+        summary = self._get_kb_summary(kb_id)
+
+        # Search for relevant documents based on error
+        relevant_docs = await self._search_relevant_docs_for_error(
+            error_message, kb_id
+        )
+
+        # Build context from KB
+        kb_context = f"""
+USER'S KNOWLEDGE BASE:
+- Technologies: {', '.join([c['name'] for c in summary['top_concepts'][:15]])}
+- Frameworks/Tools: {', '.join([c['name'] for c in summary['top_concepts'] if c['category'] in ['framework', 'tool', 'library']][:10])}
+"""
+
+        relevant_docs_text = ""
+        if relevant_docs:
+            relevant_docs_text = "\nRELEVANT DOCUMENTS FROM KB:\n"
+            for doc in relevant_docs[:5]:
+                relevant_docs_text += f"- {doc.get('filename', 'Untitled')} (ID: {doc.get('doc_id')}): {doc.get('snippet', '')[:200]}\n"
+
+        system_message = f"""You are an expert {language} debugger and mentor.
+Help the user fix their error using context from their knowledge base.
+Be specific and actionable. Reference their known technologies.
+Return ONLY valid JSON with no markdown formatting."""
+
+        user_message = f"""Debug this error for me:
+
+ERROR MESSAGE:
+{error_message}
+
+{f"STACK TRACE:{chr(10)}{stack_trace}" if stack_trace else ""}
+
+{f"CODE CONTEXT:{chr(10)}{code_context}" if code_context else ""}
+
+{kb_context}
+{relevant_docs_text}
+
+Provide debugging help that:
+1. Identifies the likely cause (connecting to their known concepts)
+2. Gives step-by-step fix instructions
+3. Explains WHY this happened (educational)
+4. Suggests how to prevent it in future
+5. References relevant docs from their KB if applicable
+6. Provides a code fix suggestion if possible
+
+Return JSON:
+{{
+    "likely_cause": "Clear explanation of what caused this error",
+    "step_by_step_fix": [
+        "Step 1: Do this...",
+        "Step 2: Then do this..."
+    ],
+    "explanation": "Why this happened (connecting to concepts they know)",
+    "prevention_tips": [
+        "Tip 1: To prevent this in future...",
+        "Tip 2: Also consider..."
+    ],
+    "related_doc_ids": [123, 456],
+    "code_suggestion": "Fixed code snippet if applicable (or null)",
+    "confidence": 0.85
+}}"""
+
+        response = await self._call_llm(
+            system_message, user_message,
+            temperature=0.3, max_tokens=3000
+        )
+
+        try:
+            if response.startswith("```"):
+                response = response.split("```")[1]
+                if response.startswith("json"):
+                    response = response[4:]
+
+            data = json.loads(response)
+
+            # Match related_doc_ids to actual docs
+            related_doc_ids = data.get("related_doc_ids", [])
+            related_docs_result = [
+                {"doc_id": doc.get("doc_id"), "title": doc.get("filename"), "relevance": "high"}
+                for doc in relevant_docs
+                if doc.get("doc_id") in related_doc_ids
+            ][:5]
+
+            return DebugAssistantResult(
+                error_message=error_message,
+                likely_cause=data.get("likely_cause", "Unknown"),
+                step_by_step_fix=data.get("step_by_step_fix", []),
+                explanation=data.get("explanation", ""),
+                prevention_tips=data.get("prevention_tips", []),
+                related_docs=related_docs_result,
+                code_suggestion=data.get("code_suggestion"),
+                confidence=data.get("confidence", 0.5)
+            )
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse debug response: {e}")
+            return DebugAssistantResult(
+                error_message=error_message,
+                likely_cause="Error analyzing the problem",
+                step_by_step_fix=["Please try rephrasing the error or providing more context"],
+                explanation="The debugging assistant encountered an error",
+                prevention_tips=[],
+                related_docs=[],
+                confidence=0.0
+            )
+
+    async def _search_relevant_docs_for_error(
+        self,
+        error_message: str,
+        kb_id: str,
+        limit: int = 10
+    ) -> List[Dict]:
+        """Search for documents relevant to an error."""
+        # Extract key terms from error message
+        # Simple approach: look for known error patterns and technology names
+        search_terms = error_message.lower()
+
+        # Search in document content
+        query = text("""
+            SELECT d.doc_id, d.filename, d.source_type,
+                   SUBSTRING(vd.content, 1, 500) as snippet
+            FROM documents d
+            JOIN vector_documents vd ON vd.doc_id = d.doc_id
+            WHERE d.knowledge_base_id = :kb_id
+              AND (
+                  LOWER(vd.content) LIKE :search1
+                  OR LOWER(vd.content) LIKE :search2
+                  OR LOWER(d.filename) LIKE :search1
+              )
+            LIMIT :limit
+        """)
+
+        try:
+            # Extract first significant word from error for search
+            words = [w for w in error_message.split() if len(w) > 3][:3]
+            search_pattern1 = f"%{words[0].lower()}%" if words else "%error%"
+            search_pattern2 = f"%{words[1].lower()}%" if len(words) > 1 else search_pattern1
+
+            result = self.db.execute(query, {
+                "kb_id": kb_id,
+                "search1": search_pattern1,
+                "search2": search_pattern2,
+                "limit": limit
+            })
+
+            return [
+                {
+                    "doc_id": row.doc_id,
+                    "filename": row.filename,
+                    "source_type": row.source_type,
+                    "snippet": row.snippet
+                }
+                for row in result
+            ]
+        except Exception as e:
+            logger.warning(f"Error searching for relevant docs: {e}")
+            return []
 
 
 # =============================================================================
