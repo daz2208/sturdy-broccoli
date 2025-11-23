@@ -896,7 +896,7 @@ Provide a helpful, contextual response."""
         return {
             "response": response,
             "query": query,
-            "suggested_follow_ups": follow_ups,
+            "follow_ups": follow_ups,  # Frontend expects 'follow_ups' not 'suggested_follow_ups'
             "context_used": {
                 "documents": summary['document_count'],
                 "history_turns": len(history)
