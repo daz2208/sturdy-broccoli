@@ -26,6 +26,9 @@ export default function KBChatPage() {
     if (!text.trim() || loading) return;
 
     const userMessage: Message = { role: 'user', content: text };
+    // Capture current messages BEFORE state update for history building
+    const currentMessages = [...messages];
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setSuggestions([]);
@@ -33,26 +36,46 @@ export default function KBChatPage() {
 
     try {
       // Transform messages into paired format expected by backend: { user: '...', assistant: '...' }
+      // Use currentMessages (snapshot) instead of messages (stale due to async state)
       const history: { user: string; assistant: string }[] = [];
-      for (let i = 0; i < messages.length - 1; i += 2) {
-        if (messages[i]?.role === 'user' && messages[i + 1]?.role === 'assistant') {
+      for (let i = 0; i < currentMessages.length; i += 2) {
+        const userMsg = currentMessages[i];
+        const assistantMsg = currentMessages[i + 1];
+        if (userMsg?.role === 'user' && assistantMsg?.role === 'assistant') {
           history.push({
-            user: messages[i].content,
-            assistant: messages[i + 1].content
+            user: userMsg.content,
+            assistant: assistantMsg.content
           });
         }
       }
+
       const response = await api.knowledgeChat(text, history);
+
+      if (!response?.response) {
+        throw new Error('Invalid response from server');
+      }
 
       const assistantMessage: Message = { role: 'assistant', content: response.response };
       setMessages(prev => [...prev, assistantMessage]);
 
-      if (response.follow_ups) {
+      if (response.follow_ups && Array.isArray(response.follow_ups)) {
         setSuggestions(response.follow_ups);
       }
-    } catch (err) {
-      toast.error('Failed to get response');
-      console.error(err);
+    } catch (err: unknown) {
+      // Remove the failed user message on error to allow retry
+      setMessages(prev => prev.slice(0, -1));
+
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+        toast.error('Session expired. Please log in again.');
+      } else if (errorMessage.includes('503') || errorMessage.includes('unavailable')) {
+        toast.error('Knowledge services unavailable. Check server configuration.');
+      } else if (errorMessage.includes('OpenAI') || errorMessage.includes('API key')) {
+        toast.error('AI service not configured. Check OPENAI_API_KEY.');
+      } else {
+        toast.error('Failed to get response. Please try again.');
+      }
+      console.error('KB Chat error:', err);
     } finally {
       setLoading(false);
     }

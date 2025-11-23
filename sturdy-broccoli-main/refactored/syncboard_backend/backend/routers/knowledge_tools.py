@@ -418,8 +418,27 @@ async def conversation_chat(
         }
 
     except Exception as e:
-        logger.error(f"Conversation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e).lower()
+        logger.error(f"Conversation failed for user {current_user.username}: {e}")
+
+        # Provide specific error messages for common issues
+        if "api key" in error_msg or "authentication" in error_msg or "openai" in error_msg:
+            raise HTTPException(
+                status_code=503,
+                detail="AI service not configured. Please set OPENAI_API_KEY in environment."
+            )
+        elif "rate limit" in error_msg:
+            raise HTTPException(
+                status_code=429,
+                detail="AI service rate limited. Please wait a moment and try again."
+            )
+        elif "connection" in error_msg or "timeout" in error_msg:
+            raise HTTPException(
+                status_code=503,
+                detail="Could not connect to AI service. Please try again."
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
 
 @router.post("/generate-code")
