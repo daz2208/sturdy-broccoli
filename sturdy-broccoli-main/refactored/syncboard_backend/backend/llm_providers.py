@@ -958,6 +958,276 @@ Return a JSON object with this EXACT structure:
             }
 
 
+class OllamaProvider(LLMProvider):
+    """
+    Ollama implementation of LLM provider for self-hosted models.
+
+    Supports local models like llama2, codellama, mistral, mixtral, etc.
+    Ollama API is compatible with OpenAI's API format.
+
+    Setup:
+        1. Install Ollama: https://ollama.ai/download
+        2. Pull a model: ollama pull llama2
+        3. Run Ollama server: ollama serve
+        4. Set OLLAMA_BASE_URL (default: http://localhost:11434)
+    """
+
+    def __init__(
+        self,
+        base_url: str = None,
+        concept_model: str = None,
+        suggestion_model: str = None,
+        timeout: int = 120
+    ):
+        """
+        Initialize Ollama provider.
+
+        Args:
+            base_url: Ollama API URL (default: http://localhost:11434)
+            concept_model: Model for concept extraction (default: llama2)
+            suggestion_model: Model for build suggestions (default: llama2)
+            timeout: Request timeout in seconds
+        """
+        self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.concept_model = concept_model or os.environ.get("OLLAMA_CONCEPT_MODEL", "llama2")
+        self.suggestion_model = suggestion_model or os.environ.get("OLLAMA_SUGGESTION_MODEL", "llama2")
+        self.timeout = timeout
+
+        logger.info(f"Initialized OllamaProvider with base_url={self.base_url}, models={self.concept_model}/{self.suggestion_model}")
+
+    async def _call_ollama(
+        self,
+        messages: List[Dict],
+        model: str,
+        temperature: float = 0.7
+    ) -> str:
+        """Call Ollama API with chat format."""
+        import httpx
+
+        url = f"{self.base_url}/api/chat"
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature
+            }
+        }
+
+        logger.info(f"Calling Ollama model: {model}")
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+
+                result = response.json()
+                content = result.get("message", {}).get("content", "")
+                logger.info(f"Ollama response length: {len(content)} chars")
+                return content
+
+        except httpx.TimeoutException:
+            logger.error(f"Ollama request timed out after {self.timeout}s")
+            raise
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Ollama HTTP error: {e.response.status_code}")
+            raise
+        except Exception as e:
+            logger.error(f"Ollama call failed: {e}")
+            raise
+
+    def _extract_json_from_response(self, response: str) -> str:
+        """
+        Extract JSON from potentially wrapped LLM response.
+
+        Ollama models sometimes add explanatory text around JSON.
+        """
+        import re
+
+        # Try to find JSON array or object
+        json_patterns = [
+            r'```json\s*([\s\S]*?)\s*```',  # Markdown code block
+            r'```\s*([\s\S]*?)\s*```',       # Generic code block
+            r'(\[[\s\S]*\])',                # JSON array
+            r'(\{[\s\S]*\})',                # JSON object
+        ]
+
+        for pattern in json_patterns:
+            match = re.search(pattern, response)
+            if match:
+                candidate = match.group(1)
+                try:
+                    json.loads(candidate)
+                    return candidate
+                except json.JSONDecodeError:
+                    continue
+
+        # Return original if no valid JSON found
+        return response
+
+    async def extract_concepts(
+        self,
+        content: str,
+        source_type: str
+    ) -> Dict:
+        """Extract concepts using Ollama."""
+        from .constants import CONCEPT_EXTRACTION_SAMPLE_SIZE, CONCEPT_EXTRACTION_METHOD
+
+        # Smart sampling
+        if CONCEPT_EXTRACTION_METHOD == "smart":
+            sample = get_representative_sample(content, max_chars=CONCEPT_EXTRACTION_SAMPLE_SIZE)
+        else:
+            sample = content[:CONCEPT_EXTRACTION_SAMPLE_SIZE] if len(content) > CONCEPT_EXTRACTION_SAMPLE_SIZE else content
+
+        prompt = f"""Analyze this {source_type} content and extract structured information.
+
+CONTENT:
+{sample}
+
+Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
+{{
+  "concepts": [
+    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
+  ],
+  "skill_level": "beginner|intermediate|advanced",
+  "primary_topic": "main topic in 2-4 words",
+  "suggested_cluster": "cluster name for grouping similar content"
+}}
+
+Extract 3-10 concepts. Use lowercase for names. Be specific."""
+
+        try:
+            response = await self._call_ollama(
+                messages=[
+                    {"role": "system", "content": "You are a concept extraction system. Return only valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.concept_model,
+                temperature=0.3
+            )
+
+            # Extract JSON from potentially wrapped response
+            json_str = self._extract_json_from_response(response)
+            result = json.loads(json_str)
+            logger.debug(f"Extracted {len(result.get('concepts', []))} concepts via Ollama")
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from Ollama: {e}")
+            return {
+                "concepts": [],
+                "skill_level": "unknown",
+                "primary_topic": "uncategorized",
+                "suggested_cluster": "General"
+            }
+        except Exception as e:
+            logger.error(f"Ollama concept extraction failed: {e}")
+            return {
+                "concepts": [],
+                "skill_level": "unknown",
+                "primary_topic": "uncategorized",
+                "suggested_cluster": "General"
+            }
+
+    async def generate_build_suggestions(
+        self,
+        knowledge_summary: str,
+        max_suggestions: int
+    ) -> List[Dict]:
+        """Generate build suggestions using Ollama."""
+        prompt = f"""Based on this user's knowledge bank, suggest {max_suggestions} practical projects they could build.
+
+KNOWLEDGE BANK:
+{knowledge_summary[:4000]}
+
+Return ONLY a JSON array of suggestions (no markdown, no explanation):
+[
+  {{
+    "title": "Project Name",
+    "description": "What they'll build and why",
+    "feasibility": "high|medium|low",
+    "effort_estimate": "2-3 days",
+    "required_skills": ["skill1", "skill2"],
+    "missing_knowledge": ["gap1", "gap2"],
+    "relevant_clusters": [1, 2],
+    "starter_steps": ["step 1", "step 2", "step 3"],
+    "file_structure": "project/\\n  src/\\n  tests/"
+  }}
+]
+
+Be specific. Reference actual content from their knowledge. Prioritize projects they can START TODAY."""
+
+        try:
+            response = await self._call_ollama(
+                messages=[
+                    {"role": "system", "content": "You are a project advisor. Return only valid JSON arrays."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.suggestion_model,
+                temperature=0.7
+            )
+
+            json_str = self._extract_json_from_response(response)
+            suggestions = json.loads(json_str)
+            logger.info(f"Generated {len(suggestions)} build suggestions via Ollama")
+            return suggestions
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from Ollama: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Ollama build suggestion generation failed: {e}")
+            return []
+
+    async def chat_completion(
+        self,
+        messages: List[Dict],
+        temperature: float = 0.7
+    ) -> str:
+        """Generic chat completion using Ollama."""
+        try:
+            response = await self._call_ollama(
+                messages=messages,
+                model=self.concept_model,
+                temperature=temperature
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Ollama chat completion failed: {e}")
+            raise
+
+
+# =============================================================================
+# Provider Factory
+# =============================================================================
+
+def get_llm_provider(provider_type: str = None) -> LLMProvider:
+    """
+    Factory function to get the configured LLM provider.
+
+    Args:
+        provider_type: Override provider type ("openai", "ollama", "mock")
+                       If not specified, uses LLM_PROVIDER env var (default: "openai")
+
+    Returns:
+        Configured LLM provider instance
+
+    Raises:
+        ValueError: If provider type is invalid or not configured
+    """
+    provider = provider_type or os.environ.get("LLM_PROVIDER", "openai").lower()
+
+    if provider == "openai":
+        return OpenAIProvider()
+    elif provider == "ollama":
+        return OllamaProvider()
+    elif provider == "mock":
+        return MockLLMProvider()
+    else:
+        raise ValueError(f"Unknown LLM provider: {provider}. Supported: openai, ollama, mock")
+
+
 class MockLLMProvider(LLMProvider):
     """
     Mock LLM provider for testing.

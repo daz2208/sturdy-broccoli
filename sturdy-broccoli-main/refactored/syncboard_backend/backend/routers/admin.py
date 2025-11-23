@@ -315,3 +315,133 @@ async def reprocess_document(
     except Exception as e:
         logger.error(f"Reprocess failed for doc {doc_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
+
+
+# =============================================================================
+# LLM Provider Management
+# =============================================================================
+
+class LLMProviderStatus(BaseModel):
+    """Status of current LLM provider configuration."""
+    provider: str
+    status: str
+    details: dict
+
+
+@router.get("/llm-provider", response_model=LLMProviderStatus)
+async def get_llm_provider_status(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current LLM provider configuration and status.
+
+    Returns the configured provider (openai/ollama/mock) and connection status.
+    """
+    import os
+    import httpx
+
+    provider = os.environ.get("LLM_PROVIDER", "openai").lower()
+
+    details = {
+        "provider_type": provider,
+        "available_providers": ["openai", "ollama", "mock"]
+    }
+
+    if provider == "openai":
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        details["configured"] = bool(api_key and api_key != "sk-replace-with-your-actual-openai-key")
+        details["model_concept"] = os.environ.get("OPENAI_CONCEPT_MODEL", "gpt-5-nano")
+        details["model_suggestion"] = os.environ.get("OPENAI_SUGGESTION_MODEL", "gpt-5-mini")
+        status = "configured" if details["configured"] else "not_configured"
+
+    elif provider == "ollama":
+        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        concept_model = os.environ.get("OLLAMA_CONCEPT_MODEL", "llama2")
+        suggestion_model = os.environ.get("OLLAMA_SUGGESTION_MODEL", "llama2")
+
+        details["base_url"] = base_url
+        details["model_concept"] = concept_model
+        details["model_suggestion"] = suggestion_model
+
+        # Check connection to Ollama
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                response = await client.get(f"{base_url}/api/tags")
+                if response.status_code == 200:
+                    models = response.json().get("models", [])
+                    model_names = [m.get("name", "").split(":")[0] for m in models]
+                    details["available_models"] = model_names
+                    details["connected"] = True
+
+                    # Check if configured models are available
+                    concept_available = any(concept_model in m for m in model_names)
+                    suggestion_available = any(suggestion_model in m for m in model_names)
+
+                    if concept_available and suggestion_available:
+                        status = "ready"
+                    else:
+                        status = "models_missing"
+                        details["missing_models"] = []
+                        if not concept_available:
+                            details["missing_models"].append(concept_model)
+                        if not suggestion_available:
+                            details["missing_models"].append(suggestion_model)
+                else:
+                    status = "connection_error"
+                    details["connected"] = False
+        except Exception as e:
+            status = "connection_error"
+            details["connected"] = False
+            details["error"] = str(e)
+
+    elif provider == "mock":
+        status = "ready"
+        details["note"] = "Mock provider for testing - no external API calls"
+
+    else:
+        status = "unknown_provider"
+
+    return LLMProviderStatus(
+        provider=provider,
+        status=status,
+        details=details
+    )
+
+
+@router.post("/llm-provider/test")
+@limiter.limit("5/minute")
+async def test_llm_provider(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Test the current LLM provider with a simple completion.
+
+    Sends a test prompt and returns the result to verify the provider is working.
+    """
+    from ..llm_providers import get_llm_provider
+
+    try:
+        provider = get_llm_provider()
+
+        # Simple test prompt
+        test_messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Reply with exactly: 'LLM provider test successful'"}
+        ]
+
+        response = await provider.chat_completion(test_messages, temperature=0)
+
+        return {
+            "status": "success",
+            "provider": type(provider).__name__,
+            "response": response[:200]  # Truncate long responses
+        }
+
+    except Exception as e:
+        logger.error(f"LLM provider test failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM provider test failed: {str(e)}"
+        )
