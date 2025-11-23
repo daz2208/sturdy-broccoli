@@ -23,6 +23,7 @@ Each router handles a specific domain:
 - project_tracking: Project attempts and learnings (Phase 10)
 - n8n_workflows: n8n workflow generation (Phase 10)
 - generated_code: Generated code storage (Phase 10)
+- knowledge_tools: Knowledge gap analysis, flashcards, learning paths, etc.
 """
 
 from . import (
@@ -47,5 +48,7 @@ from . import (
     project_goals,
     project_tracking,
     n8n_workflows,
-    generated_code
+    generated_code,
+    # Knowledge enhancement tools
+    knowledge_tools
 )
