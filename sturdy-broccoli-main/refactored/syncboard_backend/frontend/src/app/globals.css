@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground: #e0e0e0;
+  --background: #0a0a0a;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-200 hover:translate-x-1 hover:bg-dark-200;
+}
+
+/* Button styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200;
+}
+
+.btn-primary {
+  @apply bg-primary text-black hover:bg-primary-dark;
+}
+
+.btn-secondary {
+  @apply bg-dark-300 text-gray-200 hover:bg-dark-400;
+}
+
+.btn-danger {
+  @apply bg-accent-red text-white hover:bg-red-600;
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-4 py-2 bg-dark-300 border border-dark-400 rounded-lg text-gray-200 focus:outline-none focus:border-primary;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply bg-primary/20 text-primary;
+}
+
+.badge-success {
+  @apply bg-accent-green/20 text-accent-green;
+}
+
+.badge-warning {
+  @apply bg-accent-orange/20 text-accent-orange;
+}
+
+.badge-danger {
+  @apply bg-accent-red/20 text-accent-red;
+}
