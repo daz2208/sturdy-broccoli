@@ -390,3 +390,115 @@ export interface HealthResponse {
     database: boolean;
   };
 }
+
+// Usage & Billing
+export interface UsageResponse {
+  period_start: string;
+  period_end: string;
+  api_calls: number;
+  documents_uploaded: number;
+  ai_requests: number;
+  storage_bytes: number;
+  search_queries: number;
+  build_suggestions: number;
+  limits: {
+    api_calls_per_minute: number;
+    api_calls_per_day: number;
+    documents_per_month: number;
+    ai_requests_per_day: number;
+    storage_mb: number;
+    knowledge_bases: number;
+    team_members: number;
+    [key: string]: number;
+  };
+  usage_percentage: {
+    api_calls: number;
+    documents: number;
+    ai_requests: number;
+    storage: number;
+    [key: string]: number;
+  };
+}
+
+export interface UsageHistoryRecord {
+  period: string;
+  api_calls: number;
+  documents_uploaded: number;
+  ai_requests: number;
+  storage_bytes: number;
+  search_queries: number;
+}
+
+export interface SubscriptionResponse {
+  plan: string;
+  status: string;
+  started_at: string;
+  expires_at: string | null;
+  trial_ends_at: string | null;
+  limits: Record<string, unknown>;
+}
+
+export interface PlanResponse {
+  id: string;
+  name: string;
+  price_monthly: number;
+  limits: {
+    api_calls_per_minute: number;
+    api_calls_per_day: number;
+    documents_per_month: number;
+    ai_requests_per_day: number;
+    storage_mb: number;
+    knowledge_bases: number;
+    team_members: number;
+    [key: string]: number;
+  };
+  features: string[];
+}
+
+// Teams
+export interface Team {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  owner_username: string;
+  is_public: boolean;
+  member_count: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface TeamMember {
+  id: number;
+  team_id: number;
+  username: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  can_invite: boolean;
+  can_edit_docs: boolean;
+  can_delete_docs: boolean;
+  can_manage_kb: boolean;
+  joined_at: string;
+}
+
+export interface TeamInvitation {
+  id: number;
+  team_id: number;
+  email: string;
+  token: string;
+  role: string;
+  invited_by: string;
+  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
+  created_at: string;
+  expires_at: string;
+}
+
+export interface TeamActivity {
+  id: number;
+  team_id: number;
+  username: string;
+  action: string;
+  entity_type: string;
+  entity_id?: number;
+  details?: Record<string, unknown>;
+  created_at: string;
+}

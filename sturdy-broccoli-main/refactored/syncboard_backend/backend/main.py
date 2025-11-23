@@ -46,7 +46,9 @@ from .routers import (
     # Real-time WebSocket support
     websocket,
     # Team collaboration
-    teams
+    teams,
+    # Usage & billing
+    usage
 )
 
 # Import dependencies and shared state
@@ -342,6 +344,9 @@ app.include_router(websocket.router)
 
 # Team collaboration
 app.include_router(teams.router)
+
+# Usage & billing
+app.include_router(usage.router)
 
 # =============================================================================
 # Health Check Endpoint
