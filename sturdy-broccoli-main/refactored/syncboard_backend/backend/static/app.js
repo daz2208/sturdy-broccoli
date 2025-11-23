@@ -1693,12 +1693,14 @@ function showTab(tabName) {
     document.getElementById('analyticsTab').classList.remove('active');
     document.getElementById('integrationsTab').classList.remove('active');
     document.getElementById('advancedTab').classList.remove('active');
+    document.getElementById('knowledgeToolsTab').classList.remove('active');
 
     // Update content visibility
     document.getElementById('searchContent').classList.add('hidden');
     document.getElementById('analyticsContent').classList.add('hidden');
     document.getElementById('integrationsContent').classList.add('hidden');
     document.getElementById('advancedContent').classList.add('hidden');
+    document.getElementById('knowledgeToolsContent').classList.add('hidden');
 
     if (tabName === 'search') {
         document.getElementById('searchTab').classList.add('active');
@@ -1713,6 +1715,9 @@ function showTab(tabName) {
         document.getElementById('integrationsContent').classList.remove('hidden');
         // Load integrations when tab is shown
         loadIntegrationStatus();
+    } else if (tabName === 'knowledgeTools') {
+        document.getElementById('knowledgeToolsTab').classList.add('active');
+        document.getElementById('knowledgeToolsContent').classList.remove('hidden');
     } else if (tabName === 'advanced') {
         document.getElementById('advancedTab').classList.add('active');
         document.getElementById('advancedContent').classList.remove('hidden');
@@ -4247,4 +4252,923 @@ function displaySummarySearchResults(results) {
             </div>
         `).join('')}
     `;
+}
+
+// =============================================================================
+// KNOWLEDGE TOOLS (Phase 11 - Knowledge Enhancement Features)
+// =============================================================================
+
+// Store chat history for conversation context
+let kbChatHistory = [];
+
+/**
+ * Show a specific knowledge tool section
+ */
+function showKnowledgeTool(toolName) {
+    // Hide all tool sections
+    const tools = ['gaps', 'flashcards', 'digest', 'learningPath', 'quality', 'chat', 'codeGen', 'compare', 'eli5', 'interview', 'debug'];
+    tools.forEach(tool => {
+        const el = document.getElementById(`${tool}Tool`);
+        const tab = document.getElementById(`${tool}SubTab`);
+        if (el) el.classList.add('hidden');
+        if (tab) tab.classList.remove('active');
+    });
+
+    // Show selected tool
+    const selectedTool = document.getElementById(`${toolName}Tool`);
+    const selectedTab = document.getElementById(`${toolName}SubTab`);
+    if (selectedTool) selectedTool.classList.remove('hidden');
+    if (selectedTab) selectedTab.classList.add('active');
+}
+
+/**
+ * Analyze knowledge gaps in the user's knowledge base
+ */
+async function analyzeKnowledgeGaps(event) {
+    const button = event ? event.target : null;
+    const resultsDiv = document.getElementById('gapsResults');
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Analyzing your knowledge base...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/gaps`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">📊 Analysis Summary</h4>
+                <p style="color: #888;">Analyzed ${data.total_documents} documents with ${data.total_concepts} concepts</p>
+                ${data.inferred_goal ? `<p style="color: #4ade80;"><strong>Inferred Learning Goal:</strong> ${data.inferred_goal}</p>` : ''}
+            </div>
+
+            ${data.strongest_areas && data.strongest_areas.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">✅ Strongest Areas</h4>
+                    <div class="concepts-list">
+                        ${data.strongest_areas.map(area => `<span class="concept-tag">${area}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${data.gaps && data.gaps.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #ef4444;">🔍 Knowledge Gaps</h4>
+                    ${data.gaps.map(gap => `
+                        <div class="gap-card gap-${gap.severity}">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: #e0e0e0;">${gap.area}</strong>
+                                <span style="color: #888; font-size: 0.85rem;">Priority: ${gap.learning_priority}</span>
+                            </div>
+                            <p style="color: #888; margin: 8px 0;">${gap.description}</p>
+                            ${gap.suggested_topics && gap.suggested_topics.length > 0 ? `
+                                <div class="concepts-list">
+                                    ${gap.suggested_topics.map(t => `<span class="concept-tag" style="background: #ef444422; color: #ef4444;">${t}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '<p style="color: #4ade80;">No significant knowledge gaps detected!</p>'}
+
+            ${data.recommended_learning_path && data.recommended_learning_path.length > 0 ? `
+                <div>
+                    <h4 style="color: #a78bfa;">📚 Recommended Learning Path</h4>
+                    <ol style="color: #888; padding-left: 20px;">
+                        ${data.recommended_learning_path.map(step => `<li style="margin-bottom: 8px;">${step}</li>`).join('')}
+                    </ol>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to analyze knowledge gaps', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🔍 Analyze My Knowledge');
+    }
+}
+
+/**
+ * Generate flashcards from a document
+ */
+async function generateFlashcards(event) {
+    const button = event ? event.target : null;
+    const docId = document.getElementById('flashcardDocId').value;
+    const numCards = document.getElementById('flashcardCount').value || 10;
+    const difficulty = document.getElementById('flashcardDifficulty').value;
+    const resultsDiv = document.getElementById('flashcardsResults');
+
+    if (!docId) {
+        showToast('Please enter a document ID', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Generating flashcards...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/flashcards/${docId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ num_cards: parseInt(numCards), difficulty_mix: difficulty })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <p style="color: #888; margin-bottom: 15px;">Generated ${data.cards_generated} flashcards from document #${data.doc_id}. Click a card to reveal the answer.</p>
+            ${data.flashcards.map((card, i) => `
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <span class="front">Q${i + 1}: ${card.front}</span>
+                        <span class="difficulty-badge difficulty-${card.difficulty}">${card.difficulty}</span>
+                    </div>
+                    <div class="back">
+                        <strong>A:</strong> ${card.back}
+                        ${card.concept ? `<p style="color: #888; font-size: 0.85rem; margin-top: 8px;">Concept: ${card.concept}</p>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to generate flashcards', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🎴 Generate Cards');
+    }
+}
+
+/**
+ * Generate weekly learning digest
+ */
+async function generateDigest(event) {
+    const button = event ? event.target : null;
+    const days = document.getElementById('digestDays').value || 7;
+    const resultsDiv = document.getElementById('digestResults');
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Generating your learning digest...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/digest?days=${days}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff; margin-bottom: 10px;">📰 Executive Summary</h4>
+                <p style="color: #e0e0e0;">${data.executive_summary}</p>
+                <p style="color: #888; font-size: 0.85rem; margin-top: 10px;">
+                    Period: ${data.period.start} to ${data.period.end} | ${data.documents_added} documents added
+                </p>
+            </div>
+
+            ${data.new_concepts && data.new_concepts.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">🆕 New Concepts Learned</h4>
+                    <div class="concepts-list">
+                        ${data.new_concepts.map(c => `<span class="concept-tag">${c}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${data.skills_improved && data.skills_improved.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #60a5fa;">📈 Skills Improved</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.skills_improved.map(s => `<li>${s}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.focus_suggestions && data.focus_suggestions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #f59e0b;">🎯 Focus Suggestions</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.focus_suggestions.map(s => `<li>${s}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.quick_wins && data.quick_wins.length > 0 ? `
+                <div>
+                    <h4 style="color: #a78bfa;">⚡ Quick Wins</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.quick_wins.map(w => `<li>${w}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to generate digest', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '📰 Generate Digest');
+    }
+}
+
+/**
+ * Optimize learning path based on goal
+ */
+async function optimizeLearningPath(event) {
+    const button = event ? event.target : null;
+    const goal = document.getElementById('learningGoal').value;
+    const resultsDiv = document.getElementById('learningPathResults');
+
+    if (!goal.trim()) {
+        showToast('Please enter a learning goal', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Creating your personalized learning path...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/learning-path`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ goal })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">🎯 Goal: ${data.goal}</h4>
+                <p style="color: #888;">
+                    ${data.total_documents} documents | Estimated ${data.estimated_hours} hours
+                </p>
+            </div>
+
+            <h4 style="color: #a78bfa; margin-bottom: 15px;">📚 Learning Path</h4>
+            ${data.ordered_documents && data.ordered_documents.map((doc, i) => `
+                <div class="learning-step">
+                    <div class="step-number">${i + 1}</div>
+                    <div style="flex: 1;">
+                        <strong style="color: #e0e0e0;">${doc.title || `Document #${doc.doc_id}`}</strong>
+                        ${doc.time_estimate ? `<span style="color: #888; font-size: 0.85rem; margin-left: 10px;">${doc.time_estimate}</span>` : ''}
+                        ${doc.reason ? `<p style="color: #888; font-size: 0.9rem; margin-top: 5px;">${doc.reason}</p>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+
+            ${data.skip_list && data.skip_list.length > 0 ? `
+                <div style="margin-top: 20px;">
+                    <h4 style="color: #888;">⏭️ Documents to Skip</h4>
+                    <ul style="color: #666; padding-left: 20px; font-size: 0.9rem;">
+                        ${data.skip_list.map(s => `<li>${s}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.external_resources && data.external_resources.length > 0 ? `
+                <div style="margin-top: 20px;">
+                    <h4 style="color: #60a5fa;">🔗 External Resources</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.external_resources.map(r => `<li>${r}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to create learning path', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🛤️ Create Path');
+    }
+}
+
+/**
+ * Score document quality
+ */
+async function scoreDocumentQuality(event) {
+    const button = event ? event.target : null;
+    const docId = document.getElementById('qualityDocId').value;
+    const resultsDiv = document.getElementById('qualityResults');
+
+    if (!docId) {
+        showToast('Please enter a document ID', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Analyzing document quality...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/quality/${docId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+        const scores = data.scores;
+
+        const getColor = (score) => score >= 7 ? '#4ade80' : score >= 5 ? '#f59e0b' : '#ef4444';
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">Document #${data.doc_id} Quality Analysis</h4>
+                <div style="text-align: center; margin: 20px 0;">
+                    <span style="font-size: 3rem; color: ${getColor(scores.overall)}; font-weight: bold;">${scores.overall}/10</span>
+                    <p style="color: #888;">Overall Score</p>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
+                ${['information_density', 'actionability', 'currency', 'uniqueness'].map(metric => `
+                    <div style="background: #1a1a1a; padding: 15px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #888; text-transform: capitalize;">${metric.replace('_', ' ')}</span>
+                            <span style="color: ${getColor(scores[metric])}; font-weight: bold;">${scores[metric]}/10</span>
+                        </div>
+                        <div class="quality-meter">
+                            <div class="quality-meter-fill" style="width: ${scores[metric] * 10}%; background: ${getColor(scores[metric])};"></div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            ${data.key_excerpts && data.key_excerpts.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">📌 Key Excerpts</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.key_excerpts.map(e => `<li style="margin-bottom: 8px;">"${e}"</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.sections_to_skip && data.sections_to_skip.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #f59e0b;">⏭️ Sections to Skip</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.sections_to_skip.map(s => `<li>${s}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.missing_context && data.missing_context.length > 0 ? `
+                <div>
+                    <h4 style="color: #ef4444;">❓ Missing Context</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.missing_context.map(m => `<li>${m}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to analyze document quality', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '⭐ Analyze Quality');
+    }
+}
+
+/**
+ * Send a chat message to the KB
+ */
+async function sendChatMessage(event) {
+    const button = event && event.target.tagName === 'BUTTON' ? event.target : null;
+    const query = document.getElementById('chatQuery').value;
+    const historyDiv = document.getElementById('chatHistory');
+
+    if (!query.trim()) {
+        showToast('Please enter a message', 'error');
+        return;
+    }
+
+    // Add user message to UI
+    historyDiv.innerHTML += `<div class="chat-message user">${query}</div>`;
+    document.getElementById('chatQuery').value = '';
+    historyDiv.scrollTop = historyDiv.scrollHeight;
+
+    if (button) setButtonLoading(button, true);
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                query,
+                conversation_history: kbChatHistory
+            })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        // Update history
+        kbChatHistory.push({ role: 'user', content: query });
+        kbChatHistory.push({ role: 'assistant', content: data.response });
+
+        // Add assistant response
+        historyDiv.innerHTML += `
+            <div class="chat-message assistant">
+                ${data.response}
+                ${data.follow_ups && data.follow_ups.length > 0 ? `
+                    <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                        <span style="color: #888; font-size: 0.85rem;">Suggested follow-ups:</span>
+                        <div style="margin-top: 5px;">
+                            ${data.follow_ups.map(f => `<button onclick="document.getElementById('chatQuery').value='${f}'; sendChatMessage()" style="font-size: 0.8rem; padding: 4px 8px; margin: 2px; background: #333;">${f}</button>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+
+    } catch (e) {
+        historyDiv.innerHTML += `<div class="chat-message assistant" style="border-color: #ef4444;">Error: ${e.message}</div>`;
+        showToast('Failed to get response', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '💬 Send');
+    }
+}
+
+/**
+ * Clear chat history
+ */
+function clearChatHistory() {
+    kbChatHistory = [];
+    document.getElementById('chatHistory').innerHTML = '';
+    showToast('Chat history cleared');
+}
+
+/**
+ * Generate code from knowledge base concepts
+ */
+async function generateCode(event) {
+    const button = event ? event.target : null;
+    const projectType = document.getElementById('codeGenProject').value;
+    const language = document.getElementById('codeGenLang').value;
+    const resultsDiv = document.getElementById('codeGenResults');
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Generating code based on your knowledge...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/generate-code`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ project_type: projectType, language })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">${projectType.charAt(0).toUpperCase() + projectType.slice(1)} Project in ${language.charAt(0).toUpperCase() + language.slice(1)}</h4>
+                ${data.concepts_used ? `<p style="color: #888;">Based on concepts: ${data.concepts_used.join(', ')}</p>` : ''}
+            </div>
+
+            ${data.files && Object.keys(data.files).map(filename => `
+                <div style="margin-bottom: 20px;">
+                    <div style="background: #333; padding: 8px 15px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: #00d4ff; font-family: monospace;">${filename}</span>
+                        <button onclick="navigator.clipboard.writeText(this.closest('.code-file-wrapper').querySelector('pre').textContent); showToast('Copied!')" style="padding: 4px 8px; font-size: 0.8rem; background: #555;">📋 Copy</button>
+                    </div>
+                    <div class="code-file-wrapper">
+                        <pre class="code-block" style="margin: 0; border-radius: 0 0 8px 8px;">${escapeHtml(data.files[filename])}</pre>
+                    </div>
+                </div>
+            `).join('')}
+
+            ${data.setup_instructions ? `
+                <div style="margin-top: 20px;">
+                    <h4 style="color: #4ade80;">📋 Setup Instructions</h4>
+                    <pre class="code-block">${data.setup_instructions}</pre>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to generate code', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '💻 Generate Code');
+    }
+}
+
+// Helper to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Compare two documents
+ */
+async function compareDocuments(event) {
+    const button = event ? event.target : null;
+    const docA = document.getElementById('compareDocA').value;
+    const docB = document.getElementById('compareDocB').value;
+    const resultsDiv = document.getElementById('compareResults');
+
+    if (!docA || !docB) {
+        showToast('Please enter both document IDs', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Comparing documents...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/compare`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ doc_a_id: parseInt(docA), doc_b_id: parseInt(docB) })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">Comparison: Doc #${data.doc_a_id} vs Doc #${data.doc_b_id}</h4>
+                ${data.recommended_order ? `<p style="color: #888;">Recommended reading order: ${data.recommended_order}</p>` : ''}
+                ${data.more_authoritative ? `<p style="color: #4ade80;">More authoritative: ${data.more_authoritative}</p>` : ''}
+            </div>
+
+            ${data.overlapping_concepts && data.overlapping_concepts.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #60a5fa;">🔄 Overlapping Concepts</h4>
+                    <div class="concepts-list">
+                        ${data.overlapping_concepts.map(c => `<span class="concept-tag">${c}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${data.contradictions && data.contradictions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #ef4444;">⚠️ Contradictions</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.contradictions.map(c => `<li style="margin-bottom: 8px;">${c}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.complementary_info && data.complementary_info.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">➕ Complementary Information</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.complementary_info.map(c => `<li style="margin-bottom: 8px;">${c}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.synthesis ? `
+                <div>
+                    <h4 style="color: #a78bfa;">📝 Synthesis</h4>
+                    <p style="color: #e0e0e0; background: #0a0a0a; padding: 15px; border-radius: 8px;">${data.synthesis}</p>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to compare documents', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '⚖️ Compare');
+    }
+}
+
+/**
+ * Explain a topic in simple terms (ELI5)
+ */
+async function explainELI5(event) {
+    const button = event ? event.target : null;
+    const topic = document.getElementById('eli5Topic').value;
+    const resultsDiv = document.getElementById('eli5Results');
+
+    if (!topic.trim()) {
+        showToast('Please enter a topic', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Creating simple explanation...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/eli5`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ topic })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">🎈 ${topic} - Explained Simply</h4>
+                <p style="color: #e0e0e0; font-size: 1.1rem; line-height: 1.6; margin-top: 15px;">${data.simple_explanation}</p>
+            </div>
+
+            ${data.analogy ? `
+                <div style="background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%); padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #a78bfa;">
+                    <h4 style="color: #a78bfa;">🌟 Real-World Analogy</h4>
+                    <p style="color: #e0e0e0;">${data.analogy}</p>
+                </div>
+            ` : ''}
+
+            ${data.why_it_matters ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">💡 Why It Matters</h4>
+                    <p style="color: #888;">${data.why_it_matters}</p>
+                </div>
+            ` : ''}
+
+            ${data.simple_example ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #60a5fa;">📝 Simple Example</h4>
+                    <pre class="code-block">${data.simple_example}</pre>
+                </div>
+            ` : ''}
+
+            ${data.learn_next && data.learn_next.length > 0 ? `
+                <div>
+                    <h4 style="color: #f59e0b;">📚 Learn Next</h4>
+                    <div class="concepts-list">
+                        ${data.learn_next.map(t => `<span class="concept-tag">${t}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to generate explanation', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🎈 Explain Simply');
+    }
+}
+
+/**
+ * Generate interview prep materials
+ */
+async function generateInterviewPrep(event) {
+    const button = event ? event.target : null;
+    const role = document.getElementById('interviewRole').value;
+    const level = document.getElementById('interviewLevel').value;
+    const resultsDiv = document.getElementById('interviewResults');
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Generating interview prep materials...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/interview-prep`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ role: role || null, level })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #00d4ff;">🎤 Interview Prep - ${level.charAt(0).toUpperCase() + level.slice(1)} Level</h4>
+                ${data.topics_covered ? `<p style="color: #888;">Topics: ${data.topics_covered.join(', ')}</p>` : ''}
+            </div>
+
+            ${data.behavioral_questions && data.behavioral_questions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #a78bfa;">💬 Behavioral Questions</h4>
+                    ${data.behavioral_questions.map(q => `
+                        <details class="interview-question">
+                            <summary>${q.question || q}</summary>
+                            ${q.guidance ? `<div class="answer">${q.guidance}</div>` : ''}
+                        </details>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            ${data.technical_questions && data.technical_questions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">💻 Technical Questions</h4>
+                    ${data.technical_questions.map(q => `
+                        <details class="interview-question" style="border-left-color: #4ade80;">
+                            <summary>${q.question || q}</summary>
+                            ${q.answer ? `<div class="answer">${q.answer}</div>` : ''}
+                        </details>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            ${data.system_design_questions && data.system_design_questions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #f59e0b;">🏗️ System Design Questions</h4>
+                    ${data.system_design_questions.map(q => `
+                        <details class="interview-question" style="border-left-color: #f59e0b;">
+                            <summary>${q.question || q}</summary>
+                            ${q.approach ? `<div class="answer">${q.approach}</div>` : ''}
+                        </details>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            ${data.gotcha_questions && data.gotcha_questions.length > 0 ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #ef4444;">⚠️ Gotcha Questions</h4>
+                    ${data.gotcha_questions.map(q => `
+                        <details class="interview-question" style="border-left-color: #ef4444;">
+                            <summary>${q.question || q}</summary>
+                            ${q.trap ? `<div class="answer"><strong>Trap:</strong> ${q.trap}</div>` : ''}
+                        </details>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            ${data.study_recommendations && data.study_recommendations.length > 0 ? `
+                <div>
+                    <h4 style="color: #00d4ff;">📚 Study Recommendations</h4>
+                    <ul style="color: #888; padding-left: 20px;">
+                        ${data.study_recommendations.map(r => `<li style="margin-bottom: 8px;">${r}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to generate interview prep', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🎤 Generate Questions');
+    }
+}
+
+/**
+ * Debug an error using knowledge base context
+ */
+async function debugError(event) {
+    const button = event ? event.target : null;
+    const errorMessage = document.getElementById('debugError').value;
+    const codeSnippet = document.getElementById('debugCode').value;
+    const context = document.getElementById('debugContext').value;
+    const resultsDiv = document.getElementById('debugResults');
+
+    if (!errorMessage.trim()) {
+        showToast('Please enter an error message', 'error');
+        return;
+    }
+
+    if (button) setButtonLoading(button, true);
+    resultsDiv.innerHTML = '<p style="color: #888;">Analyzing error and searching knowledge base...</p>';
+
+    try {
+        const res = await fetch(`${API_BASE}/knowledge/debug`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                error_message: errorMessage,
+                code_snippet: codeSnippet || null,
+                context: context || null
+            })
+        });
+
+        if (!res.ok) {
+            const errorMsg = await getErrorMessage(res);
+            throw new Error(errorMsg);
+        }
+
+        const data = await res.json();
+
+        resultsDiv.innerHTML = `
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                <h4 style="color: #ef4444;">🐛 Error Analysis</h4>
+                <pre style="color: #888; background: #0a0a0a; padding: 10px; border-radius: 4px; overflow-x: auto; margin-top: 10px;">${escapeHtml(data.error_message)}</pre>
+                <div style="display: flex; align-items: center; margin-top: 15px;">
+                    <span style="color: #888;">Confidence:</span>
+                    <div style="flex: 1; max-width: 200px; height: 8px; background: #333; border-radius: 4px; margin-left: 10px; overflow: hidden;">
+                        <div style="width: ${data.confidence * 100}%; height: 100%; background: linear-gradient(90deg, #ef4444, #4ade80); border-radius: 4px;"></div>
+                    </div>
+                    <span style="color: #4ade80; margin-left: 10px;">${Math.round(data.confidence * 100)}%</span>
+                </div>
+            </div>
+
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #f59e0b;">🔍 Likely Cause</h4>
+                <p style="color: #e0e0e0; margin-top: 10px;">${data.likely_cause}</p>
+            </div>
+
+            ${data.step_by_step_fix && data.step_by_step_fix.length > 0 ? `
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #4ade80;">🔧 Step-by-Step Fix</h4>
+                    <ol style="color: #888; padding-left: 20px; margin-top: 10px;">
+                        ${data.step_by_step_fix.map(step => `<li style="margin-bottom: 10px;">${step}</li>`).join('')}
+                    </ol>
+                </div>
+            ` : ''}
+
+            ${data.code_suggestion ? `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #60a5fa;">💻 Suggested Code Fix</h4>
+                    <pre class="code-block">${escapeHtml(data.code_suggestion)}</pre>
+                </div>
+            ` : ''}
+
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="color: #a78bfa;">📖 Explanation</h4>
+                <p style="color: #e0e0e0; margin-top: 10px;">${data.explanation}</p>
+            </div>
+
+            ${data.prevention_tips && data.prevention_tips.length > 0 ? `
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #00d4ff;">🛡️ Prevention Tips</h4>
+                    <ul style="color: #888; padding-left: 20px; margin-top: 10px;">
+                        ${data.prevention_tips.map(tip => `<li style="margin-bottom: 8px;">${tip}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${data.related_docs && data.related_docs.length > 0 ? `
+                <div>
+                    <h4 style="color: #888;">📚 Related Documentation</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+                        ${data.related_docs.map(doc => `
+                            <div style="background: #2a2a2a; padding: 10px 15px; border-radius: 6px; border-left: 3px solid #00d4ff;">
+                                <span style="color: #00d4ff;">Doc #${doc.doc_id}</span>
+                                ${doc.title ? `<span style="color: #888;"> - ${doc.title}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+    } catch (e) {
+        resultsDiv.innerHTML = `<p style="color: #ef4444;">Error: ${e.message}</p>`;
+        showToast('Failed to debug error', 'error');
+    } finally {
+        if (button) setButtonLoading(button, false, '🐛 Debug This Error');
+    }
 }
