@@ -54,3 +54,10 @@ celery[redis]  # Task queue with Redis support
 redis  # Message broker and cache
 flower  # Celery monitoring dashboard
 python-slugify>=8.0.0
+
+# OAuth & HTTP clients
+aiohttp  # Async HTTP client for OAuth callbacks and Ollama
+email-validator  # Email validation for team invitations
+
+# WebSocket support (included in starlette, but explicit for clarity)
+websockets
