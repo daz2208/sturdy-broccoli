@@ -47,6 +47,9 @@ from .database import get_db_context
 # Initialize logger
 logger = logging.getLogger(__name__)
 
+CONCEPT_SAMPLE_CHARS = 12_000  # limit sent to LLM for concept extraction
+MAX_SINGLE_DOCUMENT_CHARS = 200_000  # cap single-document payloads to keep processing responsive
+
 
 def chunk_document_sync(doc_id: int, content: str, kb_id: str) -> dict:
     """
@@ -427,6 +430,7 @@ def process_file_upload(
     try:
         # Stage 1: Decode file
         filename_safe = sanitize_filename(filename)
+        logger.info(f"Starting file upload task for {filename_safe} (kb={kb_id}, user={user_id})")
         file_bytes = base64.b64decode(content_base64)
 
         self.update_state(
@@ -472,15 +476,35 @@ def process_file_upload(
 
         # SINGLE DOCUMENT: Continue with existing flow
         document_text = document_text_or_list
+        original_length = len(document_text)
+        if original_length > MAX_SINGLE_DOCUMENT_CHARS:
+            logger.info(
+                f"Truncating large single-document payload from {original_length:,} to "
+                f"{MAX_SINGLE_DOCUMENT_CHARS:,} characters for processing"
+            )
+            document_text = document_text[:MAX_SINGLE_DOCUMENT_CHARS]
+        logger.info(
+            f"File upload will be processed as single document: {filename_safe} "
+            f"({len(document_text):,} chars, original {original_length:,})"
+        )
 
         # Stage 3: AI analysis
         content_length = len(document_text)
         cache_status = "checking cache" if ENABLE_CONCEPT_CACHING else "analyzing"
+        analysis_sample_len = min(content_length, CONCEPT_SAMPLE_CHARS)
+        if content_length > analysis_sample_len:
+            logger.info(
+                f"Sampling {analysis_sample_len:,} chars from {content_length:,} for concept extraction"
+            )
+        analysis_text = document_text[:analysis_sample_len]
         self.update_state(
             state="PROCESSING",
             meta={
                 "stage": "ai_analysis",
-                "message": f"AI analysis: {cache_status} for {content_length:,} character document (smart sampling: 6000 chars)...",
+                "message": (
+                    f"AI analysis: {cache_status} for {content_length:,} character document "
+                    f"(sampling {analysis_sample_len:,} chars)..."
+                ),
                 "percent": 50
             }
         )
@@ -489,7 +513,7 @@ def process_file_upload(
         # Use asyncio.run() which creates a fresh event loop, runs the coroutine, and closes it
         import asyncio
         extraction = asyncio.run(
-            concept_extractor.extract(document_text, "file")
+            concept_extractor.extract(analysis_text, "file")
         )
 
         # Stage 4: Clustering

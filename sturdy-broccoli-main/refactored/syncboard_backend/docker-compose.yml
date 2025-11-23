@@ -93,7 +93,8 @@ services:
     networks:
       - syncboard-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Use Python-based check (curl isn't in the image)
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health').raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -106,7 +107,7 @@ services:
       dockerfile: Dockerfile
     container_name: syncboard-celery
     restart: unless-stopped
-    command: celery -A backend.celery_app worker --loglevel=info -Q celery,uploads,analysis,low_priority
+    command: celery -A backend.celery_app worker --loglevel=debug -Q celery,uploads,analysis,low_priority
     depends_on:
       db:
         condition: service_healthy
@@ -137,6 +138,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery worker 2 (additional worker for parallel processing)
   celery-worker-2:
@@ -145,7 +153,7 @@ services:
       dockerfile: Dockerfile
     container_name: syncboard-celery-2
     restart: unless-stopped
-    command: celery -A backend.celery_app worker --loglevel=info -Q celery,uploads,analysis,low_priority
+    command: celery -A backend.celery_app worker --loglevel=debug -Q celery,uploads,analysis,low_priority
     depends_on:
       db:
         condition: service_healthy
@@ -176,6 +184,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # Named volumes for data persistence
 volumes:
