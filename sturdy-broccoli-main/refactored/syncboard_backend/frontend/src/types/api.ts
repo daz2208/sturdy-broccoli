@@ -47,8 +47,10 @@ export interface Cluster {
   id: number;
   name: string;
   doc_ids: number[];
-  concepts: string[];
+  primary_concepts: string[];
   skill_level?: string;
+  knowledge_base_id?: string;
+  doc_count?: number;
 }
 
 // Upload

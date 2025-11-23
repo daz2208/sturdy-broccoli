@@ -45,7 +45,7 @@ export default function ClustersPage() {
                   <h3 className="text-lg font-semibold text-gray-200">{cluster.name}</h3>
                   <p className="text-sm text-gray-500">{cluster.doc_ids.length} documents</p>
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {cluster.concepts.slice(0, 5).map((c, i) => <span key={i} className="badge badge-primary">{c}</span>)}
+                    {(cluster.primary_concepts || []).slice(0, 5).map((c, i) => <span key={i} className="badge badge-primary">{c}</span>)}
                   </div>
                 </div>
               </div>
