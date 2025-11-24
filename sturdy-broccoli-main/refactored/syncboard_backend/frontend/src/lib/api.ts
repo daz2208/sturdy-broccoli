@@ -647,7 +647,18 @@ class ApiClient {
     return data;
   }
 
-  async generateCodeFromKB(project_type?: string, language?: string): Promise<{ status: string; files?: Record<string, string>; concepts_used?: string[]; setup_instructions?: string }> {
+  // Backend returns files as array [{filename, content, purpose}] - frontend transforms it
+  async generateCodeFromKB(project_type?: string, language?: string): Promise<{
+    status: string;
+    files?: Array<{ filename: string; content: string; purpose?: string }> | Record<string, string>;
+    concepts_demonstrated?: string[];
+    concepts_used?: string[];
+    setup_instructions?: string | string[];
+    project_name?: string;
+    description?: string;
+    run_command?: string;
+    next_steps?: string[];
+  }> {
     const { data } = await this.client.post('/knowledge/generate-code', { project_type, language });
     return data;
   }

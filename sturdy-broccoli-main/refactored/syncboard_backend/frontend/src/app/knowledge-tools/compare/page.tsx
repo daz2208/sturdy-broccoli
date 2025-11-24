@@ -133,12 +133,26 @@ export default function ComparePage() {
                 <AlertTriangle className="w-5 h-5 text-red-400" />
                 <h2 className="text-lg font-semibold text-gray-200">Contradictions</h2>
               </div>
-              <ul className="space-y-2">
-                {comparison.contradictions.map((item, i) => (
-                  <li key={i} className="text-gray-300 text-sm p-3 bg-red-400/5 border border-red-400/20 rounded">
-                    {item}
-                  </li>
-                ))}
+              <ul className="space-y-3">
+                {comparison.contradictions.map((item, i) => {
+                  // Handle both string and object formats
+                  if (typeof item === 'string') {
+                    return (
+                      <li key={i} className="text-gray-300 text-sm p-3 bg-red-400/5 border border-red-400/20 rounded">
+                        {item}
+                      </li>
+                    );
+                  }
+                  const c = item as { topic?: string; doc_a_says?: string; doc_b_says?: string; resolution?: string };
+                  return (
+                    <li key={i} className="p-3 bg-red-400/5 border border-red-400/20 rounded space-y-2">
+                      {c.topic && <p className="font-medium text-red-400">{c.topic}</p>}
+                      {c.doc_a_says && <p className="text-sm text-gray-400">Doc A: {c.doc_a_says}</p>}
+                      {c.doc_b_says && <p className="text-sm text-gray-400">Doc B: {c.doc_b_says}</p>}
+                      {c.resolution && <p className="text-sm text-gray-300 mt-1">Resolution: {c.resolution}</p>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -150,12 +164,25 @@ export default function ComparePage() {
                 <Lightbulb className="w-5 h-5 text-yellow-400" />
                 <h2 className="text-lg font-semibold text-gray-200">Complementary Information</h2>
               </div>
-              <ul className="space-y-2">
-                {comparison.complementary_info.map((item, i) => (
-                  <li key={i} className="text-gray-300 text-sm flex items-start gap-2">
-                    <span className="text-yellow-400">+</span> {item}
-                  </li>
-                ))}
+              <ul className="space-y-3">
+                {comparison.complementary_info.map((item, i) => {
+                  // Handle both string and object formats
+                  if (typeof item === 'string') {
+                    return (
+                      <li key={i} className="text-gray-300 text-sm flex items-start gap-2">
+                        <span className="text-yellow-400">+</span> {item}
+                      </li>
+                    );
+                  }
+                  const c = item as { doc_a_has?: string; doc_b_has?: string; combined_value?: string };
+                  return (
+                    <li key={i} className="p-3 bg-yellow-400/5 border border-yellow-400/20 rounded space-y-1">
+                      {c.doc_a_has && <p className="text-sm text-gray-400">Doc A has: {c.doc_a_has}</p>}
+                      {c.doc_b_has && <p className="text-sm text-gray-400">Doc B has: {c.doc_b_has}</p>}
+                      {c.combined_value && <p className="text-sm text-gray-300 mt-1">Combined: {c.combined_value}</p>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

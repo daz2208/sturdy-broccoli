@@ -9,8 +9,30 @@ import type { InterviewPrep, InterviewQuestion } from '@/types/api';
 const ROLES = ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'DevOps Engineer', 'Data Scientist', 'Software Architect'];
 const LEVELS = ['Junior', 'Mid-level', 'Senior', 'Staff', 'Principal'];
 
-function QuestionCard({ question, type }: { question: InterviewQuestion; type: string }) {
+// Extended type to handle both frontend expected names and backend actual names
+interface ExtendedQuestion extends InterviewQuestion {
+  // Backend field names
+  what_they_test?: string;
+  good_answer_elements?: string[];
+  ideal_answer?: string;
+  follow_ups?: string[];
+  key_points?: string[];
+  common_mistakes?: string[];
+  why_tricky?: string;
+  how_to_handle?: string;
+}
+
+function QuestionCard({ question, type }: { question: ExtendedQuestion; type: string }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Map backend fields to frontend display fields
+  const answer = question.answer || question.ideal_answer;
+  const guidance = question.guidance || question.what_they_test;
+  const approach = question.approach || (question.key_points ? question.key_points.join(', ') : null);
+  const trap = question.trap || question.why_tricky || (question.common_mistakes ? question.common_mistakes.join(', ') : null);
+  const howToHandle = question.how_to_handle;
+  const goodElements = question.good_answer_elements;
+  const followUps = question.follow_ups;
 
   return (
     <div className="bg-dark-200 rounded-lg p-4">
@@ -24,28 +46,50 @@ function QuestionCard({ question, type }: { question: InterviewQuestion; type: s
 
       {expanded && (
         <div className="mt-4 space-y-3 pt-4 border-t border-dark-300">
-          {question.answer && (
+          {answer && (
             <div>
               <p className="text-xs text-gray-500 uppercase mb-1">Answer</p>
-              <p className="text-gray-300 text-sm">{question.answer}</p>
+              <p className="text-gray-300 text-sm">{answer}</p>
             </div>
           )}
-          {question.guidance && (
+          {guidance && (
             <div>
-              <p className="text-xs text-gray-500 uppercase mb-1">Guidance</p>
-              <p className="text-gray-400 text-sm">{question.guidance}</p>
+              <p className="text-xs text-gray-500 uppercase mb-1">What They Test</p>
+              <p className="text-gray-400 text-sm">{guidance}</p>
             </div>
           )}
-          {question.approach && (
+          {goodElements && goodElements.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 uppercase mb-1">Approach</p>
-              <p className="text-gray-400 text-sm">{question.approach}</p>
+              <p className="text-xs text-gray-500 uppercase mb-1">Good Answer Includes</p>
+              <ul className="text-gray-400 text-sm list-disc list-inside">
+                {goodElements.map((el, i) => <li key={i}>{el}</li>)}
+              </ul>
             </div>
           )}
-          {question.trap && (
+          {approach && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase mb-1">Key Points</p>
+              <p className="text-gray-400 text-sm">{approach}</p>
+            </div>
+          )}
+          {followUps && followUps.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase mb-1">Follow-up Questions</p>
+              <ul className="text-gray-400 text-sm list-disc list-inside">
+                {followUps.map((q, i) => <li key={i}>{q}</li>)}
+              </ul>
+            </div>
+          )}
+          {trap && (
             <div className="bg-yellow-400/5 border border-yellow-400/20 rounded p-2">
-              <p className="text-xs text-yellow-400 uppercase mb-1">Watch out for</p>
-              <p className="text-yellow-400/80 text-sm">{question.trap}</p>
+              <p className="text-xs text-yellow-400 uppercase mb-1">Watch Out For</p>
+              <p className="text-yellow-400/80 text-sm">{trap}</p>
+            </div>
+          )}
+          {howToHandle && (
+            <div className="bg-green-400/5 border border-green-400/20 rounded p-2">
+              <p className="text-xs text-green-400 uppercase mb-1">How to Handle</p>
+              <p className="text-green-400/80 text-sm">{howToHandle}</p>
             </div>
           )}
         </div>

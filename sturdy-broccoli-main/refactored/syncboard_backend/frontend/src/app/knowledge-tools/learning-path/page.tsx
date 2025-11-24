@@ -79,22 +79,27 @@ export default function LearningPathPage() {
           <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
             <h2 className="text-lg font-semibold text-gray-200 mb-4">Recommended Order</h2>
             <div className="space-y-4">
-              {path.ordered_docs.map((doc, i) => (
-                <div key={doc.doc_id} className="flex items-start gap-4 p-4 bg-dark-200 rounded-lg">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold">
-                    {i + 1}
+              {path.ordered_docs.map((doc, i) => {
+                // Handle both frontend field names and backend field names
+                const reason = doc.reason || doc.why_this_order;
+                const timeEstimate = doc.time_estimate || (doc.time_estimate_minutes ? `${doc.time_estimate_minutes} min` : null);
+                return (
+                  <div key={doc.doc_id || i} className="flex items-start gap-4 p-4 bg-dark-200 rounded-lg">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold">
+                      {i + 1}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-200">{doc.title}</h3>
+                      {reason && <p className="text-sm text-gray-400 mt-1">{reason}</p>}
+                      {timeEstimate && (
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500 mt-2">
+                          <Clock className="w-3 h-3" /> {timeEstimate}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-200">{doc.title}</h3>
-                    {doc.reason && <p className="text-sm text-gray-400 mt-1">{doc.reason}</p>}
-                    {doc.time_estimate && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500 mt-2">
-                        <Clock className="w-3 h-3" /> {doc.time_estimate}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
