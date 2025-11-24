@@ -1015,3 +1015,126 @@ class DBRateLimitOverride(Base):
 
     def __repr__(self):
         return f"<DBRateLimitOverride(user='{self.username}')>"
+
+
+# =============================================================================
+# Agentic Learning System (Phase: Self-Learning AI)
+# =============================================================================
+
+class DBAIDecision(Base):
+    """
+    Track every AI decision with confidence scores for self-learning.
+
+    This table captures all AI-made decisions (concept extraction, clustering,
+    classification, etc.) along with confidence scores. Used to:
+    - Identify low-confidence decisions that need validation
+    - Learn from user corrections
+    - Track accuracy over time
+    - Enable A/B testing of AI models
+    """
+    __tablename__ = "ai_decisions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Decision context
+    decision_type = Column(String(50), nullable=False, index=True)  # concept_extraction, clustering, classification, etc.
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # Related entities
+    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Decision details
+    input_data = Column(JSON, nullable=False)  # What was analyzed (content sample, concepts, etc.)
+    output_data = Column(JSON, nullable=False)  # What was decided (extracted concepts, cluster assignment, etc.)
+    confidence_score = Column(Float, nullable=False, index=True)  # 0.0 to 1.0
+
+    # Model metadata
+    model_name = Column(String(100), nullable=True)  # gpt-4, gpt-3.5-turbo, custom-v1, etc.
+    model_version = Column(String(50), nullable=True)
+
+    # Validation status
+    validated = Column(Boolean, default=False, nullable=False, index=True)  # Has user reviewed?
+    validation_result = Column(String(20), nullable=True)  # accepted, rejected, modified
+    validation_timestamp = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("DBUser")
+    document = relationship("DBDocument")
+    cluster = relationship("DBCluster")
+    knowledge_base = relationship("DBKnowledgeBase")
+
+    # Indexes for analytics queries
+    __table_args__ = (
+        Index('idx_ai_decision_type_confidence', 'decision_type', 'confidence_score'),
+        Index('idx_ai_decision_user_type', 'username', 'decision_type'),
+        Index('idx_ai_decision_validation', 'validated', 'confidence_score'),
+        Index('idx_ai_decision_created', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<DBAIDecision(type='{self.decision_type}', confidence={self.confidence_score:.2f}, validated={self.validated})>"
+
+
+class DBUserFeedback(Base):
+    """
+    Track user actions and corrections to learn from mistakes.
+
+    Captures all user corrections, cluster moves, concept edits, and other
+    feedback signals. Used to:
+    - Learn user preferences and patterns
+    - Improve AI decision accuracy
+    - Personalize the system to each user
+    - Track which AI decisions were wrong
+    """
+    __tablename__ = "user_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Feedback context
+    feedback_type = Column(String(50), nullable=False, index=True)  # cluster_move, concept_edit, document_delete, etc.
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # Related entities
+    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    ai_decision_id = Column(Integer, ForeignKey("ai_decisions.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Feedback details
+    original_value = Column(JSON, nullable=True)  # What the AI decided
+    new_value = Column(JSON, nullable=False)  # What the user changed it to
+    context = Column(JSON, nullable=True)  # Additional context (document concepts, cluster info, etc.)
+
+    # User reasoning (optional, if we ask)
+    user_reasoning = Column(Text, nullable=True)
+
+    # Processing status
+    processed = Column(Boolean, default=False, nullable=False, index=True)  # Has learning system incorporated this?
+    processed_at = Column(DateTime, nullable=True)
+
+    # Impact tracking
+    improvement_score = Column(Float, nullable=True)  # How much this feedback improved accuracy (calculated later)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    user = relationship("DBUser")
+    document = relationship("DBDocument")
+    ai_decision = relationship("DBAIDecision")
+    knowledge_base = relationship("DBKnowledgeBase")
+
+    # Indexes for learning queries
+    __table_args__ = (
+        Index('idx_feedback_type_user', 'feedback_type', 'username'),
+        Index('idx_feedback_processed', 'processed', 'created_at'),
+        Index('idx_feedback_user_kb', 'username', 'knowledge_base_id'),
+        Index('idx_feedback_document', 'document_id'),
+    )
+
+    def __repr__(self):
+        return f"<DBUserFeedback(type='{self.feedback_type}', user='{self.username}', processed={self.processed})>"
