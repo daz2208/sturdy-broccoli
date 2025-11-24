@@ -214,3 +214,166 @@ class ConceptExtractor:
                 "primary_topic": "uncategorized",
                 "suggested_cluster": "General"
             }
+
+    async def extract_with_critique(self, content: str, source_type: str) -> Dict:
+        """
+        Dual-pass concept extraction with self-critique (Phase C - Agentic Learning).
+
+        Pass 1: Extract concepts normally
+        Pass 2: AI critiques its own extraction
+        Pass 3: Refine based on critique
+
+        This is the core of "questioning every decision" - the AI examines its own work!
+
+        Args:
+            content: Full text content
+            source_type: "youtube", "pdf", "text", "url", "audio", "image"
+
+        Returns:
+            {
+                "concepts": [...],  # Refined concepts after critique
+                "skill_level": "intermediate",
+                "primary_topic": "...",
+                "suggested_cluster": "...",
+                "confidence_score": 0.88,
+                "critique": {  # NEW: Self-critique metadata
+                    "issues_found": [...],
+                    "concepts_added": [...],
+                    "concepts_removed": [...],
+                    "confidence_adjustment": 0.05
+                }
+            }
+        """
+        logger.info(f"Starting dual-pass extraction with self-critique for {source_type}")
+
+        # PASS 1: Initial extraction
+        logger.debug("Pass 1: Initial concept extraction...")
+        initial_result = await self.extract(content, source_type)
+        initial_concepts = initial_result.get("concepts", [])
+        initial_confidence = initial_result.get("confidence_score", 0.5)
+
+        # If confidence is already high, skip critique
+        if initial_confidence >= 0.9:
+            logger.info(f"Initial confidence {initial_confidence:.2f} is high, skipping critique")
+            return initial_result
+
+        # PASS 2: Self-critique
+        logger.debug("Pass 2: AI self-critique...")
+        try:
+            critique_prompt = self._build_critique_prompt(content, initial_result)
+            critique_response = await self.provider._call_llm(
+                prompt=critique_prompt,
+                response_format={"type": "json_object"}
+            )
+
+            critique = json.loads(critique_response)
+
+            # PASS 3: Refine based on critique
+            logger.debug("Pass 3: Applying critique refinements...")
+            refined_result = self._apply_critique(initial_result, critique)
+
+            logger.info(
+                f"Dual-pass complete: {len(initial_concepts)} → {len(refined_result['concepts'])} concepts, "
+                f"confidence: {initial_confidence:.2f} → {refined_result['confidence_score']:.2f}"
+            )
+
+            return refined_result
+
+        except Exception as e:
+            logger.warning(f"Critique pass failed, returning initial extraction: {e}")
+            return initial_result
+
+    def _build_critique_prompt(self, content: str, initial_result: Dict) -> str:
+        """Build prompt for AI to critique its own extraction."""
+        concepts_list = [c.get('name') for c in initial_result.get('concepts', [])]
+
+        prompt = f"""You are a critical AI reviewer. Analyze this concept extraction and identify issues.
+
+ORIGINAL CONTENT (sample):
+{content[:1000]}
+
+EXTRACTED CONCEPTS:
+{', '.join(concepts_list)}
+
+SKILL LEVEL: {initial_result.get('skill_level', 'unknown')}
+PRIMARY TOPIC: {initial_result.get('primary_topic', 'unknown')}
+INITIAL CONFIDENCE: {initial_result.get('confidence_score', 0.5):.2f}
+
+Your task: Critically review this extraction. Be harsh but fair.
+
+Questions to ask:
+1. Are any IMPORTANT concepts missing from the content?
+2. Are any extracted concepts WRONG or too vague?
+3. Is the skill level accurate?
+4. Should confidence be adjusted up or down?
+
+Return JSON with:
+{{
+    "issues_found": ["issue 1", "issue 2"],
+    "missing_concepts": [
+        {{"name": "Docker", "category": "tool", "confidence": 0.9, "reasoning": "Mentioned 5 times"}}
+    ],
+    "incorrect_concepts": [
+        {{"name": "Web", "reasoning": "Too vague, should be 'REST API'"}}
+    ],
+    "skill_level_adjustment": "intermediate" or null,
+    "confidence_adjustment": 0.05,  // -0.2 to +0.2
+    "overall_assessment": "Brief assessment"
+}}
+
+Be critical but constructive. The goal is ACCURACY."""
+
+        return prompt
+
+    def _apply_critique(self, initial_result: Dict, critique: Dict) -> Dict:
+        """Apply critique to refine the extraction."""
+        refined = initial_result.copy()
+        concepts = list(initial_result.get('concepts', []))
+
+        changes = {
+            "issues_found": critique.get("issues_found", []),
+            "concepts_added": [],
+            "concepts_removed": [],
+            "confidence_adjustment": critique.get("confidence_adjustment", 0.0)
+        }
+
+        # Remove incorrect concepts
+        incorrect_names = {c['name'] for c in critique.get("incorrect_concepts", [])}
+        if incorrect_names:
+            concepts = [c for c in concepts if c.get('name') not in incorrect_names]
+            changes["concepts_removed"] = list(incorrect_names)
+            logger.info(f"Removed incorrect concepts: {incorrect_names}")
+
+        # Add missing concepts
+        missing_concepts = critique.get("missing_concepts", [])
+        if missing_concepts:
+            for concept in missing_concepts:
+                # Filter by confidence threshold
+                if concept.get('confidence', 0.0) >= MIN_CONCEPT_CONFIDENCE:
+                    concepts.append(concept)
+                    changes["concepts_added"].append(concept['name'])
+            logger.info(f"Added missing concepts: {changes['concepts_added']}")
+
+        # Update skill level if suggested
+        if critique.get("skill_level_adjustment"):
+            refined["skill_level"] = critique["skill_level_adjustment"]
+            logger.debug(f"Adjusted skill level to: {refined['skill_level']}")
+
+        # Adjust confidence score
+        confidence_adjustment = critique.get("confidence_adjustment", 0.0)
+        new_confidence = initial_result.get('confidence_score', 0.5) + confidence_adjustment
+        refined["confidence_score"] = max(0.0, min(1.0, new_confidence))
+
+        # Update concepts
+        refined["concepts"] = concepts
+
+        # Add critique metadata
+        refined["critique"] = changes
+
+        logger.info(
+            f"Refinement applied: +{len(changes['concepts_added'])} concepts, "
+            f"-{len(changes['concepts_removed'])} concepts, "
+            f"confidence Δ{confidence_adjustment:+.2f}"
+        )
+
+        return refined

@@ -173,8 +173,22 @@ async def upload_text_content(
     concept_extractor = get_concept_extractor()
 
     async with storage_lock:
-        # Extract concepts
+        # Extract concepts (with optional dual-pass critique for low confidence)
+        from ..constants import ENABLE_DUAL_PASS_EXTRACTION, DUAL_PASS_CONFIDENCE_THRESHOLD
+
+        # First pass: standard extraction
         extraction = await concept_extractor.extract(content, "text")
+        initial_confidence = extraction.get("confidence_score", 0.5)
+
+        # Phase C: Dual-pass with self-critique if confidence is low
+        if ENABLE_DUAL_PASS_EXTRACTION and initial_confidence < DUAL_PASS_CONFIDENCE_THRESHOLD:
+            logger.info(
+                f"Low confidence ({initial_confidence:.2f}), triggering dual-pass extraction with self-critique"
+            )
+            extraction = await concept_extractor.extract_with_critique(content, "text")
+            logger.info(
+                f"Dual-pass complete: confidence improved to {extraction.get('confidence_score', 0):.2f}"
+            )
 
         # Record AI decision for concept extraction (agentic learning)
         concept_decision_id = None

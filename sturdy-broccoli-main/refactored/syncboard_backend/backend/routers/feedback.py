@@ -245,6 +245,72 @@ async def get_pending_validations(
     }
 
 
+@router.get("/validation-prompts")
+async def get_validation_prompts(
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user-friendly validation prompts for low-confidence decisions (Phase C).
+
+    Returns natural language prompts that users can easily understand and validate.
+    Perfect for displaying in a validation UI.
+
+    Args:
+        limit: Maximum number of prompts to return
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        {
+            "prompts": [...],  # List of user-friendly validation prompts
+            "summary": {...},  # Summary stats
+            "count": 5
+        }
+    """
+    from ..validation_prompts import generate_validation_prompt, format_validation_summary
+
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    decisions = await feedback_service.get_low_confidence_decisions(
+        username=current_user.username,
+        knowledge_base_id=kb_id,
+        limit=limit
+    )
+
+    # Generate user-friendly prompts
+    prompts = []
+    for decision in decisions:
+        prompt = generate_validation_prompt(
+            decision_type=decision.decision_type,
+            output_data=decision.output_data,
+            confidence_score=decision.confidence_score
+        )
+
+        # Add decision metadata
+        prompt["decision_id"] = decision.id
+        prompt["document_id"] = decision.document_id
+        prompt["cluster_id"] = decision.cluster_id
+        prompt["created_at"] = decision.created_at.isoformat()
+
+        prompts.append(prompt)
+
+    # Generate summary
+    summary = format_validation_summary(prompts)
+
+    logger.info(
+        f"Generated {len(prompts)} validation prompts for {current_user.username} "
+        f"(urgency: {summary['urgency']}, avg confidence: {summary['avg_confidence']:.2f})"
+    )
+
+    return {
+        "prompts": prompts,
+        "summary": summary,
+        "count": len(prompts)
+    }
+
+
 @router.get("/metrics")
 async def get_learning_metrics(
     current_user: User = Depends(get_current_user)
