@@ -92,6 +92,18 @@ CONCEPT_CACHE_TTL_DAYS = int(os.getenv("CONCEPT_CACHE_TTL_DAYS", "7"))
 SIMILARITY_CACHE_TTL_DAYS = int(os.getenv("SIMILARITY_CACHE_TTL_DAYS", "30"))
 
 # =============================================================================
+# Agentic AI - Dual-Pass Extraction (Phase C)
+# =============================================================================
+
+# Enable dual-pass extraction with self-critique for low-confidence extractions
+# When enabled, AI will critique its own work and refine the extraction
+ENABLE_DUAL_PASS_EXTRACTION = os.getenv("ENABLE_DUAL_PASS", "true").lower() == "true"
+
+# Confidence threshold below which dual-pass will be triggered
+# If initial confidence < this value, run critique pass
+DUAL_PASS_CONFIDENCE_THRESHOLD = float(os.getenv("DUAL_PASS_THRESHOLD", "0.75"))
+
+# =============================================================================
 # Concept Quality Filtering (Improvement #6)
 # =============================================================================
 
