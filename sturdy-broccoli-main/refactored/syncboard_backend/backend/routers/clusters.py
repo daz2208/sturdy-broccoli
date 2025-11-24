@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from ..sanitization import sanitize_cluster_name
 from ..constants import SKILL_LEVELS
 from ..db_storage_adapter import save_storage_to_db
+from ..websocket_manager import broadcast_cluster_updated, broadcast_cluster_deleted
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -147,6 +148,18 @@ async def update_cluster(
         save_storage_to_db(documents, metadata, clusters, users)
 
     logger.info(f"Updated cluster {cluster_id} in KB {kb_id}: {cluster.name}")
+
+    # Broadcast WebSocket event for real-time updates
+    try:
+        await broadcast_cluster_updated(
+            knowledge_base_id=int(kb_id),
+            cluster_id=cluster_id,
+            cluster_name=cluster.name,
+            document_count=len(cluster.doc_ids)
+        )
+    except Exception as ws_err:
+        logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
     return {"message": "Cluster updated", "cluster": cluster.dict()}
 
 # =============================================================================
@@ -263,6 +276,16 @@ async def delete_cluster(
                 del kb_clusters[cluster_id]
 
             logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} and DELETED {deleted_count} documents permanently")
+
+            # Broadcast WebSocket event for real-time updates
+            try:
+                await broadcast_cluster_deleted(
+                    knowledge_base_id=int(kb_id),
+                    cluster_id=cluster_id
+                )
+            except Exception as ws_err:
+                logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
             return {
                 "message": f"Cluster '{cluster_name}' and {deleted_count} documents deleted permanently",
                 "cluster_id": cluster_id,
@@ -294,6 +317,16 @@ async def delete_cluster(
                 del kb_clusters[cluster_id]
 
             logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} ({doc_count} documents now unclustered)")
+
+            # Broadcast WebSocket event for real-time updates
+            try:
+                await broadcast_cluster_deleted(
+                    knowledge_base_id=int(kb_id),
+                    cluster_id=cluster_id
+                )
+            except Exception as ws_err:
+                logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
             return {
                 "message": f"Cluster '{cluster_name}' deleted successfully",
                 "cluster_id": cluster_id,

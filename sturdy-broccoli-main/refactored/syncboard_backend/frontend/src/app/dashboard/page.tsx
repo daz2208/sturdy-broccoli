@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, FolderOpen, Brain, Cpu, Upload, Search, Lightbulb, Activity } from 'lucide-react';
+import { FileText, FolderOpen, Brain, Cpu, Upload, Search, Lightbulb, Activity, Wifi } from 'lucide-react';
 import Link from 'next/link';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface DashboardStats {
   documents: number;
@@ -28,9 +29,41 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // WebSocket for real-time dashboard updates
+  const { isConnected, on } = useWebSocket();
+
   useEffect(() => {
     loadDashboard();
-  }, []);
+
+    // Listen for real-time events to refresh dashboard
+    const unsubDocCreated = on('document_created', () => {
+      loadDashboard(); // Refresh stats when document created
+    });
+
+    const unsubDocDeleted = on('document_deleted', () => {
+      loadDashboard(); // Refresh stats when document deleted
+    });
+
+    const unsubDocUpdated = on('document_updated', () => {
+      loadDashboard(); // Refresh stats when document updated
+    });
+
+    const unsubClusterCreated = on('cluster_created', () => {
+      loadDashboard(); // Refresh stats when cluster created
+    });
+
+    const unsubClusterDeleted = on('cluster_deleted', () => {
+      loadDashboard(); // Refresh stats when cluster deleted
+    });
+
+    return () => {
+      unsubDocCreated();
+      unsubDocDeleted();
+      unsubDocUpdated();
+      unsubClusterCreated();
+      unsubClusterDeleted();
+    };
+  }, [on]);
 
   const loadDashboard = async () => {
     try {
@@ -72,7 +105,15 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+            {isConnected && (
+              <span className="flex items-center gap-1 text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                <Wifi className="w-3 h-3" />
+                Live
+              </span>
+            )}
+          </div>
           <p className="text-gray-500">Welcome back! Here&apos;s your knowledge overview.</p>
         </div>
         <div className="flex gap-3">
