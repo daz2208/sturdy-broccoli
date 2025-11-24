@@ -44,6 +44,7 @@ from .chunking_pipeline import chunk_document_on_upload
 from .db_models import DBDocument
 from .database import get_db_context
 from .websocket_manager import broadcast_document_created, broadcast_cluster_created
+from .feedback_service import feedback_service
 import asyncio
 
 # Initialize logger
@@ -278,6 +279,21 @@ def process_multi_document_zip(
                 concept_extractor.extract(document_text, "file")
             )
 
+            # Record AI decision for concept extraction (agentic learning)
+            try:
+                asyncio.run(feedback_service.record_ai_decision(
+                    decision_type="concept_extraction",
+                    username=user_id,
+                    input_data={"content_sample": document_text[:500], "source_type": "file", "filename": doc_filename},
+                    output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                    confidence_score=extraction.get("confidence_score", 0.5),
+                    knowledge_base_id=kb_id,
+                    model_name="gpt-4o-mini"
+                ))
+                logger.debug(f"Recorded concept extraction decision for ZIP file {doc_filename} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
+            except Exception as e:
+                logger.warning(f"Failed to record concept extraction decision: {e}")
+
             # Add to vector store
             doc_id = vector_store.add_document(document_text)
             kb_documents[doc_id] = document_text
@@ -306,6 +322,27 @@ def process_multi_document_zip(
                 kb_id=kb_id
             )
             kb_metadata[doc_id].cluster_id = cluster_id
+
+            # Record AI decision for clustering (agentic learning)
+            try:
+                clustering_confidence = 0.75  # Default medium confidence
+                if cluster_id and len(extraction.get("concepts", [])) >= 3:
+                    clustering_confidence = 0.85  # Higher confidence with more concepts
+
+                asyncio.run(feedback_service.record_ai_decision(
+                    decision_type="clustering",
+                    username=user_id,
+                    input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
+                    output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
+                    confidence_score=clustering_confidence,
+                    knowledge_base_id=kb_id,
+                    document_id=doc_id,
+                    cluster_id=cluster_id,
+                    model_name="heuristic"
+                ))
+                logger.debug(f"Recorded clustering decision for ZIP doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
+            except Exception as e:
+                logger.warning(f"Failed to record clustering decision: {e}")
 
             # Save document metadata to database immediately
             # This ensures doc_id exists before chunking
@@ -529,6 +566,21 @@ def process_file_upload(
             concept_extractor.extract(analysis_text, "file")
         )
 
+        # Record AI decision for concept extraction (agentic learning)
+        try:
+            asyncio.run(feedback_service.record_ai_decision(
+                decision_type="concept_extraction",
+                username=user_id,
+                input_data={"content_sample": analysis_text[:500], "source_type": "file", "filename": filename_safe},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                confidence_score=extraction.get("confidence_score", 0.5),
+                knowledge_base_id=kb_id,
+                model_name="gpt-4o-mini"
+            ))
+            logger.debug(f"Recorded concept extraction decision for file {filename_safe} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record concept extraction decision: {e}")
+
         # Stage 4: Clustering
         concept_count = len(extraction.get('concepts', []))
         self.update_state(
@@ -572,6 +624,27 @@ def process_file_upload(
             kb_id=kb_id
         )
         kb_metadata[doc_id].cluster_id = cluster_id
+
+        # Record AI decision for clustering (agentic learning)
+        try:
+            clustering_confidence = 0.75  # Default medium confidence
+            if cluster_id and len(extraction.get("concepts", [])) >= 3:
+                clustering_confidence = 0.85  # Higher confidence with more concepts
+
+            asyncio.run(feedback_service.record_ai_decision(
+                decision_type="clustering",
+                username=user_id,
+                input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
+                output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
+                confidence_score=clustering_confidence,
+                knowledge_base_id=kb_id,
+                document_id=doc_id,
+                cluster_id=cluster_id,
+                model_name="heuristic"
+            ))
+            logger.debug(f"Recorded clustering decision for doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record clustering decision: {e}")
 
         # Stage 5: Save to database
         skill_level = extraction.get('skill_level', 'unknown')
@@ -801,6 +874,21 @@ def process_url_upload(
             concept_extractor.extract(document_text, source_type)
         )
 
+        # Record AI decision for concept extraction (agentic learning)
+        try:
+            loop.run_until_complete(feedback_service.record_ai_decision(
+                decision_type="concept_extraction",
+                username=user_id,
+                input_data={"content_sample": document_text[:500], "source_type": source_type, "url": url_safe[:100]},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                confidence_score=extraction.get("confidence_score", 0.5),
+                knowledge_base_id=kb_id,
+                model_name="gpt-4o-mini"
+            ))
+            logger.debug(f"Recorded concept extraction decision for URL {url_safe[:50]} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record concept extraction decision: {e}")
+
         # Extract YouTube-specific metadata from AI response
         youtube_metadata = {}
         if is_youtube:
@@ -878,6 +966,27 @@ def process_url_upload(
             kb_id=kb_id
         )
         kb_metadata[doc_id].cluster_id = cluster_id
+
+        # Record AI decision for clustering (agentic learning)
+        try:
+            clustering_confidence = 0.75  # Default medium confidence
+            if cluster_id and len(extraction.get("concepts", [])) >= 3:
+                clustering_confidence = 0.85  # Higher confidence with more concepts
+
+            loop.run_until_complete(feedback_service.record_ai_decision(
+                decision_type="clustering",
+                username=user_id,
+                input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
+                output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
+                confidence_score=clustering_confidence,
+                knowledge_base_id=kb_id,
+                document_id=doc_id,
+                cluster_id=cluster_id,
+                model_name="heuristic"
+            ))
+            logger.debug(f"Recorded clustering decision for URL doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record clustering decision: {e}")
 
         # Stage 4: Save
         skill_level = extraction.get('skill_level', 'unknown')
@@ -1120,6 +1229,21 @@ def process_image_upload(
             concept_extractor.extract(combined_text, "image")
         )
 
+        # Record AI decision for concept extraction (agentic learning)
+        try:
+            loop.run_until_complete(feedback_service.record_ai_decision(
+                decision_type="concept_extraction",
+                username=user_id,
+                input_data={"content_sample": combined_text[:500], "source_type": "image", "filename": filename_safe},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                confidence_score=extraction.get("confidence_score", 0.5),
+                knowledge_base_id=kb_id if kb_id else "default",
+                model_name="gpt-4o-mini"
+            ))
+            logger.debug(f"Recorded concept extraction decision for image {filename_safe} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record concept extraction decision: {e}")
+
         # Get KB-scoped storage (use default if kb_id not provided for backward compat)
         if kb_id:
             kb_documents = get_kb_documents(kb_id)
@@ -1172,6 +1296,27 @@ def process_image_upload(
             kb_id=kb_id
         )
         kb_metadata[doc_id].cluster_id = cluster_id
+
+        # Record AI decision for clustering (agentic learning)
+        try:
+            clustering_confidence = 0.75  # Default medium confidence
+            if cluster_id and len(extraction.get("concepts", [])) >= 3:
+                clustering_confidence = 0.85  # Higher confidence with more concepts
+
+            loop.run_until_complete(feedback_service.record_ai_decision(
+                decision_type="clustering",
+                username=user_id,
+                input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
+                output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
+                confidence_score=clustering_confidence,
+                knowledge_base_id=kb_id,
+                document_id=doc_id,
+                cluster_id=cluster_id,
+                model_name="heuristic"
+            ))
+            logger.debug(f"Recorded clustering decision for image doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
+        except Exception as e:
+            logger.warning(f"Failed to record clustering decision: {e}")
 
         # Save
         save_storage_to_db(documents, metadata, clusters, users)
