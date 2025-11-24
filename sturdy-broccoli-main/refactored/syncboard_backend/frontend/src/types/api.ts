@@ -317,8 +317,19 @@ export interface LearningPath {
   goal: string;
   total_documents: number;
   estimated_hours: number;
-  ordered_docs: { doc_id: number; title: string; time_estimate?: string; reason?: string }[];
-  skip_list: string[];
+  ordered_docs: {
+    doc_id: number;
+    title: string;
+    // Frontend field names
+    time_estimate?: string;
+    reason?: string;
+    // Backend field names
+    time_estimate_minutes?: number;
+    why_this_order?: string;
+    checkpoint?: string;
+    order?: number;
+  }[];
+  skip_list: string[] | number[];
   external_resources: string[];
 }
 

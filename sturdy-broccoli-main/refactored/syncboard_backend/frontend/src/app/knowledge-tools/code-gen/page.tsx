@@ -11,10 +11,12 @@ const PROJECT_TYPES = ['cli', 'api', 'library', 'script', 'web-app'];
 export default function CodeGenPage() {
   const [projectType, setProjectType] = useState('');
   const [language, setLanguage] = useState('');
+  // Backend returns files as array: [{filename, content, purpose}]
+  // We transform it to Record<string, string> for easier rendering
   const [result, setResult] = useState<{
     files?: Record<string, string>;
     concepts_used?: string[];
-    setup_instructions?: string;
+    setup_instructions?: string | string[];
   } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
@@ -23,8 +25,38 @@ export default function CodeGenPage() {
     setGenerating(true);
     try {
       const data = await api.generateCodeFromKB(projectType || undefined, language || undefined);
-      setResult(data);
-      if (data.files && Object.keys(data.files).length > 0) {
+
+      // Transform files array to Record<string, string> if needed
+      // Backend returns: [{filename, content, purpose}] or Record<string, string>
+      let transformedFiles: Record<string, string> | undefined;
+      if (data.files) {
+        if (Array.isArray(data.files)) {
+          // Transform array format to record format
+          transformedFiles = {};
+          for (const file of data.files as Array<{ filename: string; content: string; purpose?: string }>) {
+            if (file.filename && typeof file.content === 'string') {
+              transformedFiles[file.filename] = file.content;
+            }
+          }
+        } else {
+          // Already in record format
+          transformedFiles = data.files as Record<string, string>;
+        }
+      }
+
+      // Handle setup_instructions which could be string or array
+      const setupInstructions = Array.isArray(data.setup_instructions)
+        ? data.setup_instructions.join('\n')
+        : data.setup_instructions;
+
+      setResult({
+        ...data,
+        files: transformedFiles,
+        setup_instructions: setupInstructions,
+        concepts_used: data.concepts_demonstrated || data.concepts_used,
+      });
+
+      if (transformedFiles && Object.keys(transformedFiles).length > 0) {
         toast.success('Code generated successfully!');
       }
     } catch {
