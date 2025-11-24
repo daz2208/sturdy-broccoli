@@ -312,6 +312,12 @@ async def add_request_id(request: Request, call_next):
 
     return response
 
+
+# Usage tracking middleware (monitors API usage and costs)
+from backend.middleware.usage_tracking import usage_tracking_middleware
+app.middleware("http")(usage_tracking_middleware)
+logger.info("📊 Usage tracking middleware enabled")
+
 # =============================================================================
 # Mount Routers
 # =============================================================================

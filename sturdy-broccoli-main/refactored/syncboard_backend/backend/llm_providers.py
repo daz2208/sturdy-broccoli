@@ -168,6 +168,28 @@ class OpenAIProvider(LLMProvider):
 
         response = await self.client.chat.completions.create(**params)
         content = response.choices[0].message.content
+
+        # Track usage and costs
+        if hasattr(response, 'usage') and response.usage:
+            prompt_tokens = response.usage.prompt_tokens
+            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens
+
+            # Calculate cost (USD per 1K tokens)
+            PRICING = {
+                "gpt-4o": (0.00250, 0.01000),
+                "gpt-4o-mini": (0.00015, 0.00060),
+                "gpt-4o-mini-transcribe": (0.00015, 0.00060),
+                "gpt-4-turbo": (0.01000, 0.03000),
+                "gpt-3.5-turbo": (0.00050, 0.00150),
+            }
+            input_price, output_price = PRICING.get(model, PRICING["gpt-4o-mini"])
+            cost_usd = (prompt_tokens / 1000 * input_price) + (completion_tokens / 1000 * output_price)
+
+            logger.info(
+                f"📊 OpenAI usage: model={model}, tokens={prompt_tokens}+{completion_tokens}={total_tokens}, cost=${cost_usd:.6f}"
+            )
+
         logger.info(f"API response - finish_reason: {response.choices[0].finish_reason}, content length: {len(content) if content else 0}")
         return content or ""  # Return empty string if None
 

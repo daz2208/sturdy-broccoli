@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type } from 'lucide-react';
+import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import type { Document } from '@/types/api';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -17,9 +18,31 @@ export default function DocumentsPage() {
   const [urlInput, setUrlInput] = useState('');
   const [filter, setFilter] = useState({ source_type: '', skill_level: '' });
 
+  // WebSocket for real-time document updates
+  const { isConnected, on } = useWebSocket();
+
   useEffect(() => {
     loadDocuments();
-  }, []);
+
+    // Listen for real-time document events
+    const unsubCreated = on('document_created', () => {
+      loadDocuments(); // Refresh list when new document created
+    });
+
+    const unsubDeleted = on('document_deleted', () => {
+      loadDocuments(); // Refresh list when document deleted
+    });
+
+    const unsubUpdated = on('document_updated', () => {
+      loadDocuments(); // Refresh list when document updated
+    });
+
+    return () => {
+      unsubCreated();
+      unsubDeleted();
+      unsubUpdated();
+    };
+  }, [on]);
 
   const loadDocuments = async () => {
     try {
@@ -187,7 +210,15 @@ export default function DocumentsPage() {
     <div className="space-y-6 animate-fadeIn">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">Documents</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-100">Documents</h1>
+            {isConnected && (
+              <span className="flex items-center gap-1 text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                <Wifi className="w-3 h-3" />
+                Live
+              </span>
+            )}
+          </div>
           <p className="text-gray-500">{documents.length} documents in your knowledge base</p>
         </div>
         <button
