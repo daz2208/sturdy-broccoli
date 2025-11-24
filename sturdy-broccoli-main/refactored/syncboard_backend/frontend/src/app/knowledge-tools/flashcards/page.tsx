@@ -15,6 +15,7 @@ export default function FlashcardsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [numCards, setNumCards] = useState(10);
+  const [difficulty, setDifficulty] = useState<'easy' | 'balanced' | 'hard'>('balanced');
 
   useEffect(() => { loadDocuments(); }, []);
 
@@ -36,13 +37,26 @@ export default function FlashcardsPage() {
     }
     setGenerating(true);
     try {
-      const result = await api.generateFlashcards(selectedDoc, numCards);
-      setFlashcards(result.flashcards);
+      const result = await api.generateFlashcards(selectedDoc, numCards, difficulty);
+      setFlashcards(result.flashcards || []);
       setCurrentIndex(0);
       setShowAnswer(false);
-      toast.success(`Generated ${result.cards_generated} flashcards`);
-    } catch {
-      toast.error('Failed to generate flashcards');
+
+      if (result.cards_generated > 0) {
+        toast.success(`Generated ${result.cards_generated} flashcards`);
+      } else {
+        toast.error('No flashcards generated. The document may not have enough content.');
+      }
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      if (errorMsg.includes('429') || errorMsg.includes('rate')) {
+        toast.error('Rate limited. Please wait a minute before trying again.');
+      } else if (errorMsg.includes('404')) {
+        toast.error('Document not found or not accessible.');
+      } else {
+        toast.error('Failed to generate flashcards');
+      }
+      console.error('Flashcard generation error:', err);
     } finally {
       setGenerating(false);
     }
@@ -81,7 +95,7 @@ export default function FlashcardsPage() {
 
       {/* Controls */}
       <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Select Document</label>
             <select
@@ -96,15 +110,27 @@ export default function FlashcardsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Number of Cards</label>
+            <label className="block text-sm text-gray-400 mb-2">Number of Cards (max 30)</label>
             <input
               type="number"
               value={numCards}
-              onChange={(e) => setNumCards(Number(e.target.value))}
+              onChange={(e) => setNumCards(Math.min(30, Math.max(1, Number(e.target.value))))}
               min={1}
-              max={50}
+              max={30}
               className="input w-full"
             />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Difficulty Mix</label>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value as 'easy' | 'balanced' | 'hard')}
+              className="input w-full"
+            >
+              <option value="easy">Easy (beginner-friendly)</option>
+              <option value="balanced">Balanced (mixed)</option>
+              <option value="hard">Hard (challenging)</option>
+            </select>
           </div>
           <div className="flex items-end">
             <button
