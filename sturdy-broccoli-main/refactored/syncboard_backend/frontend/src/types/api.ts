@@ -24,10 +24,10 @@ export interface Document {
   source_type: string;
   ingested_at: string;
   chunking_status: string;
-  cluster_id: number;
+  cluster_id: number | null;
   primary_topic?: string;
   skill_level?: string;
-  knowledge_base_id?: number;
+  knowledge_base_id?: string;  // UUID string from backend
 }
 
 export interface DocumentMetadata {
