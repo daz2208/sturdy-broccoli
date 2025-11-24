@@ -69,6 +69,7 @@ from ..tasks import process_file_upload, process_url_upload, process_image_uploa
 from ..chunking_pipeline import chunk_document_on_upload
 from ..db_models import DBDocument
 from celery import group  # For parallel batch processing
+from ..websocket_manager import broadcast_document_created
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -295,6 +296,18 @@ async def upload_text_content(
         invalidate_analytics(current_user.username)
         invalidate_build_suggestions(current_user.username)
         invalidate_search(current_user.username)
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_document_created(
+                knowledge_base_id=int(kb_id),
+                doc_id=doc_id,
+                title=f"Text Document #{doc_id}",
+                source_type="text",
+                created_by=current_user.username
+            )
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
         return {
             "document_id": doc_id,

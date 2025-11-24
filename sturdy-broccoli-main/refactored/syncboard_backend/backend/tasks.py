@@ -43,6 +43,8 @@ from .redis_client import notify_data_changed
 from .chunking_pipeline import chunk_document_on_upload
 from .db_models import DBDocument
 from .database import get_db_context
+from .websocket_manager import broadcast_document_created, broadcast_cluster_created
+import asyncio
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -174,6 +176,17 @@ def find_or_create_cluster_sync(
 
     # Set knowledge_base_id on the cluster
     kb_clusters[cluster_id].knowledge_base_id = kb_id
+
+    # Broadcast WebSocket event for real-time updates (new cluster created)
+    try:
+        asyncio.run(broadcast_cluster_created(
+            knowledge_base_id=int(kb_id),
+            cluster_id=cluster_id,
+            cluster_name=kb_clusters[cluster_id].name,
+            document_count=len(kb_clusters[cluster_id].doc_ids)
+        ))
+    except Exception as ws_err:
+        logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
     return cluster_id
 
@@ -678,6 +691,18 @@ def process_file_upload(
             f"summaries: {summarization_result.get('status', 'skipped')})"
         )
 
+        # Broadcast WebSocket event for real-time updates
+        try:
+            asyncio.run(broadcast_document_created(
+                knowledge_base_id=int(kb_id),
+                doc_id=doc_id,
+                title=filename_safe,
+                source_type="file",
+                created_by=user_id
+            ))
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
         # Return success result
         return {
             "doc_id": doc_id,
@@ -971,6 +996,18 @@ def process_url_upload(
             f"(chunks: {chunk_result.get('chunks', 0)}, summaries: {summarization_result.get('status', 'skipped')})"
         )
 
+        # Broadcast WebSocket event for real-time updates
+        try:
+            asyncio.run(broadcast_document_created(
+                knowledge_base_id=int(kb_id),
+                doc_id=doc_id,
+                title=youtube_metadata.get('video_title', url_safe[:50]) if is_youtube else url_safe[:50],
+                source_type="url",
+                created_by=user_id
+            ))
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
         return {
             "doc_id": doc_id,
             "cluster_id": cluster_id,
@@ -1241,6 +1278,18 @@ def process_image_upload(
             f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} "
             f"(chunks: {chunk_result.get('chunks', 0)}, summaries: {summarization_result.get('status', 'skipped')})"
         )
+
+        # Broadcast WebSocket event for real-time updates
+        try:
+            asyncio.run(broadcast_document_created(
+                knowledge_base_id=int(kb_id) if kb_id != "default" else 0,
+                doc_id=doc_id,
+                title=filename_safe,
+                source_type="image",
+                created_by=user_id
+            ))
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
         return {
             "doc_id": doc_id,

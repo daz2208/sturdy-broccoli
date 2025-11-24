@@ -32,7 +32,9 @@ class EventType(str, Enum):
     DOCUMENT_DELETED = "document_deleted"
 
     # Cluster events
+    CLUSTER_CREATED = "cluster_created"
     CLUSTER_UPDATED = "cluster_updated"
+    CLUSTER_DELETED = "cluster_deleted"
     CLUSTERS_RECLUSTERED = "clusters_reclustered"
 
     # Job events
@@ -360,6 +362,26 @@ async def broadcast_document_deleted(
     )
 
 
+async def broadcast_cluster_created(
+    knowledge_base_id: int,
+    cluster_id: int,
+    cluster_name: str,
+    document_count: int
+):
+    """Broadcast cluster creation event."""
+    await manager.broadcast_to_kb(
+        knowledge_base_id,
+        WebSocketEvent(
+            event_type=EventType.CLUSTER_CREATED,
+            data={
+                "cluster_id": cluster_id,
+                "name": cluster_name,
+                "document_count": document_count
+            }
+        )
+    )
+
+
 async def broadcast_cluster_updated(
     knowledge_base_id: int,
     cluster_id: int,
@@ -376,6 +398,20 @@ async def broadcast_cluster_updated(
                 "name": cluster_name,
                 "document_count": document_count
             }
+        )
+    )
+
+
+async def broadcast_cluster_deleted(
+    knowledge_base_id: int,
+    cluster_id: int
+):
+    """Broadcast cluster deletion event."""
+    await manager.broadcast_to_kb(
+        knowledge_base_id,
+        WebSocketEvent(
+            event_type=EventType.CLUSTER_DELETED,
+            data={"cluster_id": cluster_id}
         )
     )
 

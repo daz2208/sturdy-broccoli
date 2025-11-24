@@ -35,6 +35,7 @@ from ..redis_client import (
     invalidate_build_suggestions,
     invalidate_search
 )
+from ..websocket_manager import broadcast_document_deleted, broadcast_document_updated
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -229,6 +230,17 @@ async def delete_document(
         f"[{request.state.request_id}] User {user.username} deleted document {doc_id} "
         f"from KB {kb_id} (cluster: {cluster_id}, source: {meta.source_type if meta else 'unknown'})"
     )
+
+    # Broadcast WebSocket event for real-time updates
+    try:
+        await broadcast_document_deleted(
+            knowledge_base_id=int(kb_id),
+            doc_id=doc_id,
+            deleted_by=user.username
+        )
+    except Exception as ws_err:
+        logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
     return {"message": f"Document {doc_id} deleted successfully"}
 
 # =============================================================================
@@ -312,6 +324,18 @@ async def update_document_metadata(
         save_storage_to_db(documents, metadata, clusters, users)
 
     logger.info(f"Updated metadata for document {doc_id} in KB {kb_id}")
+
+    # Broadcast WebSocket event for real-time updates
+    try:
+        await broadcast_document_updated(
+            knowledge_base_id=int(kb_id),
+            doc_id=doc_id,
+            updated_by=user.username,
+            changes=updates
+        )
+    except Exception as ws_err:
+        logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+
     return {"message": "Metadata updated", "metadata": meta.dict()}
 
 
