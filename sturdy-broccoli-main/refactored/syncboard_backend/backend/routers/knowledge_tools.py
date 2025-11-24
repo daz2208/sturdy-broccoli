@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from ..models import User
 from ..dependencies import get_current_user, get_user_default_kb_id
 from ..database import get_db
+from ..db_models import DBDocument
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,18 @@ async def generate_flashcards(
     Rate limited: 5/minute
     """
     check_services()
+
+    # Verify document exists and belongs to user
+    doc = db.query(DBDocument).filter(
+        DBDocument.doc_id == doc_id,
+        DBDocument.owner_username == current_user.username
+    ).first()
+
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found or you don't have permission to access it"
+        )
 
     services = get_knowledge_services(db)
 
