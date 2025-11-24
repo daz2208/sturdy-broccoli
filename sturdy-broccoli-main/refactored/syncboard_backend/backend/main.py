@@ -51,6 +51,8 @@ from .routers import (
     usage,
     # Multi-industry content generation
     content_generation,
+    # Agentic learning system
+    feedback,
 )
 
 # Import dependencies and shared state
@@ -393,6 +395,9 @@ app.include_router(usage.router)
 
 # Multi-industry content generation
 app.include_router(content_generation.router)
+
+# Agentic learning system
+app.include_router(feedback.router)
 
 # =============================================================================
 # Health Check Endpoint
