@@ -109,12 +109,13 @@ class ConceptExtractor:
         Returns:
             {
                 "concepts": [
-                    {"name": "Docker", "relevance": 0.95},
-                    {"name": "Python", "relevance": 0.88}
+                    {"name": "Docker", "relevance": 0.95, "confidence": 0.92},
+                    {"name": "Python", "relevance": 0.88, "confidence": 0.85}
                 ],
                 "skill_level": "intermediate",
                 "primary_topic": "containerization",
-                "suggested_cluster": "Docker & Deployment"
+                "suggested_cluster": "Docker & Deployment",
+                "confidence_score": 0.88  # Overall confidence in this extraction
             }
         """
         # Check cache first (if enabled)
@@ -126,9 +127,20 @@ class ConceptExtractor:
             )
 
             if cached_result:
+                # Ensure cached results have confidence_score (for backwards compatibility)
+                if 'confidence_score' not in cached_result:
+                    # Calculate from cached concepts
+                    concepts = cached_result.get('concepts', [])
+                    if concepts:
+                        avg_conf = sum(c.get('confidence', 0.8) for c in concepts) / len(concepts)
+                        cached_result['confidence_score'] = avg_conf
+                    else:
+                        cached_result['confidence_score'] = 0.5  # Neutral
+
                 logger.info(
                     f"Cache HIT: Concept extraction for {source_type} "
-                    f"({len(cached_result.get('concepts', []))} concepts)"
+                    f"({len(cached_result.get('concepts', []))} concepts, "
+                    f"confidence: {cached_result.get('confidence_score', 0):.2f})"
                 )
                 return cached_result
 
@@ -144,9 +156,40 @@ class ConceptExtractor:
             )
             filtered_count = len(result['concepts'])
 
+            # Calculate overall confidence score for agentic learning
+            # Based on: number of concepts, their confidence scores, and content quality signals
+            if result['concepts']:
+                # Average confidence of extracted concepts
+                avg_confidence = sum(c.get('confidence', 0.0) for c in result['concepts']) / len(result['concepts'])
+
+                # Adjust based on number of concepts (too few or too many reduces confidence)
+                concept_count_factor = 1.0
+                if filtered_count < 2:
+                    concept_count_factor = 0.85  # Suspiciously few concepts
+                elif filtered_count > 15:
+                    concept_count_factor = 0.90  # Potentially noisy
+
+                # Adjust based on content length
+                content_length_factor = 1.0
+                content_len = len(content)
+                if content_len < 200:
+                    content_length_factor = 0.80  # Very short content, less confidence
+                elif content_len > 50000:
+                    content_length_factor = 0.90  # Very long content, sampling may miss things
+
+                # Calculate overall confidence
+                result['confidence_score'] = avg_confidence * concept_count_factor * content_length_factor
+
+                # Ensure it stays in 0.0-1.0 range
+                result['confidence_score'] = max(0.0, min(1.0, result['confidence_score']))
+            else:
+                # No concepts extracted - low confidence
+                result['confidence_score'] = 0.3
+
             logger.info(
                 f"Cache MISS: Extracted {original_count} concepts from {source_type} "
-                f"(API call made, {filtered_count} passed confidence filter)"
+                f"(API call made, {filtered_count} passed confidence filter, "
+                f"overall confidence: {result.get('confidence_score', 0):.2f})"
             )
 
             # Store in cache for future use (after filtering)

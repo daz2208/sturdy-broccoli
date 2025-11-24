@@ -36,6 +36,7 @@ from ..redis_client import (
     invalidate_search
 )
 from ..websocket_manager import broadcast_document_deleted, broadcast_document_updated
+from ..feedback_service import feedback_service
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -305,6 +306,20 @@ async def update_document_metadata(
         if 'cluster_id' in updates:
             new_cluster_id = updates['cluster_id']
             old_cluster_id = meta.cluster_id
+
+            # Record feedback for cluster move (agentic learning)
+            if old_cluster_id != new_cluster_id:
+                try:
+                    await feedback_service.record_cluster_move(
+                        username=user.username,
+                        document_id=doc_id,
+                        from_cluster_id=old_cluster_id,
+                        to_cluster_id=new_cluster_id,
+                        knowledge_base_id=kb_id
+                    )
+                    logger.info(f"Recorded cluster move feedback: doc {doc_id}, {old_cluster_id} → {new_cluster_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to record cluster move feedback: {e}")
 
             # Remove from old cluster
             if old_cluster_id is not None and old_cluster_id in kb_clusters:
