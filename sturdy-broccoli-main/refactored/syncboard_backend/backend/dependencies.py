@@ -10,6 +10,7 @@ Provides:
 
 import os
 import asyncio
+import logging
 from typing import Dict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -24,6 +25,9 @@ from .semantic_dictionary import SemanticDictionaryManager
 from .llm_providers import OpenAIProvider
 from .auth import decode_access_token
 from .constants import DEFAULT_VECTOR_DIM
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # OAuth2 Scheme

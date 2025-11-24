@@ -11,7 +11,7 @@ from datetime import datetime
 
 # revision identifiers, used by Alembic.
 revision = 'teams_usage_001'
-down_revision = ('rag_001', 'phase10_001')  # Merge both heads
+down_revision = ('rag_001', 'phase10_001')
 branch_labels = None
 depends_on = None
 
@@ -76,7 +76,7 @@ def upgrade() -> None:
         'team_knowledge_bases',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('knowledge_base_id', sa.Integer(), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('knowledge_base_id', sa.String(36), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=False),
         sa.Column('permission', sa.String(20), default='read', nullable=False),
         sa.Column('shared_by', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
         sa.Column('shared_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
@@ -102,7 +102,7 @@ def upgrade() -> None:
         'activity_logs',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=True),
-        sa.Column('knowledge_base_id', sa.Integer(), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=True),
+        sa.Column('knowledge_base_id', sa.String(36), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=True),
         sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
         sa.Column('action', sa.String(50), nullable=False),
         sa.Column('resource_type', sa.String(50), nullable=False),

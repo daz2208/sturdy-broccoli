@@ -12,8 +12,12 @@ export default function ClustersPage() {
   useEffect(() => { loadClusters(); }, []);
 
   const loadClusters = async () => {
-    try { const data = await api.getClusters(); setClusters(data.clusters); }
-    catch { toast.error('Failed to load clusters'); }
+    try {
+      const data = await api.getClusters();
+      const list = Array.isArray(data?.clusters) ? data.clusters : Array.isArray(data) ? data : [];
+      setClusters(list);
+    }
+    catch { setClusters([]); toast.error('Failed to load clusters'); }
     finally { setLoading(false); }
   };
 
@@ -36,25 +40,34 @@ export default function ClustersPage() {
     <div className="space-y-6 animate-fadeIn">
       <div><h1 className="text-2xl font-bold text-gray-100">Clusters</h1><p className="text-gray-500">{clusters.length} topic clusters</p></div>
       <div className="grid gap-4">
-        {clusters.map(cluster => (
-          <div key={cluster.id} className="bg-dark-100 rounded-xl border border-dark-300 p-6 border-l-4 border-l-primary">
-            <div className="flex justify-between items-start">
-              <div className="flex items-start gap-4">
-                <FolderOpen className="w-6 h-6 text-primary mt-1" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-200">{cluster.name}</h3>
-                  <p className="text-sm text-gray-500">{cluster.doc_ids.length} documents</p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {(cluster.primary_concepts || []).slice(0, 5).map((c, i) => <span key={i} className="badge badge-primary">{c}</span>)}
+        {clusters.map(cluster => {
+          const concepts = Array.isArray(cluster.concepts)
+            ? cluster.concepts
+            : Array.isArray((cluster as any).primary_concepts)
+            ? (cluster as any).primary_concepts
+            : [];
+          const docCount = Array.isArray(cluster.doc_ids) ? cluster.doc_ids.length : 0;
+
+          return (
+            <div key={cluster.id} className="bg-dark-100 rounded-xl border border-dark-300 p-6 border-l-4 border-l-primary">
+              <div className="flex justify-between items-start">
+                <div className="flex items-start gap-4">
+                  <FolderOpen className="w-6 h-6 text-primary mt-1" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-200">{cluster.name}</h3>
+                    <p className="text-sm text-gray-500">{docCount} documents</p>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {concepts.slice(0, 5).map((c: string, i: number) => <span key={i} className="badge badge-primary">{c}</span>)}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => exportCluster(cluster.id, 'json')} className="btn btn-secondary text-sm"><Download className="w-4 h-4" /></button>
+                <div className="flex gap-2">
+                  <button onClick={() => exportCluster(cluster.id, 'json')} className="btn btn-secondary text-sm"><Download className="w-4 h-4" /></button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -856,10 +856,15 @@ Return JSON:
         history_text = ""
         if history:
             recent_history = history[-max_history:]
-            history_text = "\n".join([
-                f"User: {h['user']}\nAssistant: {h['assistant']}"
-                for h in recent_history
-            ])
+            cleaned_history = []
+            for h in recent_history:
+                user_turn = h.get("user") if isinstance(h, dict) else None
+                assistant_turn = h.get("assistant") if isinstance(h, dict) else None
+                if user_turn or assistant_turn:
+                    cleaned_history.append(
+                        f"User: {user_turn or ''}\nAssistant: {assistant_turn or ''}".strip()
+                    )
+            history_text = "\n".join(cleaned_history)
 
         system_message = """You are a knowledgeable tutor helping users understand their knowledge base.
 

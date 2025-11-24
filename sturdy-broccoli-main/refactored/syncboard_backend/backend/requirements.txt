@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 pydantic
+email-validator
 numpy
 scikit-learn
 requests
