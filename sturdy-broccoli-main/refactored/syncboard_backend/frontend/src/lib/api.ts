@@ -15,6 +15,7 @@ class ApiClient {
     this.client = axios.create({
       baseURL: API_BASE,
       headers: { 'Content-Type': 'application/json' },
+      withCredentials: true,
     });
 
     // Add auth token to requests
