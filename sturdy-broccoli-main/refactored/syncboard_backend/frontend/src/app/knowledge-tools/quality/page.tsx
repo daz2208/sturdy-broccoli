@@ -58,19 +58,24 @@ export default function QualityPage() {
     }
   };
 
+  // Backend returns scores as 1-10, normalize to 0-1 for percentage display
+  const normalizeScore = (score: number) => score / 10;
+
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return 'text-green-400';
-    if (score >= 0.6) return 'text-yellow-400';
-    if (score >= 0.4) return 'text-orange-400';
+    const normalized = normalizeScore(score);
+    if (normalized >= 0.8) return 'text-green-400';
+    if (normalized >= 0.6) return 'text-yellow-400';
+    if (normalized >= 0.4) return 'text-orange-400';
     return 'text-red-400';
   };
 
   const getScoreBar = (score: number) => {
-    const percentage = score * 100;
+    const percentage = normalizeScore(score) * 100;
+    const normalized = normalizeScore(score);
     let bgColor = 'bg-red-400';
-    if (score >= 0.8) bgColor = 'bg-green-400';
-    else if (score >= 0.6) bgColor = 'bg-yellow-400';
-    else if (score >= 0.4) bgColor = 'bg-orange-400';
+    if (normalized >= 0.8) bgColor = 'bg-green-400';
+    else if (normalized >= 0.6) bgColor = 'bg-yellow-400';
+    else if (normalized >= 0.4) bgColor = 'bg-orange-400';
 
     return (
       <div className="w-full h-2 bg-dark-300 rounded-full overflow-hidden">
@@ -130,7 +135,7 @@ export default function QualityPage() {
           <div className="bg-dark-100 rounded-xl border border-dark-300 p-6 text-center">
             <p className="text-gray-500 mb-2">Overall Quality Score</p>
             <p className={`text-5xl font-bold ${getScoreColor(result.scores.overall)}`}>
-              {Math.round(result.scores.overall * 100)}%
+              {Math.round(normalizeScore(result.scores.overall) * 100)}%
             </p>
           </div>
 
@@ -147,7 +152,7 @@ export default function QualityPage() {
                 <div key={label}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-400">{label}</span>
-                    <span className={getScoreColor(value)}>{Math.round(value * 100)}%</span>
+                    <span className={getScoreColor(value)}>{Math.round(normalizeScore(value) * 100)}%</span>
                   </div>
                   {getScoreBar(value)}
                 </div>
