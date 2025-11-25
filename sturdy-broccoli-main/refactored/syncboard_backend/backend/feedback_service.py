@@ -20,6 +20,18 @@ from .database import get_db_context
 
 logger = logging.getLogger(__name__)
 
+# Import vector store for semantic similarity search
+# This is lazy-imported to avoid circular dependencies
+_vector_store = None
+
+def _get_vector_store():
+    """Lazy-load vector store to avoid circular imports."""
+    global _vector_store
+    if _vector_store is None:
+        from .dependencies import get_vector_store
+        _vector_store = get_vector_store()
+    return _vector_store
+
 
 class FeedbackService:
     """Service for managing AI feedback and learning loops."""
@@ -491,6 +503,135 @@ class FeedbackService:
             return corrections
 
     @staticmethod
+    async def get_similar_document_corrections(
+        username: str,
+        content_sample: str,
+        decision_type: str = "concept_extraction",
+        limit: int = 5,
+        similarity_threshold: float = 0.3,
+        days: int = 180
+    ) -> List[Dict[str, Any]]:
+        """
+        Find corrections from documents semantically similar to the given content.
+
+        THIS METHOD CLOSES THE SEMANTIC LEARNING LOOP.
+        Instead of just using recent corrections (by time), this finds corrections
+        from documents with SIMILAR CONTENT, making the learning more contextually relevant.
+
+        For example: corrections made on Docker documentation will apply more
+        strongly when processing new Docker-related content.
+
+        Args:
+            username: User whose corrections to search
+            content_sample: Sample of content being processed (for similarity matching)
+            decision_type: Type of AI decision
+            limit: Max corrections to return
+            similarity_threshold: Minimum similarity score (0.0-1.0) for relevance
+            days: How far back to look for corrections
+
+        Returns:
+            List of correction dictionaries with similarity scores, sorted by relevance
+        """
+        if not content_sample or len(content_sample.strip()) < 20:
+            logger.debug("Content sample too short for semantic similarity search")
+            return []
+
+        try:
+            vector_store = _get_vector_store()
+        except Exception as e:
+            logger.warning(f"Vector store not available for semantic search: {e}")
+            return []
+
+        # Search for similar documents using the vector store
+        similar_docs = vector_store.search(
+            query=content_sample[:2000],  # Limit query length for efficiency
+            top_k=20  # Get more candidates, will filter by corrections
+        )
+
+        if not similar_docs:
+            logger.debug("No similar documents found in vector store")
+            return []
+
+        # Extract document IDs that have high enough similarity
+        similar_doc_ids = [
+            doc_id for doc_id, score, _ in similar_docs
+            if score >= similarity_threshold
+        ]
+
+        if not similar_doc_ids:
+            logger.debug(f"No documents above similarity threshold {similarity_threshold}")
+            return []
+
+        logger.debug(f"Found {len(similar_doc_ids)} similar documents above threshold")
+
+        # Query corrections for these similar documents
+        with get_db_context() as db:
+            since = datetime.utcnow() - timedelta(days=days)
+
+            # Get feedback records associated with similar documents
+            feedbacks = db.query(DBUserFeedback).join(
+                DBAIDecision,
+                DBUserFeedback.ai_decision_id == DBAIDecision.id,
+                isouter=True
+            ).filter(
+                DBUserFeedback.username == username,
+                DBUserFeedback.created_at >= since,
+                DBUserFeedback.feedback_type.in_(["concept_edit", "explicit_validation"]),
+                DBUserFeedback.document_id.in_(similar_doc_ids),
+                # Only get corrections, not acceptances
+                or_(
+                    DBUserFeedback.feedback_type == "concept_edit",
+                    and_(
+                        DBUserFeedback.feedback_type == "explicit_validation",
+                        DBUserFeedback.new_value.op('->>')('accepted') == 'false'
+                    )
+                )
+            ).all()
+
+            if not feedbacks:
+                logger.debug("No corrections found for similar documents")
+                return []
+
+            # Build corrections list with similarity scores
+            corrections = []
+            similarity_map = {doc_id: score for doc_id, score, _ in similar_docs}
+
+            for feedback in feedbacks:
+                similarity_score = similarity_map.get(feedback.document_id, 0.0)
+
+                correction = {
+                    "original_value": feedback.original_value,
+                    "new_value": feedback.new_value,
+                    "user_reasoning": feedback.user_reasoning,
+                    "context": feedback.context or {},
+                    "feedback_type": feedback.feedback_type,
+                    "document_id": feedback.document_id,
+                    "similarity_score": similarity_score,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                    "source": "semantic_similarity"  # Mark the source for debugging
+                }
+
+                # Get confidence from linked decision if available
+                if feedback.ai_decision_id:
+                    decision = db.query(DBAIDecision).filter_by(id=feedback.ai_decision_id).first()
+                    if decision:
+                        correction["confidence_at_decision"] = decision.confidence_score
+                        correction["decision_type"] = decision.decision_type
+
+                corrections.append(correction)
+
+            # Sort by similarity score (most similar documents first)
+            corrections.sort(key=lambda x: x["similarity_score"], reverse=True)
+            corrections = corrections[:limit]
+
+            logger.info(
+                f"Retrieved {len(corrections)} corrections from similar documents for {username} "
+                f"(similarity threshold={similarity_threshold}, decision_type={decision_type})"
+            )
+
+            return corrections
+
+    @staticmethod
     async def get_concept_correction_patterns(
         username: str,
         days: int = 90
@@ -710,6 +851,9 @@ class FeedbackService:
         THIS IS THE MAIN ENTRY POINT FOR THE LEARNING LOOP.
         Call this before extraction to get all relevant learning context.
 
+        Now includes SEMANTIC SIMILARITY SEARCH - corrections from documents
+        with similar content are prioritized over just recent corrections.
+
         Args:
             username: User making the extraction
             content_sample: Sample of content being extracted (for similarity matching)
@@ -718,18 +862,33 @@ class FeedbackService:
 
         Returns:
             Complete learning context including:
-            - recent_corrections: Few-shot examples from past mistakes
+            - recent_corrections: Few-shot examples from past mistakes (by time)
+            - similar_corrections: Few-shot examples from similar documents (by content)
             - user_preferences: Learned user preferences
             - confidence_calibration: How to adjust confidence based on history
             - prompt_additions: Ready-to-use prompt text
         """
-        # Gather all learning context in parallel-ish fashion
-        corrections = await FeedbackService.get_recent_corrections(
+        # Gather all learning context
+        # 1. Recent corrections (by time) - fallback when no similar content exists
+        recent_corrections = await FeedbackService.get_recent_corrections(
             username=username,
             decision_type=decision_type,
             limit=max_corrections
         )
 
+        # 2. Similar document corrections (by content) - PRIORITIZED
+        # These are more relevant because they come from similar documents
+        similar_corrections = []
+        if content_sample and len(content_sample.strip()) >= 20:
+            similar_corrections = await FeedbackService.get_similar_document_corrections(
+                username=username,
+                content_sample=content_sample,
+                decision_type=decision_type,
+                limit=max_corrections,
+                similarity_threshold=0.3
+            )
+
+        # 3. User preference patterns
         patterns = await FeedbackService.get_concept_correction_patterns(
             username=username
         )
@@ -754,15 +913,42 @@ class FeedbackService:
             decision_type=decision_type
         )
 
+        # Combine corrections: prioritize similar docs, then fall back to recent
+        # Deduplicate by document_id to avoid showing same correction twice
+        combined_corrections = []
+        seen_doc_ids = set()
+
+        # First add similar corrections (higher priority)
+        for correction in similar_corrections:
+            doc_id = correction.get("document_id")
+            if doc_id and doc_id not in seen_doc_ids:
+                seen_doc_ids.add(doc_id)
+                combined_corrections.append(correction)
+
+        # Then add recent corrections (fill remaining slots)
+        for correction in recent_corrections:
+            doc_id = correction.get("document_id")
+            if doc_id not in seen_doc_ids:
+                seen_doc_ids.add(doc_id)
+                # Mark as recent (no similarity score)
+                correction["source"] = "recent"
+                combined_corrections.append(correction)
+
+        # Limit to max_corrections
+        combined_corrections = combined_corrections[:max_corrections]
+
         # Build prompt additions from learning context
         prompt_additions = FeedbackService._build_prompt_additions(
-            corrections=corrections,
-            patterns=patterns
+            corrections=combined_corrections,
+            patterns=patterns,
+            has_similar=len(similar_corrections) > 0
         )
 
         context = {
-            "has_learning_data": len(corrections) > 0 or patterns.get("has_feedback", False),
-            "recent_corrections": corrections,
+            "has_learning_data": len(combined_corrections) > 0 or patterns.get("has_feedback", False),
+            "recent_corrections": recent_corrections,
+            "similar_corrections": similar_corrections,
+            "combined_corrections": combined_corrections,
             "user_preferences": patterns,
             "confidence_calibration": {
                 "low": calibration_low,
@@ -774,7 +960,8 @@ class FeedbackService:
 
         logger.info(
             f"Built learning context for {username}: "
-            f"{len(corrections)} corrections, has_patterns={patterns.get('has_feedback', False)}"
+            f"{len(recent_corrections)} recent, {len(similar_corrections)} similar corrections, "
+            f"has_patterns={patterns.get('has_feedback', False)}"
         )
 
         return context
@@ -782,12 +969,20 @@ class FeedbackService:
     @staticmethod
     def _build_prompt_additions(
         corrections: List[Dict[str, Any]],
-        patterns: Dict[str, Any]
+        patterns: Dict[str, Any],
+        has_similar: bool = False
     ) -> str:
         """
         Build prompt text from learning context.
 
         This text gets injected into extraction prompts to apply past learning.
+        Now includes semantic similarity awareness - corrections from similar
+        documents are marked as HIGHLY RELEVANT.
+
+        Args:
+            corrections: List of correction dictionaries
+            patterns: User preference patterns
+            has_similar: Whether any corrections are from semantically similar documents
         """
         additions = []
 
@@ -821,11 +1016,25 @@ class FeedbackService:
 
         # Add few-shot examples from corrections
         if corrections:
-            additions.append("\n--- LEARN FROM PAST CORRECTIONS ---")
+            if has_similar:
+                additions.append(
+                    "\n--- LEARN FROM CORRECTIONS ON SIMILAR DOCUMENTS ---"
+                )
+                additions.append(
+                    "These corrections are from documents with SIMILAR CONTENT to what you're analyzing."
+                )
+                additions.append(
+                    "PAY CLOSE ATTENTION - these are highly relevant to the current task."
+                )
+            else:
+                additions.append("\n--- LEARN FROM PAST CORRECTIONS ---")
+
             for i, correction in enumerate(corrections[:3], 1):
                 original = correction.get("original_value", {})
                 new = correction.get("new_value", {})
                 reasoning = correction.get("user_reasoning", "")
+                source = correction.get("source", "unknown")
+                similarity_score = correction.get("similarity_score")
 
                 if "concepts" in original and "concepts" in new:
                     orig_concepts = original.get("concepts", [])
@@ -842,7 +1051,14 @@ class FeedbackService:
                     else:
                         new_names = new_concepts
 
-                    additions.append(f"Example {i}:")
+                    # Mark similar document corrections as more important
+                    if source == "semantic_similarity" and similarity_score:
+                        additions.append(
+                            f"Example {i} [HIGHLY RELEVANT - {similarity_score:.0%} similar document]:"
+                        )
+                    else:
+                        additions.append(f"Example {i}:")
+
                     additions.append(f"  AI extracted: {', '.join(orig_names[:5])}")
                     additions.append(f"  User corrected to: {', '.join(new_names[:5])}")
                     if reasoning:
