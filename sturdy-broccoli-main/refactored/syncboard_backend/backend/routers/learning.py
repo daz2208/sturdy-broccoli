@@ -20,6 +20,7 @@ from ..models import User
 from ..dependencies import get_current_user
 from ..database import get_db
 from ..learning_engine import learning_engine, LearningEngine
+from ..learning_agent import get_agent_status, agent
 from ..db_models import DBLearnedRule, DBConceptVocabulary
 
 logger = logging.getLogger(__name__)
@@ -391,4 +392,131 @@ async def get_learning_profile(
     return {
         "has_profile": True,
         **profile
+    }
+
+
+# =============================================================================
+# Autonomous Agent Dashboard
+# =============================================================================
+
+@router.get("/agent/status")
+@limiter.limit("30/minute")
+async def get_autonomous_agent_status(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the autonomous learning agent's status and metrics.
+
+    The agent runs AUTONOMOUSLY without human triggers:
+    - Observes outcomes every 5 minutes
+    - Makes decisions every 10 minutes
+    - Self-evaluates every hour
+    - Runs experiments every 6 hours
+
+    Returns:
+        Agent status including:
+        - Current mode (observing, acting, evaluating, experimenting)
+        - Strategy (conservative, balanced, aggressive)
+        - Total observations and actions taken
+        - Accuracy trend (improving, stable, declining)
+        - Recent autonomous decisions
+    """
+    status = get_agent_status()
+
+    return {
+        "is_autonomous": True,
+        "requires_human_trigger": False,
+        **status
+    }
+
+
+@router.post("/agent/trigger/{task_name}")
+@limiter.limit("5/minute")
+async def manually_trigger_agent_task(
+    task_name: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually trigger an autonomous agent task (for testing/debugging).
+
+    Available tasks:
+    - observe_outcomes: Watch what happens to extractions
+    - make_autonomous_decisions: Create rules based on observations
+    - self_evaluate: Measure accuracy and adjust strategy
+    - run_experiments: A/B test different approaches
+
+    Note: These tasks run automatically on schedule. This endpoint
+    is for manual triggering only.
+    """
+    from ..learning_agent import (
+        observe_outcomes,
+        make_autonomous_decisions,
+        self_evaluate,
+        run_experiments
+    )
+
+    task_map = {
+        "observe_outcomes": observe_outcomes,
+        "make_autonomous_decisions": make_autonomous_decisions,
+        "self_evaluate": self_evaluate,
+        "run_experiments": run_experiments
+    }
+
+    if task_name not in task_map:
+        raise HTTPException(
+            400,
+            f"Unknown task: {task_name}. Available: {list(task_map.keys())}"
+        )
+
+    # Trigger the task asynchronously
+    task = task_map[task_name].delay()
+
+    logger.info(f"User {current_user.username} manually triggered {task_name}")
+
+    return {
+        "message": f"Task {task_name} triggered",
+        "task_id": task.id,
+        "note": "This task runs automatically. Manual trigger is for testing only."
+    }
+
+
+@router.get("/agent/decisions")
+@limiter.limit("30/minute")
+async def get_agent_decisions(
+    request: Request,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get recent autonomous decisions made by the agent for this user.
+
+    Returns rules that were created autonomously (without explicit feedback).
+    """
+    # Get rules created autonomously (source_feedback_ids is empty)
+    autonomous_rules = db.query(DBLearnedRule).filter(
+        DBLearnedRule.username == current_user.username,
+        DBLearnedRule.source_feedback_ids == []
+    ).order_by(DBLearnedRule.created_at.desc()).limit(limit).all()
+
+    return {
+        "count": len(autonomous_rules),
+        "autonomous_decisions": [
+            {
+                "id": r.id,
+                "type": r.rule_type,
+                "condition": r.condition,
+                "action": r.action,
+                "confidence": r.confidence,
+                "times_applied": r.times_applied,
+                "times_overridden": r.times_overridden,
+                "active": r.active,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "accuracy": 1 - (r.times_overridden / (r.times_applied + r.times_overridden))
+                    if (r.times_applied + r.times_overridden) > 0 else None
+            }
+            for r in autonomous_rules
+        ]
     }
