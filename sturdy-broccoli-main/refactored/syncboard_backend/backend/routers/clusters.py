@@ -254,13 +254,11 @@ async def delete_cluster(
                         db.delete(db_vdoc)
                         logger.info(f"Deleted vector document {doc_id} from DATABASE")
 
-                    # Now remove from in-memory storage
-                    if doc_id in documents:
-                        del documents[doc_id]
+                    # Now remove from in-memory storage (KB-scoped dicts)
+                    # Note: kb_documents and kb_metadata are references to documents[kb_id] and metadata[kb_id]
+                    # so we only need to delete from kb_documents/kb_metadata
                     if doc_id in kb_documents:
                         del kb_documents[doc_id]
-                    if doc_id in metadata:
-                        del metadata[doc_id]
                     if doc_id in kb_metadata:
                         del kb_metadata[doc_id]
 

@@ -74,6 +74,7 @@ async def list_documents(
     kb_metadata = get_kb_metadata(kb_id)
 
     # Filter documents by user ownership with null coalescing for all optional fields
+    # BUG FIX: Handle case where meta.owner might be None
     user_docs = [
         {
             "id": doc_id,
@@ -84,11 +85,17 @@ async def list_documents(
             "cluster_id": meta.cluster_id,
             "primary_topic": getattr(meta, 'primary_topic', None) or "Uncategorized",
             "skill_level": getattr(meta, 'skill_level', None) or "unknown",
-            "filename": getattr(meta, 'filename', None)
+            "filename": getattr(meta, 'filename', None),
+            "owner": meta.owner  # Include owner for debugging
         }
         for doc_id, meta in kb_metadata.items()
-        if meta.owner == user.username
+        if meta.owner == user.username or meta.owner is None  # Show docs with no owner too
     ]
+
+    # Log for debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Documents query for {user.username} in KB {kb_id}: found {len(user_docs)} docs out of {len(kb_metadata)} total")
 
     return {
         "documents": user_docs,
