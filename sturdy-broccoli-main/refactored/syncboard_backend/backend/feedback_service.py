@@ -409,6 +409,450 @@ class FeedbackService:
             return decisions
 
     # =============================================================================
+    # LEARNING LOOP: Feedback Retrieval for Extraction
+    # These methods CLOSE THE LOOP by feeding past corrections back into extraction
+    # =============================================================================
+
+    @staticmethod
+    async def get_recent_corrections(
+        username: str,
+        decision_type: str = "concept_extraction",
+        limit: int = 10,
+        days: int = 90
+    ) -> List[Dict[str, Any]]:
+        """
+        Get user's recent corrections for a specific decision type.
+
+        THIS IS THE KEY METHOD THAT CLOSES THE LEARNING LOOP.
+        These corrections become few-shot examples in future extraction prompts.
+
+        Args:
+            username: User whose corrections to fetch
+            decision_type: Type of AI decision (concept_extraction, clustering, etc.)
+            limit: Max corrections to return
+            days: How far back to look
+
+        Returns:
+            List of correction dictionaries with:
+            - original_value: What AI extracted
+            - new_value: What user corrected it to
+            - user_reasoning: Why user made the change
+            - context: Additional context (added/removed concepts)
+            - confidence_at_decision: How confident AI was when it made the mistake
+        """
+        with get_db_context() as db:
+            since = datetime.utcnow() - timedelta(days=days)
+
+            # Get feedback where user made actual corrections (not just acceptances)
+            # Join with ai_decisions to get the decision context
+            feedbacks = db.query(DBUserFeedback).join(
+                DBAIDecision,
+                DBUserFeedback.ai_decision_id == DBAIDecision.id,
+                isouter=True
+            ).filter(
+                DBUserFeedback.username == username,
+                DBUserFeedback.created_at >= since,
+                DBUserFeedback.feedback_type.in_(["concept_edit", "explicit_validation"]),
+                # Only get corrections, not acceptances
+                or_(
+                    DBUserFeedback.feedback_type == "concept_edit",
+                    and_(
+                        DBUserFeedback.feedback_type == "explicit_validation",
+                        DBUserFeedback.new_value.op('->>')('accepted') == 'false'
+                    )
+                )
+            ).order_by(DBUserFeedback.created_at.desc()).limit(limit).all()
+
+            corrections = []
+            for feedback in feedbacks:
+                correction = {
+                    "original_value": feedback.original_value,
+                    "new_value": feedback.new_value,
+                    "user_reasoning": feedback.user_reasoning,
+                    "context": feedback.context or {},
+                    "feedback_type": feedback.feedback_type,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None
+                }
+
+                # Get confidence from linked decision if available
+                if feedback.ai_decision_id:
+                    decision = db.query(DBAIDecision).filter_by(id=feedback.ai_decision_id).first()
+                    if decision:
+                        correction["confidence_at_decision"] = decision.confidence_score
+                        correction["decision_type"] = decision.decision_type
+
+                corrections.append(correction)
+
+            logger.info(
+                f"Retrieved {len(corrections)} corrections for {username} "
+                f"(type={decision_type}, last {days} days)"
+            )
+
+            return corrections
+
+    @staticmethod
+    async def get_concept_correction_patterns(
+        username: str,
+        days: int = 90
+    ) -> Dict[str, Any]:
+        """
+        Analyze patterns in concept corrections to learn user preferences.
+
+        Returns actionable insights like:
+        - Concepts user frequently removes (too vague/wrong)
+        - Concepts user frequently adds (AI keeps missing)
+        - Whether user prefers specific or generic terms
+        - Average number of concepts per document user prefers
+
+        Args:
+            username: User to analyze
+            days: How far back to look
+
+        Returns:
+            Dictionary with actionable preference patterns
+        """
+        with get_db_context() as db:
+            since = datetime.utcnow() - timedelta(days=days)
+
+            # Get concept edit feedback
+            feedbacks = db.query(DBUserFeedback).filter(
+                DBUserFeedback.username == username,
+                DBUserFeedback.created_at >= since,
+                DBUserFeedback.feedback_type == "concept_edit"
+            ).all()
+
+            if not feedbacks:
+                return {
+                    "has_feedback": False,
+                    "total_corrections": 0,
+                    "frequently_removed": [],
+                    "frequently_added": [],
+                    "prefers_specific_names": None,
+                    "avg_concepts_preferred": None,
+                    "removal_patterns": [],
+                    "addition_patterns": []
+                }
+
+            # Aggregate removed and added concepts
+            removed_concepts = {}
+            added_concepts = {}
+            original_counts = []
+            corrected_counts = []
+
+            for feedback in feedbacks:
+                context = feedback.context or {}
+
+                # Track removed concepts
+                for concept in context.get("removed", []):
+                    concept_lower = concept.lower()
+                    removed_concepts[concept_lower] = removed_concepts.get(concept_lower, 0) + 1
+
+                # Track added concepts
+                for concept in context.get("added", []):
+                    concept_lower = concept.lower()
+                    added_concepts[concept_lower] = added_concepts.get(concept_lower, 0) + 1
+
+                # Track concept counts
+                original = feedback.original_value or {}
+                new = feedback.new_value or {}
+                if "concepts" in original:
+                    original_counts.append(len(original["concepts"]))
+                if "concepts" in new:
+                    corrected_counts.append(len(new["concepts"]))
+
+            # Sort by frequency
+            frequently_removed = sorted(
+                removed_concepts.items(), key=lambda x: x[1], reverse=True
+            )[:10]
+            frequently_added = sorted(
+                added_concepts.items(), key=lambda x: x[1], reverse=True
+            )[:10]
+
+            # Determine if user prefers specific names
+            # Heuristic: if added concepts are longer on average than removed, user prefers specific
+            avg_removed_len = sum(len(c) for c, _ in frequently_removed) / len(frequently_removed) if frequently_removed else 0
+            avg_added_len = sum(len(c) for c, _ in frequently_added) / len(frequently_added) if frequently_added else 0
+            prefers_specific = avg_added_len > avg_removed_len + 2 if frequently_added and frequently_removed else None
+
+            # Calculate average preferred concept count
+            avg_preferred = sum(corrected_counts) / len(corrected_counts) if corrected_counts else None
+
+            patterns = {
+                "has_feedback": True,
+                "total_corrections": len(feedbacks),
+                "frequently_removed": [{"concept": c, "count": n} for c, n in frequently_removed],
+                "frequently_added": [{"concept": c, "count": n} for c, n in frequently_added],
+                "prefers_specific_names": prefers_specific,
+                "avg_concepts_preferred": avg_preferred,
+                "removal_patterns": FeedbackService._extract_removal_patterns(frequently_removed),
+                "addition_patterns": FeedbackService._extract_addition_patterns(frequently_added)
+            }
+
+            logger.info(
+                f"Analyzed concept patterns for {username}: "
+                f"{len(feedbacks)} corrections, prefers_specific={prefers_specific}"
+            )
+
+            return patterns
+
+    @staticmethod
+    def _extract_removal_patterns(frequently_removed: List[Tuple[str, int]]) -> List[str]:
+        """Extract human-readable patterns from removed concepts."""
+        patterns = []
+
+        vague_terms = ["web", "api", "data", "code", "app", "system", "service", "tool"]
+        removed_names = [c.lower() for c, _ in frequently_removed]
+
+        vague_removed = [c for c in removed_names if c in vague_terms]
+        if vague_removed:
+            patterns.append(f"User removes vague terms like: {', '.join(vague_removed)}")
+
+        return patterns
+
+    @staticmethod
+    def _extract_addition_patterns(frequently_added: List[Tuple[str, int]]) -> List[str]:
+        """Extract human-readable patterns from added concepts."""
+        patterns = []
+
+        # Check for specific technology names
+        added_names = [c for c, _ in frequently_added]
+        if any(len(c) > 10 for c in added_names):
+            patterns.append("User prefers specific technology names over generic terms")
+
+        return patterns
+
+    @staticmethod
+    async def get_accuracy_for_confidence_range(
+        username: str,
+        confidence_min: float,
+        confidence_max: float,
+        decision_type: str = "concept_extraction",
+        days: int = 90
+    ) -> Dict[str, Any]:
+        """
+        Get historical accuracy for a specific confidence range.
+
+        Used for CONFIDENCE CALIBRATION - adjusting displayed confidence
+        based on actual track record at that confidence level.
+
+        Args:
+            username: User to analyze
+            confidence_min: Lower bound of confidence range
+            confidence_max: Upper bound of confidence range
+            decision_type: Type of decision
+            days: How far back to look
+
+        Returns:
+            Accuracy metrics for that confidence range
+        """
+        with get_db_context() as db:
+            since = datetime.utcnow() - timedelta(days=days)
+
+            # Get validated decisions in this confidence range
+            decisions = db.query(DBAIDecision).filter(
+                DBAIDecision.username == username,
+                DBAIDecision.decision_type == decision_type,
+                DBAIDecision.validated == True,
+                DBAIDecision.confidence_score >= confidence_min,
+                DBAIDecision.confidence_score < confidence_max,
+                DBAIDecision.created_at >= since
+            ).all()
+
+            if not decisions:
+                return {
+                    "confidence_range": f"{confidence_min:.0%}-{confidence_max:.0%}",
+                    "sample_size": 0,
+                    "actual_accuracy": None,
+                    "calibration_needed": False
+                }
+
+            # Calculate actual accuracy
+            accepted = sum(1 for d in decisions if d.validation_result == "accepted")
+            total = len(decisions)
+            actual_accuracy = accepted / total
+
+            # Calculate average stated confidence
+            avg_stated_confidence = sum(d.confidence_score for d in decisions) / total
+
+            # Determine if calibration is needed
+            # If actual accuracy differs significantly from stated confidence, calibrate
+            calibration_delta = actual_accuracy - avg_stated_confidence
+            calibration_needed = abs(calibration_delta) > 0.1  # More than 10% off
+
+            result = {
+                "confidence_range": f"{confidence_min:.0%}-{confidence_max:.0%}",
+                "sample_size": total,
+                "actual_accuracy": actual_accuracy,
+                "avg_stated_confidence": avg_stated_confidence,
+                "calibration_delta": calibration_delta,
+                "calibration_needed": calibration_needed,
+                "suggested_adjustment": calibration_delta if calibration_needed else 0.0
+            }
+
+            logger.info(
+                f"Accuracy for {username} at {confidence_min:.0%}-{confidence_max:.0%}: "
+                f"{actual_accuracy:.1%} actual vs {avg_stated_confidence:.1%} stated "
+                f"(delta={calibration_delta:+.1%})"
+            )
+
+            return result
+
+    @staticmethod
+    async def get_learning_context_for_extraction(
+        username: str,
+        content_sample: str = "",
+        decision_type: str = "concept_extraction",
+        max_corrections: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Get complete learning context for a new extraction.
+
+        THIS IS THE MAIN ENTRY POINT FOR THE LEARNING LOOP.
+        Call this before extraction to get all relevant learning context.
+
+        Args:
+            username: User making the extraction
+            content_sample: Sample of content being extracted (for similarity matching)
+            decision_type: Type of decision
+            max_corrections: Max number of past corrections to include
+
+        Returns:
+            Complete learning context including:
+            - recent_corrections: Few-shot examples from past mistakes
+            - user_preferences: Learned user preferences
+            - confidence_calibration: How to adjust confidence based on history
+            - prompt_additions: Ready-to-use prompt text
+        """
+        # Gather all learning context in parallel-ish fashion
+        corrections = await FeedbackService.get_recent_corrections(
+            username=username,
+            decision_type=decision_type,
+            limit=max_corrections
+        )
+
+        patterns = await FeedbackService.get_concept_correction_patterns(
+            username=username
+        )
+
+        # Get calibration data for different confidence ranges
+        calibration_low = await FeedbackService.get_accuracy_for_confidence_range(
+            username=username,
+            confidence_min=0.0,
+            confidence_max=0.7,
+            decision_type=decision_type
+        )
+        calibration_med = await FeedbackService.get_accuracy_for_confidence_range(
+            username=username,
+            confidence_min=0.7,
+            confidence_max=0.9,
+            decision_type=decision_type
+        )
+        calibration_high = await FeedbackService.get_accuracy_for_confidence_range(
+            username=username,
+            confidence_min=0.9,
+            confidence_max=1.0,
+            decision_type=decision_type
+        )
+
+        # Build prompt additions from learning context
+        prompt_additions = FeedbackService._build_prompt_additions(
+            corrections=corrections,
+            patterns=patterns
+        )
+
+        context = {
+            "has_learning_data": len(corrections) > 0 or patterns.get("has_feedback", False),
+            "recent_corrections": corrections,
+            "user_preferences": patterns,
+            "confidence_calibration": {
+                "low": calibration_low,
+                "medium": calibration_med,
+                "high": calibration_high
+            },
+            "prompt_additions": prompt_additions
+        }
+
+        logger.info(
+            f"Built learning context for {username}: "
+            f"{len(corrections)} corrections, has_patterns={patterns.get('has_feedback', False)}"
+        )
+
+        return context
+
+    @staticmethod
+    def _build_prompt_additions(
+        corrections: List[Dict[str, Any]],
+        patterns: Dict[str, Any]
+    ) -> str:
+        """
+        Build prompt text from learning context.
+
+        This text gets injected into extraction prompts to apply past learning.
+        """
+        additions = []
+
+        # Add user preference guidance
+        if patterns.get("has_feedback"):
+            if patterns.get("prefers_specific_names") is True:
+                additions.append(
+                    "IMPORTANT: This user prefers SPECIFIC, detailed concept names. "
+                    "Avoid generic terms like 'API', 'Web', 'Data'. "
+                    "Use precise names like 'REST API', 'WebSocket', 'PostgreSQL'."
+                )
+            elif patterns.get("prefers_specific_names") is False:
+                additions.append(
+                    "Note: This user prefers broader, more general concept categories."
+                )
+
+            # Add frequently removed concepts as negative examples
+            frequently_removed = patterns.get("frequently_removed", [])
+            if frequently_removed:
+                removed_names = [item["concept"] for item in frequently_removed[:5]]
+                additions.append(
+                    f"AVOID these concepts (user has repeatedly removed them): {', '.join(removed_names)}"
+                )
+
+            # Add average concept count preference
+            avg_concepts = patterns.get("avg_concepts_preferred")
+            if avg_concepts:
+                additions.append(
+                    f"Target approximately {int(avg_concepts)} concepts per document."
+                )
+
+        # Add few-shot examples from corrections
+        if corrections:
+            additions.append("\n--- LEARN FROM PAST CORRECTIONS ---")
+            for i, correction in enumerate(corrections[:3], 1):
+                original = correction.get("original_value", {})
+                new = correction.get("new_value", {})
+                reasoning = correction.get("user_reasoning", "")
+
+                if "concepts" in original and "concepts" in new:
+                    orig_concepts = original.get("concepts", [])
+                    new_concepts = new.get("concepts", [])
+
+                    # Handle both list of strings and list of dicts
+                    if orig_concepts and isinstance(orig_concepts[0], dict):
+                        orig_names = [c.get("name", str(c)) for c in orig_concepts]
+                    else:
+                        orig_names = orig_concepts
+
+                    if new_concepts and isinstance(new_concepts[0], dict):
+                        new_names = [c.get("name", str(c)) for c in new_concepts]
+                    else:
+                        new_names = new_concepts
+
+                    additions.append(f"Example {i}:")
+                    additions.append(f"  AI extracted: {', '.join(orig_names[:5])}")
+                    additions.append(f"  User corrected to: {', '.join(new_names[:5])}")
+                    if reasoning:
+                        additions.append(f"  User's reason: \"{reasoning}\"")
+
+            additions.append("--- END CORRECTIONS ---\n")
+
+        return "\n".join(additions) if additions else ""
+
+    # =============================================================================
     # Analytics
     # =============================================================================
 

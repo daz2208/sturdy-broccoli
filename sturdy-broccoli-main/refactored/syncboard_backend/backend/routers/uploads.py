@@ -173,21 +173,22 @@ async def upload_text_content(
     concept_extractor = get_concept_extractor()
 
     async with storage_lock:
-        # Extract concepts (with optional dual-pass critique for low confidence)
-        from ..constants import ENABLE_DUAL_PASS_EXTRACTION, DUAL_PASS_CONFIDENCE_THRESHOLD
+        # AGENTIC LEARNING: Use learning-aware extraction that applies past corrections
+        # This closes the feedback loop - the system actually learns from user corrections
+        extraction = await concept_extractor.extract_with_learning(
+            content=content,
+            source_type="text",
+            username=current_user.username,
+            knowledge_base_id=kb_id
+        )
 
-        # First pass: standard extraction
-        extraction = await concept_extractor.extract(content, "text")
-        initial_confidence = extraction.get("confidence_score", 0.5)
-
-        # Phase C: Dual-pass with self-critique if confidence is low
-        if ENABLE_DUAL_PASS_EXTRACTION and initial_confidence < DUAL_PASS_CONFIDENCE_THRESHOLD:
+        # Log learning metadata if applied
+        learning_applied = extraction.get("learning_applied", {})
+        if learning_applied.get("corrections_used", 0) > 0:
             logger.info(
-                f"Low confidence ({initial_confidence:.2f}), triggering dual-pass extraction with self-critique"
-            )
-            extraction = await concept_extractor.extract_with_critique(content, "text")
-            logger.info(
-                f"Dual-pass complete: confidence improved to {extraction.get('confidence_score', 0):.2f}"
+                f"Agentic learning applied: {learning_applied['corrections_used']} corrections, "
+                f"preferences={learning_applied.get('preferences_applied', [])}, "
+                f"confidence_calibrated={learning_applied.get('confidence_calibrated', False)}"
             )
 
         # Record AI decision for concept extraction (agentic learning)

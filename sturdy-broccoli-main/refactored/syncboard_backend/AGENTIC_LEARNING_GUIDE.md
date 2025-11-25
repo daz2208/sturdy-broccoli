@@ -410,14 +410,113 @@ AI: "Docker, Containers, Dockerfile, Docker Hub, Orchestration (88% confident)"
 5. **Measurable Improvement** - Track accuracy metrics over time
 6. **Efficient** - Only asks for help when genuinely uncertain
 
+## Learning Loop Closure (NEW - Fully Implemented)
+
+**The agentic learning loop is now FULLY CLOSED.** Past corrections are injected back into future extractions.
+
+### How the Closed Loop Works
+
+When a user uploads new content, the system now:
+
+1. **Retrieves Past Corrections**
+   ```python
+   # feedback_service.get_recent_corrections()
+   corrections = [
+       {"original": ["Docker", "Images"], "corrected": ["Docker", "Docker Images"]},
+       {"original": ["API", "Web"], "corrected": ["REST API", "FastAPI"]}
+   ]
+   ```
+
+2. **Retrieves User Preferences**
+   ```python
+   # feedback_service.get_concept_correction_patterns()
+   patterns = {
+       "prefers_specific_names": True,
+       "frequently_removed": ["api", "web", "data"],  # Too vague
+       "avg_concepts_preferred": 6
+   }
+   ```
+
+3. **Injects Learning Context into Prompt**
+   ```
+   ## LEARNING FROM PAST FEEDBACK
+   IMPORTANT: This user prefers SPECIFIC, detailed concept names.
+   Avoid generic terms like 'API', 'Web', 'Data'.
+
+   AVOID these concepts (user has repeatedly removed them): api, web, data
+   Target approximately 6 concepts per document.
+
+   --- LEARN FROM PAST CORRECTIONS ---
+   Example 1:
+     AI extracted: Docker, Images
+     User corrected to: Docker, Docker Images
+     User's reason: "Images is too vague, use Docker Images"
+   --- END CORRECTIONS ---
+   ```
+
+4. **Calibrates Confidence Based on History**
+   ```python
+   # If AI has been overconfident historically at 80% confidence level,
+   # calibrate the displayed confidence down:
+   raw_confidence = 0.80
+   historical_accuracy = 0.65  # Only 65% accurate at this confidence level
+   calibrated_confidence = 0.70  # Adjusted to reflect actual track record
+   ```
+
+### New Method: `extract_with_learning()`
+
+All extraction paths now use `extract_with_learning()` instead of `extract()`:
+
+```python
+# concept_extractor.py
+result = await concept_extractor.extract_with_learning(
+    content=document_text,
+    source_type="text",
+    username=current_user.username,
+    knowledge_base_id=kb_id
+)
+
+# Result includes learning metadata:
+{
+    "concepts": [...],
+    "confidence_score": 0.82,
+    "learning_applied": {
+        "corrections_used": 3,
+        "preferences_applied": ["prefers_specific_names", "avoid_removed_concepts"],
+        "confidence_calibrated": True,
+        "original_confidence": 0.85,
+        "calibration_adjustment": -0.03
+    }
+}
+```
+
+### Key Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `get_recent_corrections()` | feedback_service.py | Retrieves user's past corrections |
+| `get_concept_correction_patterns()` | feedback_service.py | Analyzes correction patterns |
+| `get_accuracy_for_confidence_range()` | feedback_service.py | Historical accuracy for calibration |
+| `get_learning_context_for_extraction()` | feedback_service.py | Main entry point for learning context |
+| `_build_prompt_additions()` | feedback_service.py | Formats learning context into prompt text |
+| `extract_with_learning()` | concept_extractor.py | Learning-aware extraction |
+| `_calibrate_confidence()` | concept_extractor.py | Adjusts confidence based on history |
+
+### Integration Points
+
+Learning-aware extraction is now wired into:
+- `/upload_text` endpoint (routers/uploads.py)
+- `process_file_upload` task (tasks.py) - single files and ZIP archives
+- `process_url_upload` task (tasks.py) - URLs and YouTube videos
+- `process_image_upload` task (tasks.py) - image OCR
+
 ## Future Enhancements
 
-Potential improvements:
-- Automatic pattern detection from feedback
-- Personalized learning per user
-- Confidence calibration based on accuracy history
-- A/B testing of different critique strategies
-- Batch validation for similar decisions
+Now that the core loop is closed, potential future improvements:
+- **Semantic similarity search** for finding similar past corrections
+- **A/B testing** of different critique strategies
+- **Batch validation** for similar decisions
+- **Cross-user learning** (with privacy controls)
 
 ## Support
 
@@ -428,10 +527,20 @@ For issues or questions:
 
 ## Summary
 
-The agentic learning system transforms SyncBoard from a static AI tool into a self-improving assistant that:
-- Questions its own decisions
-- Learns from mistakes
+The agentic learning system transforms SyncBoard from a static AI tool into a **truly self-improving assistant** that:
+- Questions its own decisions (self-critique)
+- **Actually learns from mistakes** (feedback is injected into future prompts)
 - Asks for help when uncertain
-- Gets better over time
+- **Calibrates confidence based on track record**
+- Gets smarter with every correction
 
-By validating AI decisions, you're not just correcting mistakes - you're teaching the AI to be smarter for everyone.
+### The Closed Loop
+
+| Before | After |
+|--------|-------|
+| Feedback recorded but never used | Feedback injected into extraction prompts |
+| Static confidence scores | Confidence calibrated from historical accuracy |
+| Generic extractions for all users | Personalized extractions based on user preferences |
+| AI claimed to learn but didn't | AI actually applies past corrections |
+
+By validating AI decisions, you're not just correcting mistakes - you're teaching the AI to be smarter for everyone. And now, those corrections **actually make it back into the AI's future decisions**.
