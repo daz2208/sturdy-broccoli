@@ -53,6 +53,14 @@ class EventType(str, Enum):
     SYNC_REQUEST = "sync_request"
     SYNC_RESPONSE = "sync_response"
 
+    # Autonomous Learning Agent events
+    LEARNING_OBSERVATION = "learning_observation"
+    LEARNING_DECISION = "learning_decision"
+    LEARNING_RULE_CREATED = "learning_rule_created"
+    LEARNING_RULE_DEACTIVATED = "learning_rule_deactivated"
+    LEARNING_THRESHOLD_ADJUSTED = "learning_threshold_adjusted"
+    LEARNING_SELF_EVALUATION = "learning_self_evaluation"
+
 
 @dataclass
 class WebSocketEvent:

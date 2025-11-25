@@ -23,6 +23,7 @@ Usage:
 
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 # =============================================================================
 # Configuration
@@ -43,7 +44,7 @@ celery_app = Celery(
     "syncboard",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=["backend.tasks"]  # Import task modules
+    include=["backend.tasks", "backend.learning_agent"]  # Import task modules
 )
 
 # =============================================================================
@@ -79,13 +80,44 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
 
-    # Beat scheduler (for periodic tasks - future use)
+    # Beat scheduler (for periodic tasks)
     beat_schedule={
-        # Example: Nightly duplicate detection
-        # "nightly-duplicate-detection": {
-        #     "task": "backend.tasks.find_duplicates_scheduled",
-        #     "schedule": crontab(hour=2, minute=0),  # 2 AM daily
-        # },
+        # =================================================================
+        # AUTONOMOUS LEARNING AGENT - TRUE Agentic Learning
+        # The agent runs continuously WITHOUT human triggers
+        # =================================================================
+
+        # Observe outcomes - every 5 minutes
+        # Watches what happens to extractions (kept vs deleted, modified vs accepted)
+        "observe-outcomes": {
+            "task": "backend.learning_agent.observe_outcomes",
+            "schedule": crontab(minute="*/5"),
+            "options": {"queue": "learning"}
+        },
+
+        # Make autonomous decisions - every 10 minutes
+        # Creates rules, adjusts thresholds, learns vocabulary WITHOUT asking
+        "make-autonomous-decisions": {
+            "task": "backend.learning_agent.make_autonomous_decisions",
+            "schedule": crontab(minute="*/10"),
+            "options": {"queue": "learning"}
+        },
+
+        # Self-evaluation - every hour
+        # Measures its own accuracy and adjusts strategy
+        "self-evaluate": {
+            "task": "backend.learning_agent.self_evaluate",
+            "schedule": crontab(minute=0),
+            "options": {"queue": "learning"}
+        },
+
+        # Run experiments - every 6 hours
+        # A/B tests different approaches to find optimal strategies
+        "run-experiments": {
+            "task": "backend.learning_agent.run_experiments",
+            "schedule": crontab(hour="*/6", minute=30),
+            "options": {"queue": "learning"}
+        },
     },
 
     # Monitoring
@@ -105,6 +137,11 @@ celery_app.conf.task_routes = {
     "backend.tasks.find_duplicates_background": {"queue": "analysis"},
     "backend.tasks.generate_build_suggestions": {"queue": "analysis"},
     "backend.tasks.generate_analytics": {"queue": "low_priority"},
+    # Autonomous Learning Agent - dedicated queue
+    "backend.learning_agent.observe_outcomes": {"queue": "learning"},
+    "backend.learning_agent.make_autonomous_decisions": {"queue": "learning"},
+    "backend.learning_agent.self_evaluate": {"queue": "learning"},
+    "backend.learning_agent.run_experiments": {"queue": "learning"},
 }
 
 # =============================================================================
