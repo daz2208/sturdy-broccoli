@@ -799,6 +799,58 @@ class ApiClient {
     return data;
   }
 
+  // ==========================================================================
+  // AGENTIC LEARNING - FEEDBACK & VALIDATION (Phase A/B/C)
+  // ==========================================================================
+
+  /**
+   * Get validation prompts for low-confidence AI decisions
+   */
+  async getValidationPrompts(limit: number = 10): Promise<Types.ValidationPromptsResponse> {
+    const { data } = await this.client.get('/feedback/validation-prompts', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Submit user feedback for an AI decision
+   */
+  async submitFeedback(request: Types.SubmitFeedbackRequest): Promise<Types.UserFeedback> {
+    const { data } = await this.client.post('/feedback/submit', request);
+    return data;
+  }
+
+  /**
+   * Get all low-confidence decisions that need validation
+   */
+  async getLowConfidenceDecisions(limit: number = 20): Promise<Types.AIDecision[]> {
+    const { data } = await this.client.get('/feedback/low-confidence-decisions', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Get accuracy metrics showing how AI is improving
+   */
+  async getAccuracyMetrics(): Promise<Types.AccuracyMetrics> {
+    const { data } = await this.client.get('/feedback/accuracy-metrics');
+    return data;
+  }
+
+  /**
+   * Get AI decision history for a specific document
+   */
+  async getDecisionHistory(documentId: number): Promise<Types.AIDecision[]> {
+    const { data } = await this.client.get(`/feedback/decisions/document/${documentId}`);
+    return data;
+  }
+
+  /**
+   * Get all user feedback submitted
+   */
+  async getUserFeedback(limit: number = 50): Promise<Types.UserFeedback[]> {
+    const { data } = await this.client.get('/feedback/user-feedback', { params: { limit } });
+    return data;
+  }
+
   // Generic request methods for flexibility
   async get<T = unknown>(path: string, params?: Record<string, unknown>): Promise<T> {
     const { data } = await this.client.get(path, { params });

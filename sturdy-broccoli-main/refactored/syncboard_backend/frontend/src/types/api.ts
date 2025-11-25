@@ -514,3 +514,91 @@ export interface TeamActivity {
   details?: Record<string, unknown>;
   created_at: string;
 }
+
+// =============================================================================
+// Agentic Learning System (Phase A/B/C)
+// =============================================================================
+
+export interface AIDecision {
+  id: number;
+  decision_type: string;
+  username: string;
+  knowledge_base_id: string | null;
+  document_id: number | null;
+  cluster_id: number | null;
+  input_data: Record<string, unknown>;
+  output_data: Record<string, unknown>;
+  confidence_score: number;
+  model_name: string | null;
+  model_version: string | null;
+  validated: boolean;
+  validation_result: string | null;
+  validation_timestamp: string | null;
+  created_at: string;
+}
+
+export interface UserFeedback {
+  id: number;
+  feedback_type: string;
+  username: string;
+  knowledge_base_id: string | null;
+  document_id: number | null;
+  ai_decision_id: number | null;
+  original_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown>;
+  context: Record<string, unknown> | null;
+  user_reasoning: string | null;
+  processed: boolean;
+  processed_at: string | null;
+  improvement_score: number | null;
+  created_at: string;
+}
+
+export interface ValidationPrompt {
+  decision_id: number;
+  document_id: number | null;
+  cluster_id: number | null;
+  created_at: string;
+  title: string;
+  message: string;
+  concepts?: string[];
+  question: string;
+  options: ValidationOption[];
+  confidence: number;
+  decision_type: string;
+}
+
+export interface ValidationOption {
+  value: string;
+  label: string;
+  feedback_type: string;
+  requires_edit?: boolean;
+}
+
+export interface ValidationPromptsResponse {
+  prompts: ValidationPrompt[];
+  summary: ValidationSummary;
+  count: number;
+}
+
+export interface ValidationSummary {
+  total_pending: number;
+  average_confidence: number;
+  by_type: Record<string, number>;
+  urgency_level: 'low' | 'medium' | 'high';
+}
+
+export interface SubmitFeedbackRequest {
+  decision_id: number;
+  validation_result: 'accepted' | 'rejected' | 'partial';
+  new_value?: Record<string, unknown>;
+  user_reasoning?: string;
+}
+
+export interface AccuracyMetrics {
+  overall_accuracy: number;
+  by_confidence_range: Record<string, { accuracy: number; count: number }>;
+  improvement_trend: number;
+  total_decisions: number;
+  validated_decisions: number;
+}
