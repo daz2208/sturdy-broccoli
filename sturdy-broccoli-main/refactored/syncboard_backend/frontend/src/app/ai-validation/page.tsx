@@ -3,19 +3,41 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, XCircle, AlertTriangle, Brain, TrendingUp, Info } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Brain, TrendingUp, Info, Wifi, RefreshCw } from 'lucide-react';
 import * as Types from '@/types/api';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 export default function AIValidationPage() {
   const [prompts, setPrompts] = useState<Types.ValidationPrompt[]>([]);
   const [summary, setSummary] = useState<Types.ValidationSummary | null>(null);
   const [metrics, setMetrics] = useState<Types.AccuracyMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState<number | null>(null);
+
+  // WebSocket for real-time updates
+  const { isConnected, on } = useWebSocket();
 
   useEffect(() => {
     loadValidationData();
-  }, []);
+
+    // Listen for document events - new documents may create new decisions
+    const unsubCreated = on('document_created', () => {
+      // Delay slightly to allow backend to create AI decisions
+      setTimeout(() => loadValidationData(), 2000);
+    });
+
+    // Listen for job completion events
+    const unsubJobCompleted = on('job_completed', () => {
+      // New document processed - may have new decisions
+      setTimeout(() => loadValidationData(), 1000);
+    });
+
+    return () => {
+      unsubCreated();
+      unsubJobCompleted();
+    };
+  }, [on]);
 
   const loadValidationData = async () => {
     try {
@@ -32,7 +54,13 @@ export default function AIValidationPage() {
       console.error(err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadValidationData();
   };
 
   const handleValidation = async (
@@ -81,14 +109,32 @@ export default function AIValidationPage() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-3">
-          <Brain className="w-7 h-7 text-primary" />
-          AI Validation Dashboard
-        </h1>
-        <p className="text-gray-500 mt-1">
-          Help the AI learn by validating low-confidence decisions
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-3">
+              <Brain className="w-7 h-7 text-primary" />
+              AI Validation Dashboard
+            </h1>
+            {isConnected && (
+              <span className="flex items-center gap-1 text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                <Wifi className="w-3 h-3" />
+                Live
+              </span>
+            )}
+          </div>
+          <p className="text-gray-500 mt-1">
+            Help the AI learn by validating low-confidence decisions
+          </p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="btn btn-secondary p-2"
+          title="Refresh validation data"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Summary Stats */}
@@ -196,6 +242,9 @@ export default function AIValidationPage() {
             <h3 className="text-xl font-semibold text-gray-200 mb-2">All Caught Up!</h3>
             <p className="text-gray-500">
               No low-confidence decisions need validation right now.
+            </p>
+            <p className="text-gray-500 text-sm mt-2">
+              Upload documents to generate AI decisions for validation.
             </p>
           </div>
         ) : (

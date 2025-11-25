@@ -43,7 +43,12 @@ from .redis_client import notify_data_changed
 from .chunking_pipeline import chunk_document_on_upload
 from .db_models import DBDocument
 from .database import get_db_context
-from .websocket_manager import broadcast_document_created, broadcast_cluster_created
+from .websocket_manager import (
+    broadcast_document_created,
+    broadcast_cluster_created,
+    broadcast_job_completed,
+    broadcast_job_failed
+)
 from .feedback_service import feedback_service
 import asyncio
 
@@ -804,6 +809,21 @@ def process_file_upload(
         except Exception as ws_err:
             logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
+        # Broadcast job completion for progress UI
+        try:
+            asyncio.run(broadcast_job_completed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="file_upload",
+                result={
+                    "doc_id": doc_id,
+                    "filename": filename_safe,
+                    "chunks_created": chunk_result.get("chunks", 0)
+                }
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job completion broadcast failed (non-critical): {ws_err}")
+
         # Return success result
         return {
             "doc_id": doc_id,
@@ -824,6 +844,16 @@ def process_file_upload(
                 "message": f"Failed to process {filename}: {str(e)}"
             }
         )
+        # Broadcast job failure
+        try:
+            asyncio.run(broadcast_job_failed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="file_upload",
+                error=str(e)
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job failure broadcast failed (non-critical): {ws_err}")
         raise
 
 
@@ -1160,6 +1190,21 @@ def process_url_upload(
         except Exception as ws_err:
             logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
+        # Broadcast job completion for progress UI
+        try:
+            asyncio.run(broadcast_job_completed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="url_upload",
+                result={
+                    "doc_id": doc_id,
+                    "url": url_safe[:100],
+                    "chunks_created": chunk_result.get("chunks", 0)
+                }
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job completion broadcast failed (non-critical): {ws_err}")
+
         return {
             "doc_id": doc_id,
             "cluster_id": cluster_id,
@@ -1179,6 +1224,16 @@ def process_url_upload(
                 "message": f"Failed to process URL {url}: {str(e)}"
             }
         )
+        # Broadcast job failure
+        try:
+            asyncio.run(broadcast_job_failed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="url_upload",
+                error=str(e)
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job failure broadcast failed (non-critical): {ws_err}")
         raise
 
 
@@ -1494,6 +1549,21 @@ def process_image_upload(
         except Exception as ws_err:
             logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
+        # Broadcast job completion for progress UI
+        try:
+            asyncio.run(broadcast_job_completed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="image_upload",
+                result={
+                    "doc_id": doc_id,
+                    "filename": filename_safe,
+                    "chunks_created": chunk_result.get("chunks", 0)
+                }
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job completion broadcast failed (non-critical): {ws_err}")
+
         return {
             "doc_id": doc_id,
             "cluster_id": cluster_id,
@@ -1514,6 +1584,16 @@ def process_image_upload(
                 "message": f"Failed to process image {filename}: {str(e)}"
             }
         )
+        # Broadcast job failure
+        try:
+            asyncio.run(broadcast_job_failed(
+                username=user_id,
+                job_id=self.request.id,
+                job_type="image_upload",
+                error=str(e)
+            ))
+        except Exception as ws_err:
+            logger.warning(f"Job failure broadcast failed (non-critical): {ws_err}")
         raise
 
 

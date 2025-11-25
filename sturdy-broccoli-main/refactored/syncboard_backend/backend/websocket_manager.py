@@ -436,6 +436,26 @@ async def broadcast_job_completed(
     )
 
 
+async def broadcast_job_failed(
+    username: str,
+    job_id: str,
+    job_type: str,
+    error: str
+):
+    """Broadcast job failure to specific user."""
+    await manager.send_personal(
+        username,
+        WebSocketEvent(
+            event_type=EventType.JOB_FAILED,
+            data={
+                "job_id": job_id,
+                "job_type": job_type,
+                "error": error
+            }
+        )
+    )
+
+
 async def send_notification(
     username: str,
     title: str,

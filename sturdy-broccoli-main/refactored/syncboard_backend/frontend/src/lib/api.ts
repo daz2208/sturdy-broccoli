@@ -103,17 +103,21 @@ class ApiClient {
   }
 
   async uploadFile(file_base64: string, filename: string, skill_level?: string): Promise<Types.UploadResponse> {
-    const { data } = await this.client.post('/upload_file', { file_base64, filename, skill_level });
+    // Backend expects 'content' not 'file_base64'
+    const { data } = await this.client.post('/upload_file', { content: file_base64, filename, skill_level });
     return data;
   }
 
-  async uploadImage(image_base64: string, filename?: string): Promise<Types.UploadResponse> {
-    const { data } = await this.client.post('/upload_image', { image_base64, filename });
+  async uploadImage(image_base64: string, filename?: string, description?: string): Promise<Types.UploadResponse> {
+    // Backend expects 'content' not 'image_base64'
+    const { data } = await this.client.post('/upload_image', { content: image_base64, filename, description });
     return data;
   }
 
   async uploadBatch(files: { file_base64: string; filename: string }[]): Promise<Types.BatchUploadResponse> {
-    const { data } = await this.client.post('/upload_batch', { files });
+    // Backend expects 'content' not 'file_base64' in each file
+    const filesWithContent = files.map(f => ({ content: f.file_base64, filename: f.filename }));
+    const { data } = await this.client.post('/upload_batch', { files: filesWithContent });
     return data;
   }
 

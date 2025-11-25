@@ -1,12 +1,22 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi } from 'lucide-react';
+import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import type { Document } from '@/types/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
+
+// Type for tracking upload jobs
+interface UploadJob {
+  id: string;
+  filename: string;
+  status: 'pending' | 'processing' | 'success' | 'failed';
+  progress: number;
+  message?: string;
+  error?: string;
+}
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -17,6 +27,10 @@ export default function DocumentsPage() {
   const [textContent, setTextContent] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [filter, setFilter] = useState({ source_type: '', skill_level: '' });
+
+  // Upload jobs tracking
+  const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([]);
+  const pollIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // WebSocket for real-time document updates
   const { isConnected, on } = useWebSocket();
@@ -37,12 +51,47 @@ export default function DocumentsPage() {
       loadDocuments(); // Refresh list when document updated
     });
 
+    // Listen for job completion events
+    const unsubJobCompleted = on('job_completed', (event) => {
+      const jobId = event.data.job_id as string;
+      if (jobId) {
+        setUploadJobs(prev => prev.map(job =>
+          job.id === jobId ? { ...job, status: 'success', progress: 100, message: 'Completed!' } : job
+        ));
+        loadDocuments();
+      }
+    });
+
+    const unsubJobFailed = on('job_failed', (event) => {
+      const jobId = event.data.job_id as string;
+      if (jobId) {
+        setUploadJobs(prev => prev.map(job =>
+          job.id === jobId ? { ...job, status: 'failed', error: event.data.error as string } : job
+        ));
+      }
+    });
+
     return () => {
       unsubCreated();
       unsubDeleted();
       unsubUpdated();
+      unsubJobCompleted();
+      unsubJobFailed();
+      // Clean up all polling intervals
+      pollIntervalsRef.current.forEach(interval => clearInterval(interval));
     };
   }, [on]);
+
+  // Clean up completed jobs after 5 seconds
+  useEffect(() => {
+    const completedJobs = uploadJobs.filter(j => j.status === 'success' || j.status === 'failed');
+    if (completedJobs.length > 0) {
+      const timeout = setTimeout(() => {
+        setUploadJobs(prev => prev.filter(j => j.status !== 'success' && j.status !== 'failed'));
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [uploadJobs]);
 
   const loadDocuments = async () => {
     try {
@@ -56,24 +105,88 @@ export default function DocumentsPage() {
     }
   };
 
+  // Poll job status
+  const pollJobStatus = useCallback(async (jobId: string) => {
+    try {
+      const status = await api.getJobStatus(jobId);
+
+      setUploadJobs(prev => prev.map(job => {
+        if (job.id !== jobId) return job;
+
+        if (status.status === 'SUCCESS') {
+          // Stop polling
+          const interval = pollIntervalsRef.current.get(jobId);
+          if (interval) {
+            clearInterval(interval);
+            pollIntervalsRef.current.delete(jobId);
+          }
+          loadDocuments(); // Refresh documents list
+          return { ...job, status: 'success', progress: 100, message: 'Completed!' };
+        }
+
+        if (status.status === 'FAILURE') {
+          // Stop polling
+          const interval = pollIntervalsRef.current.get(jobId);
+          if (interval) {
+            clearInterval(interval);
+            pollIntervalsRef.current.delete(jobId);
+          }
+          return { ...job, status: 'failed', error: status.error || 'Upload failed' };
+        }
+
+        // Still processing
+        return {
+          ...job,
+          status: 'processing',
+          progress: status.progress || 50,
+          message: status.message || status.current_step || 'Processing...'
+        };
+      }));
+    } catch (err) {
+      console.error(`Failed to poll job ${jobId}:`, err);
+    }
+  }, []);
+
+  // Start polling for a job
+  const startJobPolling = useCallback((jobId: string, filename: string) => {
+    // Add job to tracking
+    setUploadJobs(prev => [...prev, {
+      id: jobId,
+      filename,
+      status: 'pending',
+      progress: 0,
+      message: 'Queued for processing...'
+    }]);
+
+    // Start polling every 2 seconds
+    const interval = setInterval(() => pollJobStatus(jobId), 2000);
+    pollIntervalsRef.current.set(jobId, interval);
+
+    // Initial poll
+    pollJobStatus(jobId);
+  }, [pollJobStatus]);
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true);
-    let successCount = 0;
 
     for (const file of acceptedFiles) {
       try {
         const base64 = await fileToBase64(file);
-        await api.uploadFile(base64, file.name);
-        successCount++;
+        const response = await api.uploadFile(base64, file.name);
+
+        // Start polling for this job
+        if (response.job_id) {
+          startJobPolling(response.job_id, file.name);
+          toast.success(`Queued: ${file.name}`);
+        }
       } catch (err) {
         console.error(`Failed to upload ${file.name}:`, err);
+        toast.error(`Failed to queue: ${file.name}`);
       }
     }
 
-    toast.success(`Uploaded ${successCount}/${acceptedFiles.length} files`);
     setUploading(false);
-    loadDocuments();
-  }, []);
+  }, [startJobPolling]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -126,22 +239,25 @@ export default function DocumentsPage() {
   // Image upload dropzone (separate for OCR)
   const onDropImage = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true);
-    let successCount = 0;
 
     for (const file of acceptedFiles) {
       try {
         const base64 = await fileToBase64(file);
-        await api.uploadImage(base64, file.name);
-        successCount++;
+        const response = await api.uploadImage(base64, file.name);
+
+        // Start polling for this job
+        if (response.job_id) {
+          startJobPolling(response.job_id, file.name);
+          toast.success(`Queued for OCR: ${file.name}`);
+        }
       } catch (err) {
         console.error(`Failed to upload image ${file.name}:`, err);
+        toast.error(`Failed to queue: ${file.name}`);
       }
     }
 
-    toast.success(`Uploaded ${successCount}/${acceptedFiles.length} images for OCR processing`);
     setUploading(false);
-    loadDocuments();
-  }, []);
+  }, [startJobPolling]);
 
   const { getRootProps: getImageRootProps, getInputProps: getImageInputProps, isDragActive: isImageDragActive } = useDropzone({
     onDrop: onDropImage,
@@ -157,7 +273,8 @@ export default function DocumentsPage() {
     }
     setUploading(true);
     try {
-      await api.uploadText(textContent);
+      const response = await api.uploadText(textContent);
+      // Text upload is synchronous, so we just refresh
       toast.success('Text uploaded successfully');
       setTextContent('');
       loadDocuments();
@@ -175,10 +292,14 @@ export default function DocumentsPage() {
     }
     setUploading(true);
     try {
-      await api.uploadUrl(urlInput);
-      toast.success('URL processed successfully');
+      const response = await api.uploadUrl(urlInput);
+
+      // Start polling for this job
+      if (response.job_id) {
+        startJobPolling(response.job_id, urlInput.substring(0, 50));
+        toast.success('URL queued for processing');
+      }
       setUrlInput('');
-      loadDocuments();
     } catch (err) {
       toast.error('Upload failed');
     } finally {
@@ -230,6 +351,42 @@ export default function DocumentsPage() {
         </button>
       </div>
 
+      {/* Active Upload Jobs Progress */}
+      {uploadJobs.length > 0 && (
+        <div className="bg-dark-100 rounded-xl border border-dark-300 p-4 space-y-3">
+          <h3 className="text-sm font-medium text-gray-300">Upload Progress</h3>
+          {uploadJobs.map(job => (
+            <div key={job.id} className="flex items-center gap-3">
+              {job.status === 'processing' || job.status === 'pending' ? (
+                <Loader2 className="w-4 h-4 text-primary animate-spin" />
+              ) : job.status === 'success' ? (
+                <CheckCircle className="w-4 h-4 text-green-500" />
+              ) : (
+                <XCircle className="w-4 h-4 text-red-500" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-300 truncate">{job.filename}</span>
+                  <span className="text-gray-500">{job.progress}%</span>
+                </div>
+                <div className="w-full bg-dark-300 rounded-full h-1.5 mt-1">
+                  <div
+                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                      job.status === 'failed' ? 'bg-red-500' :
+                      job.status === 'success' ? 'bg-green-500' : 'bg-primary'
+                    }`}
+                    style={{ width: `${job.progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {job.error || job.message}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Upload Panel */}
       {showUpload && (
         <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
@@ -261,7 +418,7 @@ export default function DocumentsPage() {
               <input {...getInputProps()} />
               <Upload className="w-12 h-12 mx-auto mb-4 text-gray-500" />
               {uploading ? (
-                <p className="text-gray-400">Uploading...</p>
+                <p className="text-gray-400">Queuing files...</p>
               ) : isDragActive ? (
                 <p className="text-primary">Drop files here</p>
               ) : (
@@ -287,7 +444,7 @@ export default function DocumentsPage() {
               <input {...getImageInputProps()} />
               <Image className="w-12 h-12 mx-auto mb-4 text-gray-500" />
               {uploading ? (
-                <p className="text-gray-400">Processing with OCR...</p>
+                <p className="text-gray-400">Queuing for OCR...</p>
               ) : isImageDragActive ? (
                 <p className="text-primary">Drop images here</p>
               ) : (
@@ -309,7 +466,7 @@ export default function DocumentsPage() {
               />
               <p className="text-xs text-gray-500">Supports: YouTube videos (transcribed), web articles, blog posts, documentation pages</p>
               <button onClick={uploadUrl} disabled={uploading} className="btn btn-primary">
-                {uploading ? 'Processing...' : 'Upload URL'}
+                {uploading ? 'Queuing...' : 'Upload URL'}
               </button>
             </div>
           )}
