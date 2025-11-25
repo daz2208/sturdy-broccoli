@@ -1166,3 +1166,150 @@ class DBUserFeedback(Base):
 
     def __repr__(self):
         return f"<DBUserFeedback(type='{self.feedback_type}', user='{self.username}', processed={self.processed})>"
+
+
+# =============================================================================
+# True Agentic Learning Models - Persistent learned rules and preferences
+# =============================================================================
+
+class DBLearnedRule(Base):
+    """
+    Extracted rules from user corrections - applied deterministically.
+
+    Unlike prompt injection (temporary), these rules are:
+    - Persistent: Stored and applied consistently
+    - Deterministic: Applied as pre/post processing, not LLM suggestions
+    - Scalable: Unlimited rules (vs ~5 examples in prompts)
+
+    Rule types:
+    - concept_rename: "Docker container" → "Docker"
+    - concept_reject: Never extract "miscellaneous"
+    - confidence_threshold: Raise/lower thresholds for certain content types
+    - skill_level_override: User prefers different skill categorization
+    """
+    __tablename__ = "learned_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # Rule definition
+    rule_type = Column(String(50), nullable=False, index=True)  # concept_rename, concept_reject, confidence_adjust, etc.
+    condition = Column(JSON, nullable=False)  # When to apply: {"content_contains": "docker", "concept_matches": "container*"}
+    action = Column(JSON, nullable=False)  # What to do: {"rename_to": "Docker", "reject": true, "adjust_confidence": -0.1}
+
+    # Learning metadata
+    source_feedback_ids = Column(JSON, nullable=True)  # Which feedback(s) generated this rule
+    confidence = Column(Float, default=0.5, nullable=False)  # How confident are we in this rule
+    times_applied = Column(Integer, default=0, nullable=False)  # How many times has this rule been applied
+    times_overridden = Column(Integer, default=0, nullable=False)  # How many times user corrected after rule applied
+
+    # Status
+    active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="learned_rules")
+    knowledge_base = relationship("DBKnowledgeBase", backref="learned_rules")
+
+    __table_args__ = (
+        Index('idx_learned_rules_active', 'username', 'active', 'rule_type'),
+    )
+
+    def __repr__(self):
+        return f"<DBLearnedRule(user='{self.username}', type='{self.rule_type}', active={self.active})>"
+
+
+class DBConceptVocabulary(Base):
+    """
+    User's preferred concept vocabulary - for normalization.
+
+    When AI extracts "Docker containerization", if user has
+    canonical_name="Docker" with variant="Docker containerization",
+    we automatically normalize to "Docker".
+
+    This is deterministic post-processing, not prompt-based.
+    """
+    __tablename__ = "concept_vocabulary"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # Canonical form
+    canonical_name = Column(String(255), nullable=False, index=True)  # "Docker"
+    category = Column(String(100), nullable=True)  # "containerization", "databases", etc.
+
+    # Variants that should map to canonical
+    variants = Column(JSON, nullable=False, default=list)  # ["Docker container", "Docker containerization", "docker"]
+
+    # Preferences
+    preferred_skill_level = Column(String(50), nullable=True)  # User's opinion of this concept's level
+    always_include = Column(Boolean, default=False)  # Always extract if mentioned
+    never_include = Column(Boolean, default=False)  # Never extract
+
+    # Usage tracking
+    times_seen = Column(Integer, default=0, nullable=False)
+    times_kept = Column(Integer, default=0, nullable=False)  # User kept after review
+    times_removed = Column(Integer, default=0, nullable=False)  # User removed after extraction
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="concept_vocabulary")
+    knowledge_base = relationship("DBKnowledgeBase", backref="concept_vocabulary")
+
+    __table_args__ = (
+        Index('idx_vocab_user_canonical', 'username', 'canonical_name'),
+        Index('idx_vocab_kb', 'knowledge_base_id'),
+    )
+
+    def __repr__(self):
+        return f"<DBConceptVocabulary(user='{self.username}', canonical='{self.canonical_name}')>"
+
+
+class DBUserLearningProfile(Base):
+    """
+    Aggregated learning profile per user - calibrated thresholds and preferences.
+
+    Updated periodically by analyzing all feedback and decisions.
+    Applied during every extraction/classification.
+    """
+    __tablename__ = "user_learning_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # Calibrated confidence thresholds (learned from acceptance rates)
+    concept_confidence_threshold = Column(Float, default=0.7, nullable=False)  # Default 0.7, adjusted per user
+    cluster_confidence_threshold = Column(Float, default=0.6, nullable=False)
+    skill_confidence_threshold = Column(Float, default=0.5, nullable=False)
+
+    # Content preferences (learned from corrections)
+    prefers_specific_concepts = Column(Boolean, default=True)  # "React hooks" vs "React"
+    prefers_fewer_concepts = Column(Boolean, default=False)  # Quality over quantity
+    avg_concepts_per_doc = Column(Float, default=5.0)  # Learned average
+    min_concept_length = Column(Integer, default=2)  # User's typical minimum
+
+    # Accuracy tracking (for threshold calibration)
+    total_decisions = Column(Integer, default=0)
+    decisions_accepted = Column(Integer, default=0)
+    decisions_rejected = Column(Integer, default=0)
+    decisions_modified = Column(Integer, default=0)
+    accuracy_rate = Column(Float, default=0.0)  # decisions_accepted / total_decisions
+
+    # Learning state
+    rules_generated = Column(Integer, default=0)
+    vocabulary_size = Column(Integer, default=0)
+    last_learning_run = Column(DateTime, nullable=True)  # When we last processed feedback
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="learning_profile", uselist=False)
+
+    def __repr__(self):
+        return f"<DBUserLearningProfile(user='{self.username}', accuracy={self.accuracy_rate:.2%})>"
