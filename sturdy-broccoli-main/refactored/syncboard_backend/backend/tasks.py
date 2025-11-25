@@ -274,10 +274,24 @@ def process_multi_document_zip(
                 logger.warning(f"Skipping empty document: {doc_filename}")
                 continue
 
-            # Stage: AI analysis
+            # Stage: AI analysis with AGENTIC LEARNING
+            # Uses extract_with_learning() which applies past corrections and user preferences
             extraction = asyncio.run(
-                concept_extractor.extract(document_text, "file")
+                concept_extractor.extract_with_learning(
+                    content=document_text,
+                    source_type="file",
+                    username=user_id,
+                    knowledge_base_id=kb_id
+                )
             )
+
+            # Log learning metadata if applied
+            learning_applied = extraction.get("learning_applied", {})
+            if learning_applied.get("corrections_used", 0) > 0:
+                logger.info(
+                    f"Agentic learning applied to ZIP file {doc_filename}: "
+                    f"{learning_applied['corrections_used']} corrections used"
+                )
 
             # Record AI decision for concept extraction (agentic learning)
             try:
@@ -285,7 +299,7 @@ def process_multi_document_zip(
                     decision_type="concept_extraction",
                     username=user_id,
                     input_data={"content_sample": document_text[:500], "source_type": "file", "filename": doc_filename},
-                    output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                    output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                     confidence_score=extraction.get("confidence_score", 0.5),
                     knowledge_base_id=kb_id,
                     model_name="gpt-4o-mini"
@@ -559,12 +573,26 @@ def process_file_upload(
             }
         )
 
-        # Note: concept_extractor.extract() is async, but we're in a sync Celery task
-        # Use asyncio.run() which creates a fresh event loop, runs the coroutine, and closes it
+        # AGENTIC LEARNING: Use extract_with_learning() which applies past corrections
+        # This closes the feedback loop - the system actually learns from user corrections
         import asyncio
         extraction = asyncio.run(
-            concept_extractor.extract(analysis_text, "file")
+            concept_extractor.extract_with_learning(
+                content=analysis_text,
+                source_type="file",
+                username=user_id,
+                knowledge_base_id=kb_id
+            )
         )
+
+        # Log learning metadata if applied
+        learning_applied = extraction.get("learning_applied", {})
+        if learning_applied.get("corrections_used", 0) > 0:
+            logger.info(
+                f"Agentic learning applied to file {filename_safe}: "
+                f"{learning_applied['corrections_used']} corrections, "
+                f"preferences={learning_applied.get('preferences_applied', [])}"
+            )
 
         # Record AI decision for concept extraction (agentic learning)
         try:
@@ -572,7 +600,7 @@ def process_file_upload(
                 decision_type="concept_extraction",
                 username=user_id,
                 input_data={"content_sample": analysis_text[:500], "source_type": "file", "filename": filename_safe},
-                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id,
                 model_name="gpt-4o-mini"
@@ -868,11 +896,26 @@ def process_url_upload(
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+        # AGENTIC LEARNING: Use extract_with_learning() for YouTube/URL extraction
         # Pass 'youtube' as source_type for YouTube videos to trigger enhanced extraction
         source_type = "youtube" if is_youtube else "url"
         extraction = loop.run_until_complete(
-            concept_extractor.extract(document_text, source_type)
+            concept_extractor.extract_with_learning(
+                content=document_text,
+                source_type=source_type,
+                username=user_id,
+                knowledge_base_id=kb_id
+            )
         )
+
+        # Log learning metadata if applied
+        learning_applied = extraction.get("learning_applied", {})
+        if learning_applied.get("corrections_used", 0) > 0:
+            logger.info(
+                f"Agentic learning applied to {source_type} {url_safe[:50]}: "
+                f"{learning_applied['corrections_used']} corrections, "
+                f"preferences={learning_applied.get('preferences_applied', [])}"
+            )
 
         # Record AI decision for concept extraction (agentic learning)
         try:
@@ -880,7 +923,7 @@ def process_url_upload(
                 decision_type="concept_extraction",
                 username=user_id,
                 input_data={"content_sample": document_text[:500], "source_type": source_type, "url": url_safe[:100]},
-                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id,
                 model_name="gpt-4o-mini"
@@ -1225,9 +1268,24 @@ def process_image_upload(
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+        # AGENTIC LEARNING: Use extract_with_learning() for image extraction
         extraction = loop.run_until_complete(
-            concept_extractor.extract(combined_text, "image")
+            concept_extractor.extract_with_learning(
+                content=combined_text,
+                source_type="image",
+                username=user_id,
+                knowledge_base_id=kb_id if kb_id else "default"
+            )
         )
+
+        # Log learning metadata if applied
+        learning_applied = extraction.get("learning_applied", {})
+        if learning_applied.get("corrections_used", 0) > 0:
+            logger.info(
+                f"Agentic learning applied to image {filename_safe}: "
+                f"{learning_applied['corrections_used']} corrections, "
+                f"preferences={learning_applied.get('preferences_applied', [])}"
+            )
 
         # Record AI decision for concept extraction (agentic learning)
         try:
@@ -1235,7 +1293,7 @@ def process_image_upload(
                 decision_type="concept_extraction",
                 username=user_id,
                 input_data={"content_sample": combined_text[:500], "source_type": "image", "filename": filename_safe},
-                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id if kb_id else "default",
                 model_name="gpt-4o-mini"
