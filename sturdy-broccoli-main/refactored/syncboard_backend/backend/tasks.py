@@ -1631,12 +1631,12 @@ def find_duplicates_background(
         # Import here to avoid circular dependency
         from .routers.duplicates import find_duplicate_groups
 
-        # Get user's documents
-        user_docs = {
-            doc_id: meta
-            for doc_id, meta in metadata.items()
-            if meta.owner == user_id
-        }
+        # Get user's documents (iterate over all KBs - metadata is nested {kb_id: {doc_id: meta}})
+        user_docs = {}
+        for kb_id, kb_meta in metadata.items():
+            for doc_id, meta in kb_meta.items():
+                if meta.owner == user_id:
+                    user_docs[doc_id] = meta
 
         # Find duplicates
         duplicate_groups = find_duplicate_groups(
@@ -1697,18 +1697,20 @@ def generate_build_suggestions(
             }
         )
 
-        # Get user's data
-        user_docs = {
-            doc_id: meta
-            for doc_id, meta in metadata.items()
-            if meta.owner == user_id
-        }
+        # Get user's data (iterate over all KBs - metadata is nested {kb_id: {doc_id: meta}})
+        user_docs = {}
+        for kb_id, kb_meta in metadata.items():
+            for doc_id, meta in kb_meta.items():
+                if meta.owner == user_id:
+                    user_docs[doc_id] = meta
 
-        user_clusters = {
-            cluster_id: cluster
-            for cluster_id, cluster in clusters.items()
-            if cluster_id in [meta.cluster_id for meta in user_docs.values()]
-        }
+        # Get user's clusters (clusters is nested {kb_id: {cluster_id: cluster}})
+        user_cluster_ids = [meta.cluster_id for meta in user_docs.values() if meta.cluster_id is not None]
+        user_clusters = {}
+        for kb_id, kb_clusters in clusters.items():
+            for cluster_id, cluster in kb_clusters.items():
+                if cluster_id in user_cluster_ids:
+                    user_clusters[cluster_id] = cluster
 
         self.update_state(
             state="PROCESSING",
@@ -1768,7 +1770,8 @@ def import_github_files_task(
     owner: str,
     repo: str,
     branch: str,
-    files: List[str]
+    files: List[str],
+    kb_id: str = "default"
 ) -> Dict:
     """
     Import files from a GitHub repository in background.
@@ -1785,10 +1788,13 @@ def import_github_files_task(
         repo: GitHub repository name
         branch: Git branch to import from
         files: List of file paths to import
+        kb_id: Knowledge base ID
 
     Returns:
         dict: Import results with doc_ids
     """
+    # Ensure KB exists in memory
+    ensure_kb_exists(kb_id)
     try:
         logger.info(
             f"Starting GitHub import task for user {user_id}: "
@@ -1903,19 +1909,16 @@ def import_github_files_task(
                     }
                 )
 
+                # Get KB-scoped storage
+                kb_documents = get_kb_documents(kb_id)
+                kb_metadata = get_kb_metadata(kb_id)
+
                 # Extract concepts
                 concepts_list = concept_extractor.extract_concepts(file_content)
 
-                # Ingest file
-                doc_id = ingest.ingest_text(
-                    content=file_content,
-                    user_id=user_id,
-                    source_type="github",
-                    source_url=file_data.get("html_url"),
-                    filename=file_path,
-                    vector_store=vector_store,
-                    documents=documents
-                )
+                # Add to vector store
+                doc_id = vector_store.add_document(file_content)
+                kb_documents[doc_id] = file_content
 
                 # Determine skill level
                 skill_level = concept_extractor.determine_skill_level(file_content)
@@ -1923,27 +1926,29 @@ def import_github_files_task(
                 # Suggest cluster name
                 suggested_cluster = clustering_engine.suggest_cluster_name(concepts_list)
 
-                # Find or create cluster
+                # Find or create cluster (with kb_id)
                 cluster_id = find_or_create_cluster_sync(
                     doc_id=doc_id,
                     suggested_cluster=suggested_cluster,
                     concepts_list=concepts_list,
-                    skill_level=skill_level
+                    skill_level=skill_level,
+                    kb_id=kb_id
                 )
 
-                # Store metadata
+                # Store metadata (KB-scoped)
                 doc_metadata = DocumentMetadata(
                     doc_id=doc_id,
-                    owner_username=user_id,
+                    owner=user_id,
                     source_type="github",
                     source_url=file_data.get("html_url"),
                     filename=file_path,
                     cluster_id=cluster_id,
                     skill_level=skill_level,
+                    knowledge_base_id=kb_id,
                     content_length=len(file_content),
-                    ingested_at=datetime.utcnow()
+                    ingested_at=datetime.utcnow().isoformat()
                 )
-                metadata[doc_id] = doc_metadata
+                kb_metadata[doc_id] = doc_metadata
 
                 # Track imported doc
                 imported_docs.append({

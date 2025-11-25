@@ -65,6 +65,11 @@ def load_storage_from_db(
                 vdoc = db.query(DBVectorDocument).filter_by(doc_id=db_doc.doc_id).first()
                 if vdoc:
                     documents[kb_id][db_doc.doc_id] = vdoc.content
+                else:
+                    # Vector document missing - still load metadata but log warning
+                    # Document will be visible but content empty
+                    logger.warning(f"Vector document missing for doc_id={db_doc.doc_id}, metadata will be loaded but content empty")
+                    documents[kb_id][db_doc.doc_id] = ""  # Empty content so doc still appears
 
                 # Load concepts
                 concepts = [
@@ -190,57 +195,73 @@ def save_storage_to_db(
 
                     # Document metadata
                     kb_meta = metadata.get(kb_id, {})
-                    if doc_id in kb_meta:
-                        meta = kb_meta[doc_id]
+                    if doc_id not in kb_meta:
+                        # Document has content but no metadata - create minimal metadata
+                        logger.warning(f"Document {doc_id} has content but no metadata in KB {kb_id}")
+                        # Still try to save with minimal data
                         db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
-
                         if not db_doc:
                             db_doc = DBDocument(
                                 doc_id=doc_id,
-                                owner_username=meta.owner,
-                                cluster_id=meta.cluster_id,
+                                owner_username="unknown",  # Will need to be fixed manually
                                 knowledge_base_id=kb_id if kb_id != "default" else None,
-                                source_type=meta.source_type,
-                                source_url=meta.source_url,
-                                filename=meta.filename,
-                                image_path=meta.image_path,
-                                content_length=meta.content_length,
-                                skill_level=meta.skill_level
+                                source_type="unknown",
+                                content_length=len(content) if content else 0
                             )
                             db.add(db_doc)
-                            db.flush()  # Get the database ID
+                            logger.info(f"Created minimal DBDocument for orphaned doc_id={doc_id}")
+                        continue
 
-                            # Add concepts
-                            for concept in meta.concepts:
-                                db_concept = DBConcept(
-                                    document_id=db_doc.id,
-                                    name=concept.name,
-                                    category=concept.category,
-                                    confidence=concept.confidence
-                                )
-                                db.add(db_concept)
-                        else:
-                            # Update existing document
-                            db_doc.owner_username = meta.owner
-                            db_doc.cluster_id = meta.cluster_id
-                            db_doc.knowledge_base_id = kb_id if kb_id != "default" else None
-                            db_doc.source_type = meta.source_type
-                            db_doc.source_url = meta.source_url
-                            db_doc.filename = meta.filename
-                            db_doc.image_path = meta.image_path
-                            db_doc.content_length = meta.content_length
-                            db_doc.skill_level = meta.skill_level
+                    meta = kb_meta[doc_id]
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
 
-                            # Update concepts (simple approach: delete and recreate)
-                            db.query(DBConcept).filter_by(document_id=db_doc.id).delete()
-                            for concept in meta.concepts:
-                                db_concept = DBConcept(
-                                    document_id=db_doc.id,
-                                    name=concept.name,
-                                    category=concept.category,
-                                    confidence=concept.confidence
-                                )
-                                db.add(db_concept)
+                    if not db_doc:
+                        db_doc = DBDocument(
+                            doc_id=doc_id,
+                            owner_username=meta.owner,
+                            cluster_id=meta.cluster_id,
+                            knowledge_base_id=kb_id if kb_id != "default" else None,
+                            source_type=meta.source_type,
+                            source_url=meta.source_url,
+                            filename=meta.filename,
+                            image_path=meta.image_path,
+                            content_length=meta.content_length,
+                            skill_level=meta.skill_level
+                        )
+                        db.add(db_doc)
+                        db.flush()  # Get the database ID
+
+                        # Add concepts
+                        for concept in meta.concepts:
+                            db_concept = DBConcept(
+                                document_id=db_doc.id,
+                                name=concept.name,
+                                category=concept.category,
+                                confidence=concept.confidence
+                            )
+                            db.add(db_concept)
+                    else:
+                        # Update existing document
+                        db_doc.owner_username = meta.owner
+                        db_doc.cluster_id = meta.cluster_id
+                        db_doc.knowledge_base_id = kb_id if kb_id != "default" else None
+                        db_doc.source_type = meta.source_type
+                        db_doc.source_url = meta.source_url
+                        db_doc.filename = meta.filename
+                        db_doc.image_path = meta.image_path
+                        db_doc.content_length = meta.content_length
+                        db_doc.skill_level = meta.skill_level
+
+                        # Update concepts (simple approach: delete and recreate)
+                        db.query(DBConcept).filter_by(document_id=db_doc.id).delete()
+                        for concept in meta.concepts:
+                            db_concept = DBConcept(
+                                document_id=db_doc.id,
+                                name=concept.name,
+                                category=concept.category,
+                                confidence=concept.confidence
+                            )
+                            db.add(db_concept)
 
             db.commit()
             total_docs = sum(len(d) for d in documents.values())
