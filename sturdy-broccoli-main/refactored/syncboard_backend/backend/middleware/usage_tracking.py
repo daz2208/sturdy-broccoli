@@ -59,7 +59,7 @@ async def usage_tracking_middleware(request: Request, call_next: Callable) -> Re
                     username=username,
                     plan="free",
                     status="active",
-                    created_at=datetime.utcnow()
+                    started_at=datetime.utcnow()
                 )
                 db.add(subscription)
                 db.commit()
@@ -86,8 +86,7 @@ async def usage_tracking_middleware(request: Request, call_next: Callable) -> Re
                     ai_requests=0,
                     storage_bytes=0,
                     search_queries=0,
-                    build_suggestions=0,
-                    created_at=datetime.utcnow()
+                    build_suggestions=0
                 )
                 db.add(usage_record)
 
