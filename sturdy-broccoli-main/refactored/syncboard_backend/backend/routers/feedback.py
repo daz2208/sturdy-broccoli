@@ -301,7 +301,7 @@ async def get_validation_prompts(
 
     logger.info(
         f"Generated {len(prompts)} validation prompts for {current_user.username} "
-        f"(urgency: {summary['urgency']}, avg confidence: {summary['avg_confidence']:.2f})"
+        f"(urgency: {summary['urgency_level']}, avg confidence: {summary['average_confidence']:.2f})"
     )
 
     return {

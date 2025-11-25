@@ -159,19 +159,19 @@ def format_validation_summary(validations: List[Dict]) -> Dict[str, Any]:
 
     Returns:
         {
-            "total": 5,
+            "total_pending": 5,
             "by_type": {"concept_extraction": 3, "clustering": 2},
-            "avg_confidence": 0.65,
-            "urgency": "medium",  # low, medium, high
+            "average_confidence": 0.65,
+            "urgency_level": "medium",  # low, medium, high
             "message": "You have 5 pending validations that could improve AI accuracy"
         }
     """
     if not validations:
         return {
-            "total": 0,
+            "total_pending": 0,
             "by_type": {},
-            "avg_confidence": 1.0,
-            "urgency": "none",
+            "average_confidence": 1.0,
+            "urgency_level": "low",
             "message": "No pending validations! The AI is performing well."
         }
 
@@ -200,9 +200,9 @@ def format_validation_summary(validations: List[Dict]) -> Dict[str, Any]:
         urgency_message = "A few decisions would benefit from your review."
 
     return {
-        "total": total,
+        "total_pending": total,
         "by_type": by_type,
-        "avg_confidence": round(avg_confidence, 2),
-        "urgency": urgency,
+        "average_confidence": round(avg_confidence, 2),
+        "urgency_level": urgency,
         "message": f"You have {total} pending validations. {urgency_message}"
     }
