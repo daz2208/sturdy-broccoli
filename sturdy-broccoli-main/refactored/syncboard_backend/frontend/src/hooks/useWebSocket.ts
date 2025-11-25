@@ -88,6 +88,7 @@ export function useWebSocket() {
   const reconnectAttemptsRef = useRef<number>(0);
   const maxReconnectAttempts = 10;
   const isConnectingRef = useRef<boolean>(false);
+  const hasShownConnectedToastRef = useRef<boolean>(false); // Only show toast once per session
 
   const [state, setState] = useState<WebSocketState>({
     isConnected: false,
@@ -140,7 +141,11 @@ export function useWebSocket() {
     switch (message.event) {
       case 'connected':
         setState(prev => ({ ...prev, isConnected: true }));
-        toast.success('Connected to real-time updates');
+        // Only show toast once per session to avoid spam on page navigation
+        if (!hasShownConnectedToastRef.current) {
+          hasShownConnectedToastRef.current = true;
+          toast.success('Connected to real-time updates');
+        }
         break;
 
       case 'user_viewing':
