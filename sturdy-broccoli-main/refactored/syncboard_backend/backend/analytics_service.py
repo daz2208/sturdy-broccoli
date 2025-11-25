@@ -80,10 +80,16 @@ class AnalyticsService:
             DBDocument.ingested_at >= month_ago
         ).count()
 
+        # Get total chunks count
+        from .db_models import DBDocumentChunk
+        total_chunks = self.db.query(DBDocumentChunk).count()
+
+        # Return field names that frontend expects
         return {
-            "total_documents": total_docs,
-            "total_clusters": total_clusters,
-            "total_concepts": total_concepts,
+            "total_docs": total_docs,  # Frontend expects total_docs, not total_documents
+            "clusters": total_clusters,  # Frontend expects clusters, not total_clusters
+            "concepts": total_concepts,  # Frontend expects concepts, not total_concepts
+            "total_chunks": total_chunks,  # Frontend expects this
             "documents_today": docs_today,
             "documents_this_week": docs_this_week,
             "documents_this_month": docs_this_month,
@@ -124,21 +130,19 @@ class AnalyticsService:
         # Fill in missing dates with 0
         date_counts = {str(r.date): r.count for r in results}
 
-        labels = []
-        data = []
+        # Frontend expects array of {date, count} objects
+        time_series = []
         current_date = start_date.date()
         end_date = datetime.utcnow().date()
 
         while current_date <= end_date:
-            labels.append(current_date.strftime('%Y-%m-%d'))
-            data.append(date_counts.get(str(current_date), 0))
+            time_series.append({
+                "date": current_date.strftime('%Y-%m-%d'),
+                "count": date_counts.get(str(current_date), 0)
+            })
             current_date += timedelta(days=1)
 
-        return {
-            "labels": labels,
-            "data": data,
-            "period_days": days
-        }
+        return time_series
 
     def get_cluster_distribution(
         self,
@@ -170,10 +174,8 @@ class AnalyticsService:
             func.count(DBDocument.doc_id).desc()
         ).limit(10).all()  # Top 10 clusters
 
-        return {
-            "labels": [r.name for r in results],
-            "data": [r.doc_count for r in results]
-        }
+        # Return as {name: count} object
+        return {r.name: r.doc_count for r in results}
 
     def get_skill_level_distribution(
         self,
@@ -200,10 +202,8 @@ class AnalyticsService:
             DBDocument.skill_level
         ).all()
 
-        return {
-            "labels": [r.skill_level or "Unknown" for r in results],
-            "data": [r.count for r in results]
-        }
+        # Return as {level: count} object
+        return {(r.skill_level or "Unknown"): r.count for r in results}
 
     def get_source_type_distribution(
         self,
@@ -230,10 +230,8 @@ class AnalyticsService:
             DBDocument.source_type
         ).all()
 
-        return {
-            "labels": [r.source_type or "Unknown" for r in results],
-            "data": [r.count for r in results]
-        }
+        # Return as {source: count} object
+        return {(r.source_type or "Unknown"): r.count for r in results}
 
     def get_top_concepts(
         self,
@@ -295,16 +293,33 @@ class AnalyticsService:
 
         results = query.limit(limit).all()
 
+        # Return format frontend expects: action, details, timestamp
         return [
             {
-                "doc_id": doc.doc_id,
-                "source_type": doc.source_type,
-                "skill_level": doc.skill_level,
-                "cluster_id": doc.cluster_id,
-                "ingested_at": doc.ingested_at.isoformat() if doc.ingested_at else None
+                "action": f"Document added ({doc.source_type or 'unknown'})",
+                "details": f"Doc #{doc.doc_id} • {doc.skill_level or 'unknown'} level",
+                "timestamp": self._format_relative_time(doc.ingested_at) if doc.ingested_at else "Unknown"
             }
             for doc in results
         ]
+
+    def _format_relative_time(self, dt: datetime) -> str:
+        """Format datetime as relative time string."""
+        now = datetime.utcnow()
+        diff = now - dt
+
+        if diff.days > 7:
+            return dt.strftime('%b %d')
+        elif diff.days > 0:
+            return f"{diff.days}d ago"
+        elif diff.seconds > 3600:
+            hours = diff.seconds // 3600
+            return f"{hours}h ago"
+        elif diff.seconds > 60:
+            minutes = diff.seconds // 60
+            return f"{minutes}m ago"
+        else:
+            return "Just now"
 
     def get_complete_analytics(
         self,
@@ -319,14 +334,17 @@ class AnalyticsService:
             time_period_days: Number of days for time-series data
 
         Returns:
-            Complete analytics dictionary
+            Complete analytics dictionary (structured for frontend)
         """
         return {
             "overview": self.get_overview_stats(username),
             "time_series": self.get_time_series_data(time_period_days, username),
-            "cluster_distribution": self.get_cluster_distribution(username),
-            "skill_level_distribution": self.get_skill_level_distribution(username),
-            "source_type_distribution": self.get_source_type_distribution(username),
+            # Frontend expects distributions nested under "distributions" key
+            "distributions": {
+                "by_source": self.get_source_type_distribution(username),
+                "by_skill_level": self.get_skill_level_distribution(username),
+                "by_cluster": self.get_cluster_distribution(username)
+            },
             "top_concepts": self.get_top_concepts(10, username),
             "recent_activity": self.get_recent_activity(10, username)
         }

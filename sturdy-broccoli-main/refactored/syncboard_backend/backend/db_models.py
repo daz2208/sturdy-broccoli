@@ -516,6 +516,34 @@ class DBBuildIdeaSeed(Base):
         return f"<DBBuildIdeaSeed(doc_id={self.document_id}, title='{self.title}', difficulty='{self.difficulty}')>"
 
 
+class DBSavedIdea(Base):
+    """User-saved build ideas for later reference."""
+    __tablename__ = "saved_ideas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
+    idea_seed_id = Column(Integer, ForeignKey("build_idea_seeds.id", ondelete="CASCADE"), nullable=True)
+    # For ideas from /what_can_i_build that aren't seed-based
+    custom_title = Column(String(500), nullable=True)
+    custom_description = Column(Text, nullable=True)
+    custom_data = Column(JSON, nullable=True)  # Store full suggestion data
+    notes = Column(Text, nullable=True)  # User notes
+    status = Column(String(50), default="saved", nullable=False)  # saved, started, completed
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("DBUser", backref="saved_ideas")
+    idea_seed = relationship("DBBuildIdeaSeed", backref="saved_by_users")
+
+    __table_args__ = (
+        Index('ix_saved_ideas_user_status', 'user_id', 'status'),
+    )
+
+    def __repr__(self):
+        title = self.custom_title or (self.idea_seed.title if self.idea_seed else "Unknown")
+        return f"<DBSavedIdea(user='{self.user_id}', title='{title}')>"
+
+
 # =============================================================================
 # Phase 10: SyncBoard 3.0 Enhancements - Goal-Driven Creation Engine
 # =============================================================================

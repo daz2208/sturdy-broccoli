@@ -32,7 +32,7 @@ from ..dependencies import (
 from ..database import get_db, get_db_context
 from ..sanitization import validate_positive_integer
 from ..constants import MAX_SUGGESTIONS
-from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation
+from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation, DBSavedIdea, DBBuildIdeaSeed
 from ..redis_client import get_cached_build_suggestions, cache_build_suggestions
 
 # Initialize logger
@@ -637,3 +637,239 @@ async def get_combined_ideas(
         "type": "combined",
         "ideas": ideas
     }
+
+
+# =============================================================================
+# Saved Ideas Endpoints (Bookmarking)
+# =============================================================================
+
+@router.post("/ideas/save")
+@limiter.limit("30/minute")
+async def save_idea(
+    request: Request,
+    idea_seed_id: int = None,
+    title: str = None,
+    description: str = None,
+    suggestion_data: dict = None,
+    notes: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Save an idea for later reference.
+
+    Can save either:
+    - A pre-computed idea seed (by idea_seed_id)
+    - A custom suggestion from /what_can_i_build (by title, description, suggestion_data)
+
+    Args:
+        idea_seed_id: ID of an existing idea seed to save
+        title: Custom title (for non-seed ideas)
+        description: Custom description (for non-seed ideas)
+        suggestion_data: Full suggestion JSON (for non-seed ideas)
+        notes: Optional user notes
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Saved idea details
+    """
+    # Validate input - need either idea_seed_id or title
+    if not idea_seed_id and not title:
+        raise HTTPException(400, "Must provide either idea_seed_id or title")
+
+    # If saving an idea seed, verify it exists
+    if idea_seed_id:
+        seed = db.query(DBBuildIdeaSeed).filter_by(id=idea_seed_id).first()
+        if not seed:
+            raise HTTPException(404, f"Idea seed {idea_seed_id} not found")
+
+        # Check if already saved
+        existing = db.query(DBSavedIdea).filter_by(
+            user_id=current_user.username,
+            idea_seed_id=idea_seed_id
+        ).first()
+        if existing:
+            return {
+                "message": "Idea already saved",
+                "saved_idea": {
+                    "id": existing.id,
+                    "title": seed.title,
+                    "status": existing.status,
+                    "saved_at": existing.created_at.isoformat()
+                }
+            }
+
+    # Create saved idea
+    saved_idea = DBSavedIdea(
+        user_id=current_user.username,
+        idea_seed_id=idea_seed_id,
+        custom_title=title if not idea_seed_id else None,
+        custom_description=description if not idea_seed_id else None,
+        custom_data=suggestion_data if not idea_seed_id else None,
+        notes=notes,
+        status="saved"
+    )
+    db.add(saved_idea)
+    db.commit()
+    db.refresh(saved_idea)
+
+    logger.info(f"User {current_user.username} saved idea: {title or idea_seed_id}")
+
+    return {
+        "message": "Idea saved successfully",
+        "saved_idea": {
+            "id": saved_idea.id,
+            "title": title or (saved_idea.idea_seed.title if saved_idea.idea_seed else "Unknown"),
+            "status": saved_idea.status,
+            "saved_at": saved_idea.created_at.isoformat()
+        }
+    }
+
+
+@router.get("/ideas/saved")
+@limiter.limit("30/minute")
+async def get_saved_ideas(
+    request: Request,
+    status: str = None,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user's saved ideas.
+
+    Args:
+        status: Optional filter by status (saved, started, completed)
+        limit: Maximum results (default 50)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of saved ideas
+    """
+    query = db.query(DBSavedIdea).filter_by(user_id=current_user.username)
+
+    if status:
+        if status not in ["saved", "started", "completed"]:
+            raise HTTPException(400, "Invalid status. Use: saved, started, completed")
+        query = query.filter_by(status=status)
+
+    saved_ideas = query.order_by(DBSavedIdea.created_at.desc()).limit(limit).all()
+
+    ideas = []
+    for si in saved_ideas:
+        if si.idea_seed:
+            ideas.append({
+                "id": si.id,
+                "title": si.idea_seed.title,
+                "description": si.idea_seed.description,
+                "difficulty": si.idea_seed.difficulty,
+                "feasibility": si.idea_seed.feasibility,
+                "effort_estimate": si.idea_seed.effort_estimate,
+                "notes": si.notes,
+                "status": si.status,
+                "source": "seed",
+                "seed_id": si.idea_seed_id,
+                "saved_at": si.created_at.isoformat()
+            })
+        else:
+            ideas.append({
+                "id": si.id,
+                "title": si.custom_title,
+                "description": si.custom_description,
+                "data": si.custom_data,
+                "notes": si.notes,
+                "status": si.status,
+                "source": "custom",
+                "saved_at": si.created_at.isoformat()
+            })
+
+    return {
+        "count": len(ideas),
+        "saved_ideas": ideas
+    }
+
+
+@router.put("/ideas/saved/{saved_id}")
+@limiter.limit("30/minute")
+async def update_saved_idea(
+    saved_id: int,
+    request: Request,
+    status: str = None,
+    notes: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a saved idea (status, notes).
+
+    Args:
+        saved_id: ID of saved idea to update
+        status: New status (saved, started, completed)
+        notes: Updated notes
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Updated saved idea
+    """
+    saved_idea = db.query(DBSavedIdea).filter_by(
+        id=saved_id,
+        user_id=current_user.username
+    ).first()
+
+    if not saved_idea:
+        raise HTTPException(404, f"Saved idea {saved_id} not found")
+
+    if status:
+        if status not in ["saved", "started", "completed"]:
+            raise HTTPException(400, "Invalid status. Use: saved, started, completed")
+        saved_idea.status = status
+
+    if notes is not None:
+        saved_idea.notes = notes
+
+    db.commit()
+
+    return {
+        "message": "Saved idea updated",
+        "id": saved_idea.id,
+        "status": saved_idea.status,
+        "notes": saved_idea.notes
+    }
+
+
+@router.delete("/ideas/saved/{saved_id}")
+@limiter.limit("30/minute")
+async def delete_saved_idea(
+    saved_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove a saved idea.
+
+    Args:
+        saved_id: ID of saved idea to delete
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Confirmation message
+    """
+    saved_idea = db.query(DBSavedIdea).filter_by(
+        id=saved_id,
+        user_id=current_user.username
+    ).first()
+
+    if not saved_idea:
+        raise HTTPException(404, f"Saved idea {saved_id} not found")
+
+    db.delete(saved_idea)
+    db.commit()
+
+    logger.info(f"User {current_user.username} deleted saved idea {saved_id}")
+
+    return {"message": f"Saved idea {saved_id} deleted"}
