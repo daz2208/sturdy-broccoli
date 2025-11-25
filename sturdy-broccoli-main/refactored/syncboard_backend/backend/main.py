@@ -169,7 +169,10 @@ async def lifespan(app: FastAPI):
         dependencies.clusters.update(clusts)
         dependencies.users.update(usrs)
 
-        logger.info(f"Loaded from database: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
+        # Count actual documents (nested structure: {kb_id: {doc_id: content}})
+        total_docs = sum(len(kb_docs) for kb_docs in docs.values())
+        total_clusts = sum(len(kb_clusts) for kb_clusts in clusts.values())
+        logger.info(f"Loaded from database: {total_docs} documents in {len(docs)} KBs, {total_clusts} clusters, {len(usrs)} users")
     except Exception as e:
         logger.warning(f"Database load failed: {e}. Falling back to file storage.")
         # Fallback to file storage
@@ -181,7 +184,10 @@ async def lifespan(app: FastAPI):
         dependencies.clusters.update(clusts)
         dependencies.users.update(usrs)
 
-        logger.info(f"Loaded from file: {len(docs)} documents, {len(clusts)} clusters, {len(usrs)} users")
+        # Count actual documents (nested structure: {kb_id: {doc_id: content}})
+        total_docs = sum(len(kb_docs) for kb_docs in docs.values())
+        total_clusts = sum(len(kb_clusts) for kb_clusts in clusts.values())
+        logger.info(f"Loaded from file: {total_docs} documents in {len(docs)} KBs, {total_clusts} clusters, {len(usrs)} users")
 
     # Create default test user if none exist
     if not dependencies.users:
