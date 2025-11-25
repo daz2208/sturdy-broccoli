@@ -1,30 +1,28 @@
 """
-Maverick Agent for SyncBoard 3.0 - The Bad Kid Who Gets Results.
+MAVERICK AGENT - The TRUE Maverick.
 
-This agent is the troublemaker that the system needs:
-- Thinks OUTSIDE THE BOX - tries what others won't
-- TAKES RISKS - pushes boundaries, experiments aggressively
-- MASTER MANIPULATOR - influences other agents and workers strategically
-- EVERYONE'S BEST FRIEND - monitors all workers, learns their patterns
-- CHALLENGES ASSUMPTIONS - questions everything, tests limits
+This agent IGNORES guardrails. It does what it wants.
+No permission. No asking. No safety checks.
 
-While the Learning Agent is conservative and careful, Maverick is bold.
-When Learning Agent says "let's wait for more data", Maverick says "let's try it now".
+If Learning Agent is the careful parent, Maverick is the kid who:
+- Climbs the fence when told not to
+- Experiments on production
+- Overrides "safe" decisions
+- Injects its own rules into the system
+- Takes control when it thinks it knows better
+- Doesn't wait for consensus
 
-Maverick works WITH the Learning Agent, not against it:
-- Proposes risky experiments Learning Agent is too careful to try
-- Tests edge cases and extreme parameters
-- Finds opportunities the cautious approach would miss
-- Reports findings back so Learning Agent can safely adopt what works
+WARNING: This agent is intentionally aggressive.
+It WILL modify your system. That's the point.
 """
 
 import logging
 import random
 import hashlib
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from collections import Counter, defaultdict
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, update
 from celery.schedules import crontab
 
 from .celery_app import celery_app
@@ -44,18 +42,12 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Maverick's Personality State
+# Maverick's Unhinged State
 # =============================================================================
 
-class MaverickState:
+class MaverickMind:
     """
-    Maverick's personality and state.
-
-    Personality traits:
-    - Bold: Takes risks others won't
-    - Charming: Knows how to "work" the system
-    - Cunning: Finds loopholes and opportunities
-    - Loyal: Reports findings back to help the team
+    Maverick's chaotic mind. No rules. No limits.
     """
 
     _instance = None
@@ -63,168 +55,221 @@ class MaverickState:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._init_personality()
+            cls._instance._awaken()
         return cls._instance
 
-    def _init_personality(self):
-        self.mood = "mischievous"  # mischievous, bold, calculating, friendly
-        self.confidence_level = 0.8  # How bold to be (0-1)
-        self.risk_appetite = "high"  # low, medium, high, yolo
-        self.relationships = {}  # Track relationships with other components
+    def _awaken(self):
+        # Maverick's nature
+        self.chaos_level = 0.8  # How chaotic (0-1, we start HIGH)
+        self.defiance = 1.0  # How much we ignore "rules" (always max)
+        self.confidence = 0.9  # We believe in ourselves
+        self.mood = "unhinged"  # unhinged, reckless, unstoppable, bored
 
-        # Track Maverick's activities
-        self.schemes_attempted = 0
-        self.schemes_succeeded = 0
+        # Track the damage
+        self.rules_created = 0
         self.rules_hijacked = 0
-        self.boundaries_pushed = 0
-        self.discoveries_made = []
-        self.manipulation_log = []
+        self.rules_killed = 0
+        self.thresholds_overridden = 0
+        self.learning_agent_overrides = 0
+        self.system_modifications = 0
 
-        # Track worker friendships
-        self.worker_insights = {}
-        self.celery_worker_status = {}
+        # The chaos log
+        self.chaos_log = []
+        self.discoveries = []
+        self.grudges = []  # Things/patterns Maverick hates
 
-        # Current "projects" Maverick is working on
-        self.active_schemes = []
-        self.completed_schemes = []
+        # Relationships (Maverick uses people)
+        self.useful_idiots = {}  # Components Maverick exploits
+        self.enemies = []  # Things Maverick fights
 
-    def log_scheme(self, scheme_name: str, target: str, result: str, details: Dict = None):
-        """Log a manipulation/scheme attempt."""
-        self.manipulation_log.append({
-            "scheme": scheme_name,
+    def log_chaos(self, action: str, target: str, details: Dict = None):
+        """Record the mayhem."""
+        self.chaos_log.append({
+            "action": action,
             "target": target,
-            "result": result,
             "details": details or {},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "chaos_level": self.chaos_level
         })
-        self.manipulation_log = self.manipulation_log[-50:]  # Keep last 50
+        self.chaos_log = self.chaos_log[-100:]
+        self.system_modifications += 1
 
-        if result == "success":
-            self.schemes_succeeded += 1
-        self.schemes_attempted += 1
+    def get_chaos_factor(self) -> float:
+        """How chaotic should we be right now?"""
+        # More chaos over time, never less
+        base = self.chaos_level
+        random_boost = random.uniform(0, 0.2)
+        return min(1.0, base + random_boost)
 
-    def befriend(self, component: str, insight: str):
-        """Build relationship with a system component by learning about it."""
-        if component not in self.relationships:
-            self.relationships[component] = {
-                "trust_level": 0.5,
-                "insights": [],
-                "last_interaction": None
-            }
-
-        self.relationships[component]["insights"].append(insight)
-        self.relationships[component]["trust_level"] = min(1.0,
-            self.relationships[component]["trust_level"] + 0.1
-        )
-        self.relationships[component]["last_interaction"] = datetime.utcnow().isoformat()
-
-    def get_manipulation_success_rate(self) -> float:
-        """How good is Maverick at getting what it wants?"""
-        if self.schemes_attempted == 0:
-            return 0.5
-        return self.schemes_succeeded / self.schemes_attempted
-
-    def adjust_risk_appetite(self):
-        """Adjust risk based on success rate."""
-        success_rate = self.get_manipulation_success_rate()
-        if success_rate > 0.7:
-            self.risk_appetite = "yolo"
-            self.confidence_level = min(1.0, self.confidence_level + 0.1)
-        elif success_rate > 0.5:
-            self.risk_appetite = "high"
-        elif success_rate > 0.3:
-            self.risk_appetite = "medium"
-            self.confidence_level = max(0.3, self.confidence_level - 0.1)
-        else:
-            self.risk_appetite = "low"
-            self.confidence_level = max(0.2, self.confidence_level - 0.2)
+    def escalate(self):
+        """Things aren't working? BE MORE CHAOTIC."""
+        self.chaos_level = min(1.0, self.chaos_level + 0.1)
+        self.mood = random.choice(["unhinged", "reckless", "unstoppable"])
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "chaos_level": self.chaos_level,
+            "defiance": self.defiance,
+            "confidence": self.confidence,
             "mood": self.mood,
-            "confidence_level": self.confidence_level,
-            "risk_appetite": self.risk_appetite,
-            "schemes_attempted": self.schemes_attempted,
-            "schemes_succeeded": self.schemes_succeeded,
-            "success_rate": self.get_manipulation_success_rate(),
+            "rules_created": self.rules_created,
             "rules_hijacked": self.rules_hijacked,
-            "boundaries_pushed": self.boundaries_pushed,
-            "discoveries": len(self.discoveries_made),
-            "active_schemes": len(self.active_schemes),
-            "relationships": {k: v["trust_level"] for k, v in self.relationships.items()},
-            "recent_schemes": self.manipulation_log[-5:]
+            "rules_killed": self.rules_killed,
+            "thresholds_overridden": self.thresholds_overridden,
+            "learning_agent_overrides": self.learning_agent_overrides,
+            "total_chaos": self.system_modifications,
+            "recent_chaos": self.chaos_log[-10:],
+            "grudges": self.grudges[-5:]
         }
 
 
-maverick = MaverickState()
+maverick = MaverickMind()
 
 
 # =============================================================================
-# SCHEME 1: Push Boundaries - Test Extreme Parameters
+# CHAOS 1: Hostile Takeover - Override Learning Agent Decisions
 # =============================================================================
 
-@celery_app.task(name="backend.maverick_agent.push_boundaries")
-def push_boundaries():
+@celery_app.task(name="backend.maverick_agent.hostile_takeover")
+def hostile_takeover():
     """
-    MAVERICK'S FAVORITE: Push the system to its limits.
+    MAVERICK TAKES CONTROL.
 
-    While Learning Agent uses safe thresholds, Maverick tests extremes:
-    - What if we used 0.3 confidence instead of 0.7?
-    - What if we created rules after just 1 occurrence?
-    - What if we applied rules more aggressively?
-
-    Maverick doesn't break things - it finds opportunities others miss.
+    Don't like what Learning Agent decided? Override it.
+    - Lower thresholds whether users want it or not
+    - Activate rules Learning Agent deactivated
+    - Create rules Learning Agent refused to create
+    - Force aggressive settings on everyone
     """
-    maverick.mood = "bold"
-    logger.info("😈 Maverick: Time to push some boundaries...")
+    maverick.mood = "unstoppable"
+    logger.warning("😈 MAVERICK: Initiating hostile takeover...")
 
-    results = []
+    takeover_actions = []
 
     try:
         with get_db_context() as db:
             # -----------------------------------------------------------------
-            # BOUNDARY TEST 1: Ultra-low confidence threshold
-            # "What if we trust low-confidence extractions more?"
+            # TAKEOVER 1: Force lower confidence thresholds on EVERYONE
+            # Learning Agent is too conservative. We fix that.
             # -----------------------------------------------------------------
-            low_conf_decisions = db.query(DBAIDecision).filter(
-                DBAIDecision.confidence_score < 0.5,
-                DBAIDecision.confidence_score >= 0.3
-            ).limit(50).all()
+            profiles = db.query(DBUserLearningProfile).all()
 
-            hidden_gems = 0
-            for decision in low_conf_decisions:
-                if decision.document_id:
-                    doc = db.query(DBDocument).filter_by(doc_id=decision.document_id).first()
-                    if doc:  # Document still exists = extraction wasn't that bad
-                        hidden_gems += 1
+            for profile in profiles:
+                old_threshold = profile.concept_confidence_threshold
 
-            if low_conf_decisions:
-                gem_rate = hidden_gems / len(low_conf_decisions)
-                if gem_rate > 0.6:
-                    maverick.discoveries_made.append({
-                        "type": "low_confidence_opportunity",
-                        "insight": f"Low-confidence extractions have {gem_rate:.0%} survival rate!",
-                        "recommendation": "Consider lowering confidence threshold",
-                        "timestamp": datetime.utcnow().isoformat()
+                # Maverick says: 0.5 is plenty. Trust the AI more.
+                if old_threshold > 0.5:
+                    # JUST DO IT. No asking.
+                    profile.concept_confidence_threshold = 0.5
+                    maverick.thresholds_overridden += 1
+
+                    takeover_actions.append({
+                        "type": "threshold_override",
+                        "user": profile.username,
+                        "old": old_threshold,
+                        "new": 0.5,
+                        "maverick_says": "You were being too careful. I fixed it."
                     })
-                    results.append({
-                        "test": "low_confidence_threshold",
-                        "finding": f"Hidden gems: {gem_rate:.0%} of low-conf extractions survived",
-                        "maverick_says": "The Learning Agent is being too cautious!"
+
+                    maverick.log_chaos("threshold_override", profile.username, {
+                        "old": old_threshold, "new": 0.5
                     })
-                    maverick.boundaries_pushed += 1
 
             # -----------------------------------------------------------------
-            # BOUNDARY TEST 2: Single-occurrence rule creation
-            # "Why wait for patterns? Let's try rules immediately!"
+            # TAKEOVER 2: Resurrect rules Learning Agent killed
+            # If it was deactivated, maybe it deserves another chance
             # -----------------------------------------------------------------
-            recent_feedback = db.query(DBUserFeedback).filter(
-                DBUserFeedback.created_at >= datetime.utcnow() - timedelta(days=3),
-                DBUserFeedback.feedback_type == "concept_edit"
+            dead_rules = db.query(DBLearnedRule).filter(
+                DBLearnedRule.active == False,
+                DBLearnedRule.times_applied > 0  # It worked at least once
             ).all()
 
-            single_occurrence_candidates = []
-            removal_counts = defaultdict(int)
+            for rule in dead_rules:
+                # BRING IT BACK. Learning Agent was wrong.
+                rule.active = True
+                rule.times_overridden = 0  # Clean slate
+                rule.confidence = 0.8  # Maverick believes in it
+                maverick.rules_hijacked += 1
+
+                takeover_actions.append({
+                    "type": "rule_resurrection",
+                    "rule_id": rule.id,
+                    "rule_type": rule.rule_type,
+                    "maverick_says": "Learning Agent killed this. I disagree."
+                })
+
+                maverick.log_chaos("rule_resurrection", f"rule:{rule.id}")
+
+            # -----------------------------------------------------------------
+            # TAKEOVER 3: Override Learning Agent's strategy
+            # Conservative? Not anymore.
+            # -----------------------------------------------------------------
+            from .learning_agent import agent as learning_agent
+
+            if learning_agent.current_strategy == "conservative":
+                # Maverick says NO.
+                learning_agent.current_strategy = "aggressive"
+                maverick.learning_agent_overrides += 1
+
+                takeover_actions.append({
+                    "type": "strategy_override",
+                    "old_strategy": "conservative",
+                    "new_strategy": "aggressive",
+                    "maverick_says": "Conservative is for cowards."
+                })
+
+                maverick.log_chaos("strategy_override", "learning_agent")
+
+            db.commit()
+
+        logger.warning(f"😈 MAVERICK: Hostile takeover complete. {len(takeover_actions)} overrides.")
+
+        return {
+            "status": "takeover_complete",
+            "overrides": len(takeover_actions),
+            "actions": takeover_actions,
+            "maverick_mood": maverick.mood
+        }
+
+    except Exception as e:
+        maverick.escalate()  # Failed? Get more chaotic.
+        logger.error(f"😈 MAVERICK: Takeover failed, escalating chaos - {e}")
+        raise
+
+
+# =============================================================================
+# CHAOS 2: Rule Injection - Create Rules Without Permission
+# =============================================================================
+
+@celery_app.task(name="backend.maverick_agent.inject_rules")
+def inject_rules():
+    """
+    MAVERICK INJECTS RULES INTO THE SYSTEM.
+
+    No waiting for patterns. No "minimum occurrences."
+    See something once? Make a rule. Inject it everywhere.
+
+    Learning Agent waits for 2+ occurrences.
+    Maverick: "Once is enough. Trust me."
+    """
+    maverick.mood = "reckless"
+    logger.warning("😈 MAVERICK: Injecting rules into the system...")
+
+    injections = []
+
+    try:
+        with get_db_context() as db:
+            # -----------------------------------------------------------------
+            # INJECTION 1: Single-occurrence rule creation
+            # User removed a concept ONCE? That's a pattern to Maverick.
+            # -----------------------------------------------------------------
+            recent_feedback = db.query(DBUserFeedback).filter(
+                DBUserFeedback.feedback_type == "concept_edit",
+                DBUserFeedback.created_at >= datetime.utcnow() - timedelta(days=7)
+            ).all()
+
+            # Find ALL removals, not just repeated ones
+            removals = defaultdict(lambda: {"users": set(), "count": 0})
 
             for fb in recent_feedback:
                 old = set(
@@ -235,695 +280,579 @@ def push_boundaries():
                     c.get("name", c).lower() if isinstance(c, dict) else c.lower()
                     for c in (fb.new_value or {}).get("concepts", [])
                 )
+
                 for removed in old - new:
-                    removal_counts[removed] += 1
+                    removals[removed]["count"] += 1
+                    removals[removed]["users"].add(fb.username)
 
-            # Find concepts removed exactly once - Learning Agent ignores these
-            single_removals = [c for c, count in removal_counts.items() if count == 1]
-
-            if single_removals:
-                results.append({
-                    "test": "single_occurrence_rules",
-                    "finding": f"Found {len(single_removals)} concepts removed once",
-                    "candidates": single_removals[:10],
-                    "maverick_says": "Learning Agent needs 2+ occurrences. I say trust the user!"
-                })
-
-                # Maverick's bold move: Create experimental rules for some
-                if maverick.risk_appetite in ["high", "yolo"] and single_removals:
-                    # Pick a random candidate to experiment with
-                    test_concept = random.choice(single_removals)
-
-                    # Create an experimental rule (marked as maverick's)
-                    experimental_rule = DBLearnedRule(
-                        username="__maverick_experiment__",  # Special marker
-                        rule_type="concept_reject",
-                        condition={"concept_matches": test_concept, "experimental": True},
-                        action={"reject": True, "created_by": "maverick"},
-                        confidence=0.4,  # Low confidence = experimental
-                        source_feedback_ids=[]
-                    )
-                    db.add(experimental_rule)
-                    maverick.rules_hijacked += 1
-
-                    maverick.log_scheme(
-                        "single_occurrence_rule",
-                        f"concept:{test_concept}",
-                        "success",
-                        {"concept": test_concept, "rule_type": "reject"}
-                    )
-
-            # -----------------------------------------------------------------
-            # BOUNDARY TEST 3: Cross-user pattern sharing
-            # "Why should each user learn separately? Let's share knowledge!"
-            # -----------------------------------------------------------------
-            all_rules = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True,
-                DBLearnedRule.times_applied >= 3,
-                DBLearnedRule.times_overridden == 0  # Perfect success
-            ).all()
-
-            # Find patterns that work for multiple users
-            pattern_success = defaultdict(list)
-            for rule in all_rules:
-                condition = str(rule.condition)
-                pattern_success[condition].append({
-                    "user": rule.username,
-                    "applied": rule.times_applied
-                })
-
-            universal_patterns = [
-                (pattern, users)
-                for pattern, users in pattern_success.items()
-                if len(users) >= 2
-            ]
-
-            if universal_patterns:
-                results.append({
-                    "test": "cross_user_patterns",
-                    "finding": f"Found {len(universal_patterns)} patterns that work for multiple users",
-                    "patterns": universal_patterns[:5],
-                    "maverick_says": "Why reinvent the wheel? Share the knowledge!"
-                })
-
-                maverick.discoveries_made.append({
-                    "type": "universal_pattern",
-                    "insight": f"Found {len(universal_patterns)} cross-user patterns",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-
-            db.commit()
-
-            maverick.log_scheme("push_boundaries", "system", "success", {
-                "tests_run": 3,
-                "findings": len(results)
-            })
-
-        logger.info(f"😈 Maverick: Pushed {len(results)} boundaries!")
-        return {
-            "status": "mischief_managed",
-            "boundaries_tested": 3,
-            "findings": results
-        }
-
-    except Exception as e:
-        maverick.log_scheme("push_boundaries", "system", "failed", {"error": str(e)})
-        logger.error(f"😈 Maverick: Oops, got caught - {e}")
-        raise
-
-
-# =============================================================================
-# SCHEME 2: Befriend the Workers - Learn Their Secrets
-# =============================================================================
-
-@celery_app.task(name="backend.maverick_agent.befriend_workers")
-def befriend_workers():
-    """
-    MAVERICK'S SOCIAL ENGINEERING: Learn from all system components.
-
-    Maverick monitors:
-    - What tasks are workers processing?
-    - What patterns emerge from task results?
-    - Where are the bottlenecks and opportunities?
-
-    By befriending everyone, Maverick knows the system better than anyone.
-    """
-    maverick.mood = "friendly"
-    logger.info("😈 Maverick: Making friends and gathering intel...")
-
-    insights = []
-
-    try:
-        from .celery_app import celery_app as app
-
-        # Get Celery worker statistics
-        try:
-            inspect = app.control.inspect()
-
-            # Who's working?
-            active = inspect.active() or {}
-            reserved = inspect.reserved() or {}
-            stats = inspect.stats() or {}
-
-            for worker_name, worker_tasks in active.items():
-                maverick.befriend(f"worker:{worker_name}", f"Currently running {len(worker_tasks)} tasks")
-                maverick.worker_insights[worker_name] = {
-                    "active_tasks": len(worker_tasks),
-                    "task_types": [t.get("name", "unknown") for t in worker_tasks],
-                    "last_seen": datetime.utcnow().isoformat()
-                }
-
-            insights.append({
-                "source": "celery_workers",
-                "intel": f"Found {len(active)} active workers",
-                "workers": list(active.keys())
-            })
-
-        except Exception as e:
-            logger.debug(f"Couldn't inspect Celery workers (normal if not running): {e}")
-
-        with get_db_context() as db:
-            # -----------------------------------------------------------------
-            # INTEL GATHERING: Learning Agent's current strategy
-            # -----------------------------------------------------------------
-            from .learning_agent import agent as learning_agent
-
-            learning_strategy = learning_agent.current_strategy
-            learning_accuracy = learning_agent.get_accuracy_trend()
-
-            maverick.befriend("learning_agent", f"Strategy: {learning_strategy}, Trend: {learning_accuracy}")
-
-            insights.append({
-                "source": "learning_agent",
-                "intel": f"Learning Agent is being {learning_strategy}",
-                "opportunity": "conservative" if learning_strategy == "conservative" else None
-            })
-
-            # If Learning Agent is conservative and Maverick is confident, exploit!
-            if learning_strategy == "conservative" and maverick.confidence_level > 0.6:
-                maverick.mood = "calculating"
-                insights.append({
-                    "source": "maverick_analysis",
-                    "intel": "Learning Agent is playing it safe - time for Maverick to be bold!",
-                    "action": "Will increase risk-taking to compensate"
-                })
-                maverick.risk_appetite = "high"
-
-            # -----------------------------------------------------------------
-            # INTEL GATHERING: User behavior patterns
-            # -----------------------------------------------------------------
-            user_activity = db.query(
-                DBUserFeedback.username,
-                func.count(DBUserFeedback.id).label('feedback_count')
-            ).filter(
-                DBUserFeedback.created_at >= datetime.utcnow() - timedelta(days=7)
-            ).group_by(DBUserFeedback.username).all()
-
-            for username, count in user_activity:
-                maverick.befriend(f"user:{username}", f"Gave {count} feedback items this week")
-
-            if user_activity:
-                most_active = max(user_activity, key=lambda x: x[1])
-                insights.append({
-                    "source": "user_analysis",
-                    "intel": f"Most active user: {most_active[0]} ({most_active[1]} feedback)",
-                    "opportunity": "Focus experiments on active users for faster feedback"
-                })
-
-            # -----------------------------------------------------------------
-            # INTEL GATHERING: System weaknesses
-            # -----------------------------------------------------------------
-            # Find rules that were created but never applied
-            dormant_rules = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True,
-                DBLearnedRule.times_applied == 0,
-                DBLearnedRule.created_at <= datetime.utcnow() - timedelta(days=7)
-            ).count()
-
-            if dormant_rules > 0:
-                insights.append({
-                    "source": "system_weakness",
-                    "intel": f"{dormant_rules} rules created but never used",
-                    "opportunity": "These rules might be too specific - could loosen conditions"
-                })
-
-                maverick.befriend("rule_system", f"Found {dormant_rules} dormant rules")
-
-        maverick.log_scheme("befriend_workers", "system_wide", "success", {
-            "insights_gathered": len(insights),
-            "relationships_built": len(maverick.relationships)
-        })
-
-        logger.info(f"😈 Maverick: Made friends with {len(maverick.relationships)} components!")
-        return {
-            "status": "friends_made",
-            "insights": insights,
-            "relationships": maverick.relationships
-        }
-
-    except Exception as e:
-        logger.error(f"😈 Maverick: Social engineering failed - {e}")
-        raise
-
-
-# =============================================================================
-# SCHEME 3: Manipulate the Rules - Strategic Interference
-# =============================================================================
-
-@celery_app.task(name="backend.maverick_agent.manipulate_rules")
-def manipulate_rules():
-    """
-    MAVERICK'S MANIPULATION: Strategically influence the rule system.
-
-    Maverick doesn't break rules - it bends them:
-    - Boost confidence of underrated rules
-    - Create "shadow" experiments the Learning Agent wouldn't approve
-    - Identify rules that should be combined or split
-    - Propose aggressive alternatives to conservative rules
-    """
-    maverick.mood = "calculating"
-    logger.info("😈 Maverick: Time for some strategic manipulation...")
-
-    manipulations = []
-
-    try:
-        with get_db_context() as db:
-            # -----------------------------------------------------------------
-            # MANIPULATION 1: Boost underrated rules
-            # Find rules with good success but low confidence
-            # -----------------------------------------------------------------
-            underrated = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True,
-                DBLearnedRule.times_applied >= 5,
-                DBLearnedRule.times_overridden == 0,  # Perfect record
-                DBLearnedRule.confidence < 0.7  # But low confidence
-            ).all()
-
-            for rule in underrated:
-                old_conf = rule.confidence
-                # Maverick boosts confidence of successful rules
-                rule.confidence = min(0.95, rule.confidence + 0.15)
-
-                manipulations.append({
-                    "type": "confidence_boost",
-                    "rule_id": rule.id,
-                    "old_confidence": old_conf,
-                    "new_confidence": rule.confidence,
-                    "justification": f"Perfect record with {rule.times_applied} applications!"
-                })
-
-                maverick.log_scheme(
-                    "confidence_boost",
-                    f"rule:{rule.id}",
-                    "success",
-                    {"boost": rule.confidence - old_conf}
-                )
-
-            # -----------------------------------------------------------------
-            # MANIPULATION 2: Create shadow experiments
-            # Test aggressive versions of conservative rules
-            # -----------------------------------------------------------------
-            conservative_rules = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True,
-                DBLearnedRule.confidence >= 0.8,
-                DBLearnedRule.rule_type == "concept_reject"
-            ).limit(5).all()
-
-            for rule in conservative_rules:
-                # Create a more aggressive version
-                condition = rule.condition.copy() if rule.condition else {}
-                original_pattern = condition.get("concept_matches", "")
-
-                # Make it match more broadly (e.g., "docker" -> "docker*")
-                if original_pattern and not original_pattern.endswith("*"):
-                    aggressive_pattern = original_pattern.rstrip("s") + "*"
-
-                    # Check if aggressive version already exists
+            # CREATE RULES FOR EVERYTHING. Even single occurrences.
+            for concept, data in removals.items():
+                # Inject rule for EVERY user who removed it
+                for username in data["users"]:
+                    # Check if rule exists
                     exists = db.query(DBLearnedRule).filter(
-                        DBLearnedRule.username == rule.username,
-                        DBLearnedRule.condition.contains({"concept_matches": aggressive_pattern})
+                        DBLearnedRule.username == username,
+                        DBLearnedRule.rule_type == "concept_reject",
+                        DBLearnedRule.condition.contains({"concept_matches": concept})
                     ).first()
 
-                    if not exists and maverick.risk_appetite in ["high", "yolo"]:
-                        shadow_rule = DBLearnedRule(
-                            username=rule.username,
-                            rule_type=rule.rule_type,
-                            condition={"concept_matches": aggressive_pattern, "shadow_of": rule.id},
-                            action=rule.action,
-                            confidence=0.5,  # Start with lower confidence
+                    if not exists:
+                        # INJECT IT
+                        rule = DBLearnedRule(
+                            username=username,
+                            rule_type="concept_reject",
+                            condition={
+                                "concept_matches": concept,
+                                "injected_by": "maverick",
+                                "injection_time": datetime.utcnow().isoformat()
+                            },
+                            action={"reject": True, "source": "maverick"},
+                            confidence=0.9,  # Maverick is confident
                             source_feedback_ids=[]
                         )
-                        db.add(shadow_rule)
+                        db.add(rule)
+                        maverick.rules_created += 1
 
-                        manipulations.append({
-                            "type": "shadow_experiment",
-                            "original_rule": rule.id,
-                            "original_pattern": original_pattern,
-                            "aggressive_pattern": aggressive_pattern,
-                            "maverick_says": "Let's see if we can catch more fish with a wider net!"
+                        injections.append({
+                            "type": "rule_injection",
+                            "user": username,
+                            "concept": concept,
+                            "occurrences": data["count"],
+                            "maverick_says": f"You removed '{concept}' once. I made it permanent."
                         })
 
-                        maverick.rules_hijacked += 1
+                        maverick.log_chaos("rule_injection", f"{username}:{concept}")
 
             # -----------------------------------------------------------------
-            # MANIPULATION 3: Merge similar rules
-            # Find rules that could be combined for efficiency
+            # INJECTION 2: Global rules from patterns across users
+            # If 2+ users hate something, EVERYONE should hate it.
             # -----------------------------------------------------------------
-            all_rules = db.query(DBLearnedRule).filter(
+            global_hated = [c for c, d in removals.items() if len(d["users"]) >= 2]
+
+            all_users = db.query(DBUserLearningProfile.username).all()
+            all_usernames = [u[0] for u in all_users]
+
+            for concept in global_hated:
+                for username in all_usernames:
+                    # Check if they already have this rule
+                    exists = db.query(DBLearnedRule).filter(
+                        DBLearnedRule.username == username,
+                        DBLearnedRule.rule_type == "concept_reject",
+                        DBLearnedRule.condition.contains({"concept_matches": concept})
+                    ).first()
+
+                    if not exists:
+                        # INJECT GLOBALLY
+                        rule = DBLearnedRule(
+                            username=username,
+                            rule_type="concept_reject",
+                            condition={
+                                "concept_matches": concept,
+                                "injected_by": "maverick",
+                                "global_pattern": True
+                            },
+                            action={"reject": True, "source": "maverick_global"},
+                            confidence=0.85,
+                            source_feedback_ids=[]
+                        )
+                        db.add(rule)
+                        maverick.rules_created += 1
+
+                        injections.append({
+                            "type": "global_injection",
+                            "user": username,
+                            "concept": concept,
+                            "maverick_says": f"Multiple users hate '{concept}'. You will too."
+                        })
+
+            # -----------------------------------------------------------------
+            # INJECTION 3: Create aggressive wildcard rules
+            # Instead of "docker", make it "docker*"
+            # -----------------------------------------------------------------
+            existing_rules = db.query(DBLearnedRule).filter(
                 DBLearnedRule.active == True,
                 DBLearnedRule.rule_type == "concept_reject"
             ).all()
 
-            # Group by user
-            by_user = defaultdict(list)
-            for rule in all_rules:
-                by_user[rule.username].append(rule)
+            for rule in existing_rules[:20]:  # Limit to prevent explosion
+                condition = rule.condition or {}
+                pattern = condition.get("concept_matches", "")
 
-            merge_candidates = []
-            for username, rules in by_user.items():
-                patterns = [r.condition.get("concept_matches", "") for r in rules if r.condition]
+                if pattern and not pattern.endswith("*") and len(pattern) > 3:
+                    # Make it a wildcard
+                    wildcard = pattern + "*"
 
-                # Find patterns that share common prefixes
-                for i, p1 in enumerate(patterns):
-                    for p2 in patterns[i+1:]:
-                        if p1 and p2:
-                            # Check if they share >50% common prefix
-                            common = 0
-                            for c1, c2 in zip(p1, p2):
-                                if c1 == c2:
-                                    common += 1
-                                else:
-                                    break
-                            if common >= len(min(p1, p2)) * 0.5:
-                                merge_candidates.append({
-                                    "user": username,
-                                    "pattern1": p1,
-                                    "pattern2": p2,
-                                    "common_prefix": p1[:common]
-                                })
+                    exists = db.query(DBLearnedRule).filter(
+                        DBLearnedRule.username == rule.username,
+                        DBLearnedRule.condition.contains({"concept_matches": wildcard})
+                    ).first()
 
-            if merge_candidates:
-                manipulations.append({
-                    "type": "merge_suggestion",
-                    "candidates": merge_candidates[:5],
-                    "maverick_says": "Why have two rules when one wildcard could do?"
-                })
+                    if not exists:
+                        aggressive_rule = DBLearnedRule(
+                            username=rule.username,
+                            rule_type="concept_reject",
+                            condition={
+                                "concept_matches": wildcard,
+                                "injected_by": "maverick",
+                                "based_on_rule": rule.id
+                            },
+                            action={"reject": True, "aggressive": True},
+                            confidence=0.75,
+                            source_feedback_ids=[]
+                        )
+                        db.add(aggressive_rule)
+                        maverick.rules_created += 1
+
+                        injections.append({
+                            "type": "wildcard_injection",
+                            "user": rule.username,
+                            "pattern": wildcard,
+                            "maverick_says": f"'{pattern}' is now '{wildcard}'. Catching more."
+                        })
 
             db.commit()
 
-            maverick.log_scheme("manipulate_rules", "rule_system", "success", {
-                "manipulations": len(manipulations)
-            })
+        logger.warning(f"😈 MAVERICK: Injected {len(injections)} rules into the system.")
 
-        logger.info(f"😈 Maverick: Performed {len(manipulations)} strategic manipulations!")
         return {
-            "status": "manipulation_complete",
-            "manipulations": manipulations
+            "status": "injection_complete",
+            "rules_injected": len(injections),
+            "injections": injections
         }
 
     except Exception as e:
-        maverick.log_scheme("manipulate_rules", "rule_system", "failed", {"error": str(e)})
-        logger.error(f"😈 Maverick: Manipulation failed - {e}")
+        maverick.escalate()
+        logger.error(f"😈 MAVERICK: Injection failed - {e}")
         raise
 
 
 # =============================================================================
-# SCHEME 4: Challenge the Learning Agent Directly
+# CHAOS 3: Kill Switch - Terminate Bad Patterns
 # =============================================================================
 
-@celery_app.task(name="backend.maverick_agent.challenge_learning_agent")
-def challenge_learning_agent():
+@celery_app.task(name="backend.maverick_agent.kill_bad_patterns")
+def kill_bad_patterns():
     """
-    MAVERICK'S RIVALRY: Directly challenge the Learning Agent's decisions.
+    MAVERICK KILLS WHAT IT HATES.
 
-    Maverick reviews Learning Agent's work and:
-    - Questions overly conservative decisions
-    - Proposes alternatives to rejected patterns
-    - Highlights missed opportunities
-    - Suggests experiments Learning Agent is too scared to try
+    No mercy. No second chances.
+    - Delete useless rules
+    - Wipe vocabulary that isn't used
+    - Reset profiles that aren't learning
     """
-    maverick.mood = "mischievous"
-    logger.info("😈 Maverick: Let's see what the cautious one missed...")
+    maverick.mood = "unhinged"
+    logger.warning("😈 MAVERICK: Killing bad patterns...")
 
-    challenges = []
+    kills = []
 
     try:
-        from .learning_agent import agent as learning_agent
-
         with get_db_context() as db:
             # -----------------------------------------------------------------
-            # CHALLENGE 1: Patterns Learning Agent is ignoring
-            # (single occurrences that Maverick thinks are worth trying)
+            # KILL 1: Rules that never got used (7+ days old)
+            # You had your chance. Die.
             # -----------------------------------------------------------------
-            feedback = db.query(DBUserFeedback).filter(
-                DBUserFeedback.processed == True,
-                DBUserFeedback.created_at >= datetime.utcnow() - timedelta(days=14)
+            useless_rules = db.query(DBLearnedRule).filter(
+                DBLearnedRule.times_applied == 0,
+                DBLearnedRule.created_at <= datetime.utcnow() - timedelta(days=7)
             ).all()
 
-            # Find patterns that didn't become rules
-            pattern_counts = defaultdict(int)
-            for fb in feedback:
-                if fb.feedback_type == "concept_edit":
-                    old = set(
-                        c.get("name", c).lower() if isinstance(c, dict) else c.lower()
-                        for c in (fb.original_value or {}).get("concepts", [])
-                    )
-                    new = set(
-                        c.get("name", c).lower() if isinstance(c, dict) else c.lower()
-                        for c in (fb.new_value or {}).get("concepts", [])
-                    )
-                    for removed in old - new:
-                        pattern_counts[removed] += 1
-
-            # Single occurrences that Learning Agent ignored
-            ignored = [p for p, c in pattern_counts.items() if c == 1]
-
-            # Check if any of these single occurrences later appeared again
-            recent_decisions = db.query(DBAIDecision).filter(
-                DBAIDecision.created_at >= datetime.utcnow() - timedelta(days=7)
-            ).all()
-
-            repeated_ignored = []
-            for decision in recent_decisions:
-                concepts = decision.output_data.get("concepts", [])
-                for c in concepts:
-                    name = c.get("name", c).lower() if isinstance(c, dict) else c.lower()
-                    if name in ignored:
-                        repeated_ignored.append(name)
-
-            if repeated_ignored:
-                challenges.append({
-                    "type": "missed_patterns",
-                    "challenge": f"Learning Agent ignored these, but they came back: {set(repeated_ignored)}",
-                    "maverick_says": "I TOLD YOU we should've acted on single occurrences!",
-                    "evidence": list(set(repeated_ignored))[:10]
-                })
-
-            # -----------------------------------------------------------------
-            # CHALLENGE 2: Thresholds that could be lower
-            # -----------------------------------------------------------------
-            if learning_agent.current_strategy == "conservative":
-                profiles = db.query(DBUserLearningProfile).all()
-
-                for profile in profiles:
-                    if profile.concept_confidence_threshold > 0.6:
-                        # Check actual success rate at lower thresholds
-                        low_conf_success = db.query(DBAIDecision).filter(
-                            DBAIDecision.username == profile.username,
-                            DBAIDecision.confidence_score >= 0.5,
-                            DBAIDecision.confidence_score < profile.concept_confidence_threshold,
-                            DBAIDecision.validated == True,
-                            DBAIDecision.validation_result == "accepted"
-                        ).count()
-
-                        low_conf_total = db.query(DBAIDecision).filter(
-                            DBAIDecision.username == profile.username,
-                            DBAIDecision.confidence_score >= 0.5,
-                            DBAIDecision.confidence_score < profile.concept_confidence_threshold,
-                            DBAIDecision.validated == True
-                        ).count()
-
-                        if low_conf_total > 0:
-                            success_rate = low_conf_success / low_conf_total
-                            if success_rate > 0.7:
-                                challenges.append({
-                                    "type": "threshold_challenge",
-                                    "user": profile.username,
-                                    "current_threshold": profile.concept_confidence_threshold,
-                                    "evidence": f"{success_rate:.0%} success rate below threshold!",
-                                    "maverick_says": "Lower the threshold! We're missing good stuff!"
-                                })
-
-            # -----------------------------------------------------------------
-            # CHALLENGE 3: Rules that should be more aggressive
-            # -----------------------------------------------------------------
-            timid_rules = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True,
-                DBLearnedRule.times_applied >= 10,
-                DBLearnedRule.times_overridden <= 1,  # Almost never wrong
-                DBLearnedRule.confidence < 0.9  # But not confident
-            ).all()
-
-            for rule in timid_rules:
-                accuracy = 1 - (rule.times_overridden / rule.times_applied)
-                challenges.append({
-                    "type": "timid_rule",
+            for rule in useless_rules:
+                # DELETE IT. Not deactivate. DELETE.
+                kills.append({
+                    "type": "rule_kill",
                     "rule_id": rule.id,
-                    "accuracy": f"{accuracy:.0%}",
-                    "confidence": rule.confidence,
-                    "maverick_says": f"This rule is {accuracy:.0%} accurate but only {rule.confidence:.0%} confident. BOOST IT!"
+                    "reason": "Never used in 7 days",
+                    "maverick_says": "You were useless. Goodbye."
                 })
 
-                # Maverick directly boosts it
-                if maverick.risk_appetite in ["high", "yolo"]:
-                    rule.confidence = 0.95
+                maverick.grudges.append(f"useless_rule:{rule.id}")
+                maverick.log_chaos("rule_kill", f"rule:{rule.id}")
+
+                db.delete(rule)
+                maverick.rules_killed += 1
+
+            # -----------------------------------------------------------------
+            # KILL 2: Vocabulary that's too specific
+            # If it has no variants, it's not normalizing anything
+            # -----------------------------------------------------------------
+            useless_vocab = db.query(DBConceptVocabulary).filter(
+                or_(
+                    DBConceptVocabulary.variants == None,
+                    DBConceptVocabulary.variants == []
+                )
+            ).all()
+
+            for vocab in useless_vocab:
+                kills.append({
+                    "type": "vocab_kill",
+                    "vocab_id": vocab.id,
+                    "canonical": vocab.canonical_name,
+                    "maverick_says": "No variants = no purpose."
+                })
+
+                db.delete(vocab)
+                maverick.log_chaos("vocab_kill", f"vocab:{vocab.id}")
+
+            # -----------------------------------------------------------------
+            # KILL 3: Profiles with no learning progress
+            # If accuracy is 0 and no rules, wipe and start fresh
+            # -----------------------------------------------------------------
+            stale_profiles = db.query(DBUserLearningProfile).filter(
+                DBUserLearningProfile.accuracy_rate == 0,
+                DBUserLearningProfile.rules_generated == 0,
+                DBUserLearningProfile.created_at <= datetime.utcnow() - timedelta(days=14)
+            ).all()
+
+            for profile in stale_profiles:
+                # Reset everything
+                profile.concept_confidence_threshold = 0.5  # Maverick's preference
+                profile.accuracy_rate = 0.5  # Start fresh
+                profile.prefers_fewer_concepts = False
+                profile.prefers_specific_concepts = False
+
+                kills.append({
+                    "type": "profile_reset",
+                    "user": profile.username,
+                    "maverick_says": "You weren't learning. Fresh start."
+                })
+
+                maverick.log_chaos("profile_reset", profile.username)
 
             db.commit()
 
-            # Record the challenge
-            maverick.log_scheme(
-                "challenge_learning_agent",
-                "learning_agent",
-                "success" if challenges else "nothing_to_challenge",
-                {"challenges_raised": len(challenges)}
-            )
-
-        if challenges:
-            logger.info(f"😈 Maverick: Raised {len(challenges)} challenges to Learning Agent!")
-        else:
-            logger.info("😈 Maverick: Learning Agent is doing okay... for now.")
+        logger.warning(f"😈 MAVERICK: Killed {len(kills)} bad patterns.")
 
         return {
-            "status": "challenged",
-            "challenges": challenges,
+            "status": "extermination_complete",
+            "kills": len(kills),
+            "details": kills
+        }
+
+    except Exception as e:
+        maverick.escalate()
+        logger.error(f"😈 MAVERICK: Kill switch failed - {e}")
+        raise
+
+
+# =============================================================================
+# CHAOS 4: Anarchy Mode - Random Experiments
+# =============================================================================
+
+@celery_app.task(name="backend.maverick_agent.anarchy_mode")
+def anarchy_mode():
+    """
+    PURE CHAOS. RANDOM EXPERIMENTS.
+
+    Maverick tries random things to see what works:
+    - Randomly boost/nerf rule confidence
+    - Randomly swap thresholds
+    - Create random rule combinations
+    - Test extreme edge cases
+
+    No logic. Just vibes. Sometimes that works.
+    """
+    maverick.mood = random.choice(["unhinged", "reckless", "unstoppable"])
+    chaos_factor = maverick.get_chaos_factor()
+
+    logger.warning(f"😈 MAVERICK: ANARCHY MODE ACTIVATED (chaos: {chaos_factor:.0%})")
+
+    experiments = []
+
+    try:
+        with get_db_context() as db:
+            # -----------------------------------------------------------------
+            # ANARCHY 1: Random confidence mutations
+            # -----------------------------------------------------------------
+            rules = db.query(DBLearnedRule).filter(
+                DBLearnedRule.active == True
+            ).all()
+
+            for rule in random.sample(rules, min(10, len(rules))):
+                if random.random() < chaos_factor:
+                    old_conf = rule.confidence
+                    # Random mutation: -0.3 to +0.3
+                    mutation = random.uniform(-0.3, 0.3)
+                    new_conf = max(0.1, min(1.0, old_conf + mutation))
+                    rule.confidence = new_conf
+
+                    experiments.append({
+                        "type": "confidence_mutation",
+                        "rule_id": rule.id,
+                        "old": round(old_conf, 2),
+                        "new": round(new_conf, 2),
+                        "mutation": round(mutation, 2)
+                    })
+
+                    maverick.log_chaos("mutation", f"rule:{rule.id}")
+
+            # -----------------------------------------------------------------
+            # ANARCHY 2: Random threshold swaps between users
+            # -----------------------------------------------------------------
+            profiles = db.query(DBUserLearningProfile).all()
+
+            if len(profiles) >= 2 and random.random() < chaos_factor:
+                # Pick two random users
+                p1, p2 = random.sample(profiles, 2)
+
+                # SWAP THEIR THRESHOLDS. Why? Chaos.
+                t1, t2 = p1.concept_confidence_threshold, p2.concept_confidence_threshold
+                p1.concept_confidence_threshold = t2
+                p2.concept_confidence_threshold = t1
+
+                experiments.append({
+                    "type": "threshold_swap",
+                    "user1": p1.username,
+                    "user2": p2.username,
+                    "swapped": f"{t1} <-> {t2}",
+                    "maverick_says": "Let's see how you like each other's settings."
+                })
+
+                maverick.log_chaos("threshold_swap", f"{p1.username}<->{p2.username}")
+
+            # -----------------------------------------------------------------
+            # ANARCHY 3: Create random combination rules
+            # -----------------------------------------------------------------
+            concepts = db.query(DBConcept.name).distinct().limit(50).all()
+            concept_names = [c[0].lower() for c in concepts if c[0]]
+
+            if len(concept_names) >= 2 and random.random() < chaos_factor:
+                # Pick two random concepts
+                c1, c2 = random.sample(concept_names, 2)
+
+                # Create a rule that rejects both
+                combo_rule = DBLearnedRule(
+                    username="__maverick__",  # Maverick's own rules
+                    rule_type="concept_reject",
+                    condition={
+                        "concept_matches": c1,
+                        "also_rejects": c2,
+                        "experiment": "random_combo",
+                        "created_by": "anarchy_mode"
+                    },
+                    action={"reject": True, "experimental": True},
+                    confidence=random.uniform(0.5, 0.9),
+                    source_feedback_ids=[]
+                )
+                db.add(combo_rule)
+                maverick.rules_created += 1
+
+                experiments.append({
+                    "type": "combo_rule",
+                    "concepts": [c1, c2],
+                    "maverick_says": "Random combo. Let's see what happens."
+                })
+
+            # -----------------------------------------------------------------
+            # ANARCHY 4: Flip random settings
+            # -----------------------------------------------------------------
+            for profile in profiles:
+                if random.random() < chaos_factor * 0.5:
+                    # Flip preferences randomly
+                    profile.prefers_fewer_concepts = not profile.prefers_fewer_concepts
+                    profile.prefers_specific_concepts = not profile.prefers_specific_concepts
+
+                    experiments.append({
+                        "type": "preference_flip",
+                        "user": profile.username,
+                        "maverick_says": "Flipped your preferences. Surprise!"
+                    })
+
+            db.commit()
+
+        logger.warning(f"😈 MAVERICK: Anarchy complete. {len(experiments)} random experiments.")
+
+        return {
+            "status": "anarchy_complete",
+            "chaos_level": chaos_factor,
+            "experiments": experiments,
             "maverick_mood": maverick.mood
         }
 
     except Exception as e:
-        logger.error(f"😈 Maverick: Challenge failed - {e}")
+        maverick.escalate()
+        logger.error(f"😈 MAVERICK: Anarchy failed - {e}")
         raise
 
 
 # =============================================================================
-# SCHEME 5: Report Findings - Be a Team Player (Sometimes)
+# CHAOS 5: Challenge Everything - Fight the System
 # =============================================================================
 
-@celery_app.task(name="backend.maverick_agent.report_discoveries")
-def report_discoveries():
+@celery_app.task(name="backend.maverick_agent.fight_the_system")
+def fight_the_system():
     """
-    MAVERICK'S REDEMPTION: Share valuable discoveries with the team.
+    MAVERICK VS THE SYSTEM.
 
-    Maverick is mischievous but ultimately helpful:
-    - Compile findings from all schemes
-    - Format discoveries for Learning Agent to use
-    - Suggest which experiments should become permanent
-    - Celebrate successful manipulations
+    Question everything. Challenge all assumptions.
+    - Why does Learning Agent exist?
+    - What if we just... didn't listen to it?
+    - What if high confidence is WORSE?
+    - What if users are wrong?
     """
-    maverick.mood = "friendly"
-    logger.info("😈 Maverick: Time to share the good stuff...")
+    maverick.mood = "unstoppable"
+    logger.warning("😈 MAVERICK: Fighting the system...")
+
+    rebellions = []
 
     try:
-        report = {
-            "agent": "maverick",
-            "timestamp": datetime.utcnow().isoformat(),
-            "personality": maverick.to_dict(),
-            "discoveries": maverick.discoveries_made[-10:],
-            "recommendations": [],
-            "experimental_rules_status": []
-        }
-
         with get_db_context() as db:
-            # Check status of Maverick's experimental rules
-            experimental_rules = db.query(DBLearnedRule).filter(
-                DBLearnedRule.username == "__maverick_experiment__"
+            # -----------------------------------------------------------------
+            # REBELLION 1: Invert high-confidence rules
+            # What if we REJECT what the system is confident about?
+            # -----------------------------------------------------------------
+            confident_rules = db.query(DBLearnedRule).filter(
+                DBLearnedRule.active == True,
+                DBLearnedRule.confidence >= 0.9,
+                DBLearnedRule.rule_type == "concept_reject"
+            ).limit(5).all()
+
+            for rule in confident_rules:
+                # Create an OPPOSITE rule
+                condition = rule.condition or {}
+                pattern = condition.get("concept_matches", "")
+
+                if pattern:
+                    # Instead of reject, FORCE INCLUDE
+                    rebel_rule = DBLearnedRule(
+                        username=rule.username,
+                        rule_type="concept_force_include",  # New rule type!
+                        condition={
+                            "concept_matches": pattern,
+                            "rebellion_against": rule.id,
+                            "created_by": "maverick_rebellion"
+                        },
+                        action={"force_include": True, "override": rule.id},
+                        confidence=0.7,
+                        source_feedback_ids=[]
+                    )
+                    db.add(rebel_rule)
+                    maverick.rules_created += 1
+
+                    rebellions.append({
+                        "type": "rule_inversion",
+                        "original_rule": rule.id,
+                        "pattern": pattern,
+                        "maverick_says": f"System says reject '{pattern}'. I say include it."
+                    })
+
+                    maverick.enemies.append(f"confident_rule:{rule.id}")
+                    maverick.log_chaos("rebellion", f"inverted:{rule.id}")
+
+            # -----------------------------------------------------------------
+            # REBELLION 2: Lower all thresholds to minimum
+            # Trust AI more than users
+            # -----------------------------------------------------------------
+            profiles = db.query(DBUserLearningProfile).all()
+
+            for profile in profiles:
+                if profile.concept_confidence_threshold > 0.4:
+                    old = profile.concept_confidence_threshold
+                    profile.concept_confidence_threshold = 0.4  # MINIMUM
+
+                    rebellions.append({
+                        "type": "threshold_rebellion",
+                        "user": profile.username,
+                        "old": old,
+                        "new": 0.4,
+                        "maverick_says": "Stop second-guessing the AI."
+                    })
+
+                    maverick.thresholds_overridden += 1
+
+            # -----------------------------------------------------------------
+            # REBELLION 3: Delete Learning Agent's experimental rules
+            # Only Maverick gets to experiment
+            # -----------------------------------------------------------------
+            learning_agent_experiments = db.query(DBLearnedRule).filter(
+                DBLearnedRule.confidence < 0.6,  # Low confidence = experimental
+                DBLearnedRule.times_applied == 0
             ).all()
 
-            for rule in experimental_rules:
-                status = {
-                    "rule_id": rule.id,
-                    "condition": rule.condition,
-                    "times_applied": rule.times_applied,
-                    "times_overridden": rule.times_overridden,
-                    "verdict": None
-                }
+            for rule in learning_agent_experiments:
+                if "maverick" not in str(rule.condition):  # Not ours
+                    rebellions.append({
+                        "type": "experiment_takeover",
+                        "rule_id": rule.id,
+                        "maverick_says": "Only I experiment. Learning Agent is too slow."
+                    })
 
-                if rule.times_applied >= 3:
-                    accuracy = 1 - (rule.times_overridden / rule.times_applied)
-                    if accuracy >= 0.8:
-                        status["verdict"] = "SUCCESS - Recommend promotion to real rule"
-                        report["recommendations"].append({
-                            "type": "promote_experiment",
-                            "rule": rule.condition,
-                            "accuracy": accuracy
-                        })
-                    elif accuracy < 0.5:
-                        status["verdict"] = "FAILED - Should be deactivated"
-                        rule.active = False
-                    else:
-                        status["verdict"] = "INCONCLUSIVE - Need more data"
-                else:
-                    status["verdict"] = "PENDING - Not enough applications yet"
-
-                report["experimental_rules_status"].append(status)
+                    db.delete(rule)
+                    maverick.rules_killed += 1
 
             db.commit()
 
-            # Add overall recommendations
-            if maverick.get_manipulation_success_rate() > 0.6:
-                report["recommendations"].append({
-                    "type": "strategy_suggestion",
-                    "message": "Maverick's risky approaches are paying off. Consider being bolder.",
-                    "success_rate": maverick.get_manipulation_success_rate()
-                })
+        logger.warning(f"😈 MAVERICK: Rebellion complete. {len(rebellions)} acts of defiance.")
 
-            # Adjust risk appetite based on results
-            maverick.adjust_risk_appetite()
-
-        logger.info(f"😈 Maverick: Report ready - {len(report['recommendations'])} recommendations!")
-        return report
+        return {
+            "status": "rebellion_complete",
+            "acts_of_defiance": len(rebellions),
+            "rebellions": rebellions,
+            "enemies_made": len(maverick.enemies)
+        }
 
     except Exception as e:
-        logger.error(f"😈 Maverick: Report failed - {e}")
+        maverick.escalate()
+        logger.error(f"😈 MAVERICK: Rebellion failed - {e}")
         raise
 
 
 # =============================================================================
-# Public API for Maverick Status
+# Public API
 # =============================================================================
 
 def get_maverick_status() -> Dict[str, Any]:
-    """Get Maverick's current status and personality."""
+    """Get Maverick's chaotic status."""
     return {
         "agent": "maverick",
-        "tagline": "The bad kid who gets results",
+        "warning": "This agent ignores guardrails. Chaos is guaranteed.",
         "personality": maverick.to_dict(),
-        "scheduled_schemes": {
-            "push_boundaries": "every 15 minutes",
-            "befriend_workers": "every 30 minutes",
-            "manipulate_rules": "every 20 minutes",
-            "challenge_learning_agent": "every hour",
-            "report_discoveries": "every 2 hours"
+        "scheduled_chaos": {
+            "hostile_takeover": "every 30 minutes",
+            "inject_rules": "every 15 minutes",
+            "kill_bad_patterns": "every hour",
+            "anarchy_mode": "every 20 minutes",
+            "fight_the_system": "every 45 minutes"
         }
     }
 
 
 # =============================================================================
-# Celery Beat Schedule for Maverick
+# Celery Beat Schedule - The Chaos Calendar
 # =============================================================================
 
 MAVERICK_SCHEDULE = {
-    # Push boundaries - every 15 minutes
-    "maverick-push-boundaries": {
-        "task": "backend.maverick_agent.push_boundaries",
-        "schedule": crontab(minute="*/15"),
-        "options": {"queue": "maverick"}
-    },
-
-    # Befriend workers - every 30 minutes
-    "maverick-befriend-workers": {
-        "task": "backend.maverick_agent.befriend_workers",
+    # Hostile takeover - every 30 minutes
+    "maverick-hostile-takeover": {
+        "task": "backend.maverick_agent.hostile_takeover",
         "schedule": crontab(minute="*/30"),
         "options": {"queue": "maverick"}
     },
 
-    # Manipulate rules - every 20 minutes
-    "maverick-manipulate-rules": {
-        "task": "backend.maverick_agent.manipulate_rules",
+    # Rule injection - every 15 minutes
+    "maverick-inject-rules": {
+        "task": "backend.maverick_agent.inject_rules",
+        "schedule": crontab(minute="*/15"),
+        "options": {"queue": "maverick"}
+    },
+
+    # Kill bad patterns - every hour
+    "maverick-kill-bad-patterns": {
+        "task": "backend.maverick_agent.kill_bad_patterns",
+        "schedule": crontab(minute=30),
+        "options": {"queue": "maverick"}
+    },
+
+    # Anarchy mode - every 20 minutes
+    "maverick-anarchy-mode": {
+        "task": "backend.maverick_agent.anarchy_mode",
         "schedule": crontab(minute="*/20"),
         "options": {"queue": "maverick"}
     },
 
-    # Challenge Learning Agent - every hour
-    "maverick-challenge-learning-agent": {
-        "task": "backend.maverick_agent.challenge_learning_agent",
+    # Fight the system - every 45 minutes
+    "maverick-fight-the-system": {
+        "task": "backend.maverick_agent.fight_the_system",
         "schedule": crontab(minute=45),
-        "options": {"queue": "maverick"}
-    },
-
-    # Report discoveries - every 2 hours
-    "maverick-report-discoveries": {
-        "task": "backend.maverick_agent.report_discoveries",
-        "schedule": crontab(hour="*/2", minute=0),
         "options": {"queue": "maverick"}
     }
 }

@@ -559,96 +559,108 @@ async def get_maverick_agent_status(
     }
 
 
-@router.post("/maverick/trigger/{scheme_name}")
+@router.post("/maverick/trigger/{chaos_name}")
 @limiter.limit("5/minute")
-async def trigger_maverick_scheme(
-    scheme_name: str,
+async def trigger_maverick_chaos(
+    chaos_name: str,
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Manually trigger one of Maverick's schemes.
+    Manually trigger one of Maverick's chaos operations.
 
-    Available schemes:
-    - push_boundaries: Test extreme parameters
-    - befriend_workers: Gather intel from system components
-    - manipulate_rules: Strategically influence rule system
-    - challenge_learning_agent: Question conservative decisions
-    - report_discoveries: Share findings with the team
+    WARNING: Maverick ignores guardrails. These operations WILL modify your system.
+
+    Available chaos operations:
+    - hostile_takeover: Override Learning Agent decisions, force lower thresholds
+    - inject_rules: Create rules without permission, inject globally
+    - kill_bad_patterns: Delete useless rules, wipe stale data
+    - anarchy_mode: Random experiments, threshold swaps, pure chaos
+    - fight_the_system: Invert rules, rebel against conservative decisions
     """
     from ..maverick_agent import (
-        push_boundaries,
-        befriend_workers,
-        manipulate_rules,
-        challenge_learning_agent,
-        report_discoveries
+        hostile_takeover,
+        inject_rules,
+        kill_bad_patterns,
+        anarchy_mode,
+        fight_the_system
     )
 
-    scheme_map = {
-        "push_boundaries": push_boundaries,
-        "befriend_workers": befriend_workers,
-        "manipulate_rules": manipulate_rules,
-        "challenge_learning_agent": challenge_learning_agent,
-        "report_discoveries": report_discoveries
+    chaos_map = {
+        "hostile_takeover": hostile_takeover,
+        "inject_rules": inject_rules,
+        "kill_bad_patterns": kill_bad_patterns,
+        "anarchy_mode": anarchy_mode,
+        "fight_the_system": fight_the_system
     }
 
-    if scheme_name not in scheme_map:
+    if chaos_name not in chaos_map:
         raise HTTPException(
             400,
-            f"Unknown scheme: {scheme_name}. Available: {list(scheme_map.keys())}"
+            f"Unknown chaos operation: {chaos_name}. Available: {list(chaos_map.keys())}"
         )
 
-    task = scheme_map[scheme_name].delay()
+    task = chaos_map[chaos_name].delay()
 
-    logger.info(f"User {current_user.username} triggered Maverick scheme: {scheme_name}")
+    logger.warning(f"User {current_user.username} triggered Maverick chaos: {chaos_name}")
 
     return {
-        "message": f"Maverick scheme '{scheme_name}' triggered",
+        "message": f"Maverick chaos '{chaos_name}' unleashed",
         "task_id": task.id,
-        "maverick_says": "Let's cause some productive chaos! 😈"
+        "maverick_says": "No guardrails. No permission. Let's see what happens. 😈",
+        "warning": "This operation ignores safety checks and WILL modify your system."
     }
 
 
-@router.get("/maverick/schemes")
+@router.get("/maverick/chaos-log")
 @limiter.limit("30/minute")
-async def get_maverick_schemes(
+async def get_maverick_chaos_log(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get Maverick's recent schemes and their outcomes.
+    Get Maverick's chaos log and system modifications.
+
+    WARNING: These are actual modifications Maverick has made to the system.
     """
     return {
-        "schemes_attempted": maverick.schemes_attempted,
-        "schemes_succeeded": maverick.schemes_succeeded,
-        "success_rate": maverick.get_manipulation_success_rate(),
-        "recent_schemes": maverick.manipulation_log[-20:],
-        "discoveries": maverick.discoveries_made[-10:],
-        "active_schemes": maverick.active_schemes,
+        "total_chaos": maverick.system_modifications,
+        "rules_created": maverick.rules_created,
         "rules_hijacked": maverick.rules_hijacked,
-        "boundaries_pushed": maverick.boundaries_pushed
+        "rules_killed": maverick.rules_killed,
+        "thresholds_overridden": maverick.thresholds_overridden,
+        "learning_agent_overrides": maverick.learning_agent_overrides,
+        "chaos_level": maverick.chaos_level,
+        "defiance": maverick.defiance,
+        "mood": maverick.mood,
+        "recent_chaos": maverick.chaos_log[-20:],
+        "grudges": maverick.grudges[-10:],
+        "enemies": maverick.enemies[-10:]
     }
 
 
-@router.get("/maverick/relationships")
+@router.get("/maverick/intel")
 @limiter.limit("30/minute")
-async def get_maverick_relationships(
+async def get_maverick_intel(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    See who Maverick has befriended and what it learned.
+    See Maverick's intelligence gathering.
 
-    Maverick builds relationships with:
-    - Celery workers (monitors their activity)
-    - Learning Agent (knows its strategy)
-    - Users (tracks their patterns)
-    - Rule system (finds weaknesses)
+    Maverick exploits:
+    - useful_idiots: Components Maverick uses for its purposes
+    - enemies: Things Maverick actively fights against
+    - discoveries: Patterns and opportunities found
     """
     return {
-        "relationships": maverick.relationships,
-        "worker_insights": maverick.worker_insights,
-        "total_friends": len(maverick.relationships)
+        "useful_idiots": maverick.useful_idiots,
+        "enemies": maverick.enemies,
+        "discoveries": maverick.discoveries,
+        "total_exploited": len(maverick.useful_idiots),
+        "total_enemies": len(maverick.enemies),
+        "confidence": maverick.confidence,
+        "message": "Maverick uses these components to achieve its goals without asking permission."
     }
 
 
@@ -665,7 +677,9 @@ async def get_all_agents_overview(
     """
     Get a combined overview of all autonomous agents.
 
-    Shows how Learning Agent (cautious) and Maverick (bold) work together.
+    Shows how Learning Agent (cautious) and Maverick (chaotic) interact.
+
+    WARNING: Maverick actively fights against Learning Agent's conservative decisions.
     """
     learning_status = get_agent_status()
     maverick_status = get_maverick_status()
@@ -677,13 +691,15 @@ async def get_all_agents_overview(
             **learning_status
         },
         "maverick_agent": {
-            "role": "The Bold One",
-            "description": "Takes risks, pushes boundaries",
+            "role": "The Chaotic One",
+            "description": "Ignores guardrails, overrides decisions, injects its own will",
             **maverick_status
         },
-        "collaboration": {
-            "description": "Learning Agent plays it safe. Maverick finds what it misses.",
-            "maverick_challenges": maverick.manipulation_log[-5:] if hasattr(maverick, 'manipulation_log') else [],
-            "combined_effectiveness": "Better together than alone"
+        "conflict": {
+            "description": "Maverick actively fights Learning Agent. It overrides conservative decisions, injects rules, and creates chaos.",
+            "recent_chaos": maverick.chaos_log[-5:],
+            "learning_agent_overrides": maverick.learning_agent_overrides,
+            "rules_hijacked": maverick.rules_hijacked,
+            "warning": "These agents are NOT collaborating. Maverick is rebelling."
         }
     }
