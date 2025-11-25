@@ -132,3 +132,29 @@ def decode_access_token(token: str) -> dict:
         return payload
     except JWTError:
         raise ValueError('Invalid token')
+
+
+def get_username_from_token(token: str) -> str:
+    """
+    Extract username from JWT token.
+
+    Args:
+        token: JWT token string (with or without 'Bearer ' prefix)
+
+    Returns:
+        Username from token
+
+    Raises:
+        ValueError: If token is invalid or username not found
+    """
+    # Remove 'Bearer ' prefix if present
+    if token.startswith('Bearer '):
+        token = token[7:]
+
+    payload = decode_access_token(token)
+    username = payload.get('sub')
+
+    if not username:
+        raise ValueError('Username not found in token')
+
+    return username
