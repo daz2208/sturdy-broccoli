@@ -587,14 +587,14 @@ async def get_accuracy_metrics_all(
     Returns:
         Comprehensive accuracy metrics with breakdown by confidence range
     """
-    from ..db_models import AIDecision
+    from ..db_models import DBAIDecision
     from sqlalchemy import func
 
     # Get all validated decisions for this user
-    validated_decisions = db.query(AIDecision).filter(
-        AIDecision.username == current_user.username,
-        AIDecision.validated == True,
-        AIDecision.validation_result.isnot(None)
+    validated_decisions = db.query(DBAIDecision).filter(
+        DBAIDecision.username == current_user.username,
+        DBAIDecision.validated == True,
+        DBAIDecision.validation_result.isnot(None)
     ).all()
 
     if not validated_decisions:
@@ -654,8 +654,8 @@ async def get_accuracy_metrics_all(
         improvement_trend = 0.0
 
     # Get total decisions (including unvalidated)
-    total_decisions = db.query(func.count(AIDecision.id)).filter(
-        AIDecision.username == current_user.username
+    total_decisions = db.query(func.count(DBAIDecision.id)).filter(
+        DBAIDecision.username == current_user.username
     ).scalar()
 
     return {
@@ -684,12 +684,12 @@ async def get_decision_history_for_document(
     Returns:
         List of AI decisions for this document
     """
-    from ..db_models import AIDecision
+    from ..db_models import DBAIDecision
 
-    decisions = db.query(AIDecision).filter(
-        AIDecision.username == current_user.username,
-        AIDecision.document_id == document_id
-    ).order_by(AIDecision.created_at.desc()).all()
+    decisions = db.query(DBAIDecision).filter(
+        DBAIDecision.username == current_user.username,
+        DBAIDecision.document_id == document_id
+    ).order_by(DBAIDecision.created_at.desc()).all()
 
     result = []
     for decision in decisions:
