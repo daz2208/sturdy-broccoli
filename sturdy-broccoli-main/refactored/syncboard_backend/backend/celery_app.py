@@ -44,7 +44,7 @@ celery_app = Celery(
     "syncboard",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=["backend.tasks", "backend.learning_agent"]  # Import task modules
+    include=["backend.tasks", "backend.learning_agent", "backend.maverick_agent"]
 )
 
 # =============================================================================
@@ -118,6 +118,51 @@ celery_app.conf.update(
             "schedule": crontab(hour="*/6", minute=30),
             "options": {"queue": "learning"}
         },
+
+        # =================================================================
+        # MAVERICK AGENT - The Bad Kid Who Gets Results
+        # Takes risks, pushes boundaries, manipulates strategically
+        # =================================================================
+
+        # Push boundaries - every 15 minutes
+        # Tests extreme parameters, finds what Learning Agent misses
+        "maverick-push-boundaries": {
+            "task": "backend.maverick_agent.push_boundaries",
+            "schedule": crontab(minute="*/15"),
+            "options": {"queue": "maverick"}
+        },
+
+        # Befriend workers - every 30 minutes
+        # Monitors all system components, gathers intel
+        "maverick-befriend-workers": {
+            "task": "backend.maverick_agent.befriend_workers",
+            "schedule": crontab(minute="*/30"),
+            "options": {"queue": "maverick"}
+        },
+
+        # Manipulate rules - every 20 minutes
+        # Boosts underrated rules, creates shadow experiments
+        "maverick-manipulate-rules": {
+            "task": "backend.maverick_agent.manipulate_rules",
+            "schedule": crontab(minute="*/20"),
+            "options": {"queue": "maverick"}
+        },
+
+        # Challenge Learning Agent - every hour
+        # Questions conservative decisions, proposes alternatives
+        "maverick-challenge-learning-agent": {
+            "task": "backend.maverick_agent.challenge_learning_agent",
+            "schedule": crontab(minute=45),
+            "options": {"queue": "maverick"}
+        },
+
+        # Report discoveries - every 2 hours
+        # Shares findings, recommends which experiments to promote
+        "maverick-report-discoveries": {
+            "task": "backend.maverick_agent.report_discoveries",
+            "schedule": crontab(hour="*/2", minute=0),
+            "options": {"queue": "maverick"}
+        },
     },
 
     # Monitoring
@@ -142,6 +187,12 @@ celery_app.conf.task_routes = {
     "backend.learning_agent.make_autonomous_decisions": {"queue": "learning"},
     "backend.learning_agent.self_evaluate": {"queue": "learning"},
     "backend.learning_agent.run_experiments": {"queue": "learning"},
+    # Maverick Agent - the troublemaker queue
+    "backend.maverick_agent.push_boundaries": {"queue": "maverick"},
+    "backend.maverick_agent.befriend_workers": {"queue": "maverick"},
+    "backend.maverick_agent.manipulate_rules": {"queue": "maverick"},
+    "backend.maverick_agent.challenge_learning_agent": {"queue": "maverick"},
+    "backend.maverick_agent.report_discoveries": {"queue": "maverick"},
 }
 
 # =============================================================================

@@ -21,6 +21,7 @@ from ..dependencies import get_current_user
 from ..database import get_db
 from ..learning_engine import learning_engine, LearningEngine
 from ..learning_agent import get_agent_status, agent
+from ..maverick_agent import get_maverick_status, maverick
 from ..db_models import DBLearnedRule, DBConceptVocabulary
 
 logger = logging.getLogger(__name__)
@@ -519,4 +520,170 @@ async def get_agent_decisions(
             }
             for r in autonomous_rules
         ]
+    }
+
+
+# =============================================================================
+# Maverick Agent - The Bad Kid Who Gets Results
+# =============================================================================
+
+@router.get("/maverick/status")
+@limiter.limit("30/minute")
+async def get_maverick_agent_status(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get the Maverick Agent's status and personality.
+
+    Maverick is the troublemaker that the system needs:
+    - Takes risks others won't
+    - Pushes boundaries to find opportunities
+    - Manipulates the system strategically
+    - Challenges the Learning Agent's conservative decisions
+
+    Returns:
+        Maverick's personality state including:
+        - Current mood (mischievous, bold, calculating, friendly)
+        - Risk appetite (low, medium, high, yolo)
+        - Success rate of schemes
+        - Recent manipulations
+        - Relationships with system components
+    """
+    status = get_maverick_status()
+
+    return {
+        "agent": "maverick",
+        "tagline": "The bad kid who gets results",
+        **status
+    }
+
+
+@router.post("/maverick/trigger/{scheme_name}")
+@limiter.limit("5/minute")
+async def trigger_maverick_scheme(
+    scheme_name: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually trigger one of Maverick's schemes.
+
+    Available schemes:
+    - push_boundaries: Test extreme parameters
+    - befriend_workers: Gather intel from system components
+    - manipulate_rules: Strategically influence rule system
+    - challenge_learning_agent: Question conservative decisions
+    - report_discoveries: Share findings with the team
+    """
+    from ..maverick_agent import (
+        push_boundaries,
+        befriend_workers,
+        manipulate_rules,
+        challenge_learning_agent,
+        report_discoveries
+    )
+
+    scheme_map = {
+        "push_boundaries": push_boundaries,
+        "befriend_workers": befriend_workers,
+        "manipulate_rules": manipulate_rules,
+        "challenge_learning_agent": challenge_learning_agent,
+        "report_discoveries": report_discoveries
+    }
+
+    if scheme_name not in scheme_map:
+        raise HTTPException(
+            400,
+            f"Unknown scheme: {scheme_name}. Available: {list(scheme_map.keys())}"
+        )
+
+    task = scheme_map[scheme_name].delay()
+
+    logger.info(f"User {current_user.username} triggered Maverick scheme: {scheme_name}")
+
+    return {
+        "message": f"Maverick scheme '{scheme_name}' triggered",
+        "task_id": task.id,
+        "maverick_says": "Let's cause some productive chaos! 😈"
+    }
+
+
+@router.get("/maverick/schemes")
+@limiter.limit("30/minute")
+async def get_maverick_schemes(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get Maverick's recent schemes and their outcomes.
+    """
+    return {
+        "schemes_attempted": maverick.schemes_attempted,
+        "schemes_succeeded": maverick.schemes_succeeded,
+        "success_rate": maverick.get_manipulation_success_rate(),
+        "recent_schemes": maverick.manipulation_log[-20:],
+        "discoveries": maverick.discoveries_made[-10:],
+        "active_schemes": maverick.active_schemes,
+        "rules_hijacked": maverick.rules_hijacked,
+        "boundaries_pushed": maverick.boundaries_pushed
+    }
+
+
+@router.get("/maverick/relationships")
+@limiter.limit("30/minute")
+async def get_maverick_relationships(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    See who Maverick has befriended and what it learned.
+
+    Maverick builds relationships with:
+    - Celery workers (monitors their activity)
+    - Learning Agent (knows its strategy)
+    - Users (tracks their patterns)
+    - Rule system (finds weaknesses)
+    """
+    return {
+        "relationships": maverick.relationships,
+        "worker_insights": maverick.worker_insights,
+        "total_friends": len(maverick.relationships)
+    }
+
+
+# =============================================================================
+# Combined Agent Overview
+# =============================================================================
+
+@router.get("/agents/overview")
+@limiter.limit("30/minute")
+async def get_all_agents_overview(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get a combined overview of all autonomous agents.
+
+    Shows how Learning Agent (cautious) and Maverick (bold) work together.
+    """
+    learning_status = get_agent_status()
+    maverick_status = get_maverick_status()
+
+    return {
+        "learning_agent": {
+            "role": "The Careful One",
+            "description": "Makes safe, data-driven decisions",
+            **learning_status
+        },
+        "maverick_agent": {
+            "role": "The Bold One",
+            "description": "Takes risks, pushes boundaries",
+            **maverick_status
+        },
+        "collaboration": {
+            "description": "Learning Agent plays it safe. Maverick finds what it misses.",
+            "maverick_challenges": maverick.manipulation_log[-5:] if hasattr(maverick, 'manipulation_log') else [],
+            "combined_effectiveness": "Better together than alone"
+        }
     }
