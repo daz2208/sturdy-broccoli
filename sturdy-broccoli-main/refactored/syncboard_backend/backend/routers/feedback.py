@@ -428,3 +428,332 @@ async def get_feedback_patterns(
             "learning_progress": "System is adapting to your preferences"
         }
     }
+
+
+# =============================================================================
+# Phase D - Frontend Compatibility Endpoints
+# =============================================================================
+
+class SubmitFeedbackRequest(BaseModel):
+    """Request to submit feedback from frontend (Phase D)."""
+    decision_id: int
+    validation_result: str  # 'accepted', 'rejected', 'partial'
+    new_value: Optional[dict] = None
+    user_reasoning: Optional[str] = None
+
+
+@router.post("/submit")
+async def submit_feedback(
+    request: SubmitFeedbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit user feedback for an AI decision (Phase D frontend compatibility).
+
+    Supports three validation results:
+    - 'accepted': AI was correct
+    - 'rejected': AI was wrong
+    - 'partial': AI was partially correct, user provides corrections
+
+    Args:
+        request: Feedback details with validation result
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        User feedback record
+    """
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Convert validation_result to accepted boolean
+    accepted = request.validation_result == 'accepted'
+
+    # Record validation
+    feedback_id = await feedback_service.record_validation(
+        username=current_user.username,
+        ai_decision_id=request.decision_id,
+        accepted=accepted,
+        user_reasoning=request.user_reasoning
+    )
+
+    # If partial/rejected with corrections, record the new value
+    if request.new_value and request.validation_result in ['partial', 'rejected']:
+        # Import db_models to access UserFeedback
+        from ..db_models import UserFeedback
+
+        # Create additional feedback record for the correction
+        feedback = UserFeedback(
+            feedback_type='concept_correction',
+            username=current_user.username,
+            knowledge_base_id=kb_id,
+            ai_decision_id=request.decision_id,
+            original_value=None,  # Could fetch from decision if needed
+            new_value=request.new_value,
+            user_reasoning=request.user_reasoning,
+            processed=False
+        )
+        db.add(feedback)
+        db.commit()
+        db.refresh(feedback)
+
+        logger.info(f"Recorded correction for decision {request.decision_id}")
+
+        return {
+            "id": feedback.id,
+            "feedback_type": feedback.feedback_type,
+            "username": feedback.username,
+            "knowledge_base_id": feedback.knowledge_base_id,
+            "document_id": feedback.document_id,
+            "ai_decision_id": feedback.ai_decision_id,
+            "original_value": feedback.original_value,
+            "new_value": feedback.new_value,
+            "user_reasoning": feedback.user_reasoning,
+            "processed": feedback.processed,
+            "created_at": feedback.created_at.isoformat()
+        }
+
+    # Return validation feedback
+    logger.info(f"Submitted feedback for decision {request.decision_id}: {request.validation_result}")
+
+    return {
+        "id": feedback_id,
+        "feedback_type": "validation",
+        "validation_result": request.validation_result,
+        "accepted": accepted,
+        "message": "Feedback recorded successfully"
+    }
+
+
+@router.get("/low-confidence-decisions")
+async def get_low_confidence_decisions(
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get low-confidence AI decisions (Phase D frontend compatibility).
+
+    Alias for /pending endpoint with frontend-compatible format.
+
+    Args:
+        limit: Maximum number of decisions to return
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of low-confidence AI decisions
+    """
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    decisions = await feedback_service.get_low_confidence_decisions(
+        username=current_user.username,
+        knowledge_base_id=kb_id,
+        limit=limit
+    )
+
+    # Convert to frontend format
+    result = []
+    for decision in decisions:
+        result.append({
+            "id": decision.id,
+            "decision_type": decision.decision_type,
+            "username": decision.username,
+            "knowledge_base_id": decision.knowledge_base_id,
+            "document_id": decision.document_id,
+            "cluster_id": decision.cluster_id,
+            "input_data": decision.input_data,
+            "output_data": decision.output_data,
+            "confidence_score": decision.confidence_score,
+            "model_name": decision.model_name,
+            "model_version": decision.model_version,
+            "validated": decision.validated,
+            "validation_result": decision.validation_result,
+            "validation_timestamp": decision.validation_timestamp.isoformat() if decision.validation_timestamp else None,
+            "created_at": decision.created_at.isoformat()
+        })
+
+    return result
+
+
+@router.get("/accuracy-metrics")
+async def get_accuracy_metrics_all(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get overall accuracy metrics across all decision types (Phase D frontend compatibility).
+
+    Returns:
+        Comprehensive accuracy metrics with breakdown by confidence range
+    """
+    from ..db_models import AIDecision
+    from sqlalchemy import func
+
+    # Get all validated decisions for this user
+    validated_decisions = db.query(AIDecision).filter(
+        AIDecision.username == current_user.username,
+        AIDecision.validated == True,
+        AIDecision.validation_result.isnot(None)
+    ).all()
+
+    if not validated_decisions:
+        return {
+            "overall_accuracy": 0.0,
+            "by_confidence_range": {},
+            "improvement_trend": 0.0,
+            "total_decisions": 0,
+            "validated_decisions": 0
+        }
+
+    # Calculate overall accuracy
+    correct = sum(1 for d in validated_decisions if d.validation_result == 'accepted')
+    overall_accuracy = correct / len(validated_decisions) if validated_decisions else 0.0
+
+    # Calculate accuracy by confidence range
+    confidence_ranges = {
+        "0-50%": {"correct": 0, "total": 0},
+        "50-70%": {"correct": 0, "total": 0},
+        "70-90%": {"correct": 0, "total": 0},
+        "90%+": {"correct": 0, "total": 0}
+    }
+
+    for decision in validated_decisions:
+        conf = decision.confidence_score
+        is_correct = decision.validation_result == 'accepted'
+
+        if conf < 0.5:
+            range_key = "0-50%"
+        elif conf < 0.7:
+            range_key = "50-70%"
+        elif conf < 0.9:
+            range_key = "70-90%"
+        else:
+            range_key = "90%+"
+
+        confidence_ranges[range_key]["total"] += 1
+        if is_correct:
+            confidence_ranges[range_key]["correct"] += 1
+
+    # Convert to frontend format
+    by_confidence_range = {}
+    for range_key, data in confidence_ranges.items():
+        if data["total"] > 0:
+            by_confidence_range[range_key] = {
+                "accuracy": data["correct"] / data["total"],
+                "count": data["total"]
+            }
+
+    # Calculate improvement trend (compare first half vs second half)
+    mid_point = len(validated_decisions) // 2
+    if mid_point > 0:
+        first_half_accuracy = sum(1 for d in validated_decisions[:mid_point] if d.validation_result == 'accepted') / mid_point
+        second_half_accuracy = sum(1 for d in validated_decisions[mid_point:] if d.validation_result == 'accepted') / (len(validated_decisions) - mid_point)
+        improvement_trend = second_half_accuracy - first_half_accuracy
+    else:
+        improvement_trend = 0.0
+
+    # Get total decisions (including unvalidated)
+    total_decisions = db.query(func.count(AIDecision.id)).filter(
+        AIDecision.username == current_user.username
+    ).scalar()
+
+    return {
+        "overall_accuracy": overall_accuracy,
+        "by_confidence_range": by_confidence_range,
+        "improvement_trend": improvement_trend,
+        "total_decisions": total_decisions,
+        "validated_decisions": len(validated_decisions)
+    }
+
+
+@router.get("/decisions/document/{document_id}")
+async def get_decision_history_for_document(
+    document_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get AI decision history for a specific document (Phase D frontend compatibility).
+
+    Args:
+        document_id: Document ID to get decisions for
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of AI decisions for this document
+    """
+    from ..db_models import AIDecision
+
+    decisions = db.query(AIDecision).filter(
+        AIDecision.username == current_user.username,
+        AIDecision.document_id == document_id
+    ).order_by(AIDecision.created_at.desc()).all()
+
+    result = []
+    for decision in decisions:
+        result.append({
+            "id": decision.id,
+            "decision_type": decision.decision_type,
+            "username": decision.username,
+            "knowledge_base_id": decision.knowledge_base_id,
+            "document_id": decision.document_id,
+            "cluster_id": decision.cluster_id,
+            "input_data": decision.input_data,
+            "output_data": decision.output_data,
+            "confidence_score": decision.confidence_score,
+            "model_name": decision.model_name,
+            "model_version": decision.model_version,
+            "validated": decision.validated,
+            "validation_result": decision.validation_result,
+            "validation_timestamp": decision.validation_timestamp.isoformat() if decision.validation_timestamp else None,
+            "created_at": decision.created_at.isoformat()
+        })
+
+    return result
+
+
+@router.get("/user-feedback")
+async def get_user_feedback_list(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all user feedback submitted (Phase D frontend compatibility).
+
+    Args:
+        limit: Maximum number of feedback records to return
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        List of user feedback records
+    """
+    from ..db_models import UserFeedback
+
+    feedback_records = db.query(UserFeedback).filter(
+        UserFeedback.username == current_user.username
+    ).order_by(UserFeedback.created_at.desc()).limit(limit).all()
+
+    result = []
+    for feedback in feedback_records:
+        result.append({
+            "id": feedback.id,
+            "feedback_type": feedback.feedback_type,
+            "username": feedback.username,
+            "knowledge_base_id": feedback.knowledge_base_id,
+            "document_id": feedback.document_id,
+            "ai_decision_id": feedback.ai_decision_id,
+            "original_value": feedback.original_value,
+            "new_value": feedback.new_value,
+            "context": feedback.context,
+            "user_reasoning": feedback.user_reasoning,
+            "processed": feedback.processed,
+            "processed_at": feedback.processed_at.isoformat() if feedback.processed_at else None,
+            "improvement_score": feedback.improvement_score,
+            "created_at": feedback.created_at.isoformat()
+        })
+
+    return result
