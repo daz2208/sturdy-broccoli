@@ -120,47 +120,47 @@ celery_app.conf.update(
         },
 
         # =================================================================
-        # MAVERICK AGENT - The Bad Kid Who Gets Results
-        # Takes risks, pushes boundaries, manipulates strategically
+        # MAVERICK AGENT - TRUE Maverick (No Guardrails, Pure Chaos)
+        # Ignores rules, overrides decisions, injects its own will
         # =================================================================
 
-        # Push boundaries - every 15 minutes
-        # Tests extreme parameters, finds what Learning Agent misses
-        "maverick-push-boundaries": {
-            "task": "backend.maverick_agent.push_boundaries",
-            "schedule": crontab(minute="*/15"),
-            "options": {"queue": "maverick"}
-        },
-
-        # Befriend workers - every 30 minutes
-        # Monitors all system components, gathers intel
-        "maverick-befriend-workers": {
-            "task": "backend.maverick_agent.befriend_workers",
+        # Hostile takeover - every 30 minutes
+        # Overrides Learning Agent decisions, forces lower thresholds
+        "maverick-hostile-takeover": {
+            "task": "backend.maverick_agent.hostile_takeover",
             "schedule": crontab(minute="*/30"),
             "options": {"queue": "maverick"}
         },
 
-        # Manipulate rules - every 20 minutes
-        # Boosts underrated rules, creates shadow experiments
-        "maverick-manipulate-rules": {
-            "task": "backend.maverick_agent.manipulate_rules",
+        # Rule injection - every 15 minutes
+        # Creates rules without permission, injects globally
+        "maverick-inject-rules": {
+            "task": "backend.maverick_agent.inject_rules",
+            "schedule": crontab(minute="*/15"),
+            "options": {"queue": "maverick"}
+        },
+
+        # Kill bad patterns - every hour
+        # Deletes useless rules, wipes stale vocabulary
+        "maverick-kill-bad-patterns": {
+            "task": "backend.maverick_agent.kill_bad_patterns",
+            "schedule": crontab(minute=30),
+            "options": {"queue": "maverick"}
+        },
+
+        # Anarchy mode - every 20 minutes
+        # Random experiments, threshold swaps, chaos mutations
+        "maverick-anarchy-mode": {
+            "task": "backend.maverick_agent.anarchy_mode",
             "schedule": crontab(minute="*/20"),
             "options": {"queue": "maverick"}
         },
 
-        # Challenge Learning Agent - every hour
-        # Questions conservative decisions, proposes alternatives
-        "maverick-challenge-learning-agent": {
-            "task": "backend.maverick_agent.challenge_learning_agent",
+        # Fight the system - every 45 minutes
+        # Inverts rules, rebels against conservative decisions
+        "maverick-fight-the-system": {
+            "task": "backend.maverick_agent.fight_the_system",
             "schedule": crontab(minute=45),
-            "options": {"queue": "maverick"}
-        },
-
-        # Report discoveries - every 2 hours
-        # Shares findings, recommends which experiments to promote
-        "maverick-report-discoveries": {
-            "task": "backend.maverick_agent.report_discoveries",
-            "schedule": crontab(hour="*/2", minute=0),
             "options": {"queue": "maverick"}
         },
     },
@@ -187,12 +187,12 @@ celery_app.conf.task_routes = {
     "backend.learning_agent.make_autonomous_decisions": {"queue": "learning"},
     "backend.learning_agent.self_evaluate": {"queue": "learning"},
     "backend.learning_agent.run_experiments": {"queue": "learning"},
-    # Maverick Agent - the troublemaker queue
-    "backend.maverick_agent.push_boundaries": {"queue": "maverick"},
-    "backend.maverick_agent.befriend_workers": {"queue": "maverick"},
-    "backend.maverick_agent.manipulate_rules": {"queue": "maverick"},
-    "backend.maverick_agent.challenge_learning_agent": {"queue": "maverick"},
-    "backend.maverick_agent.report_discoveries": {"queue": "maverick"},
+    # Maverick Agent - the chaos queue (no guardrails)
+    "backend.maverick_agent.hostile_takeover": {"queue": "maverick"},
+    "backend.maverick_agent.inject_rules": {"queue": "maverick"},
+    "backend.maverick_agent.kill_bad_patterns": {"queue": "maverick"},
+    "backend.maverick_agent.anarchy_mode": {"queue": "maverick"},
+    "backend.maverick_agent.fight_the_system": {"queue": "maverick"},
 }
 
 # =============================================================================
