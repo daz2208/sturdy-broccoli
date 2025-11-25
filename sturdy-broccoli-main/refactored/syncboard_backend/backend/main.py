@@ -414,13 +414,19 @@ async def health_check():
     import shutil
 
     # Basic statistics
+    # Note: documents and clusters are nested by knowledge base ID
+    # so we need to sum across all KBs to get the actual counts
+    total_documents = sum(len(kb_docs) for kb_docs in dependencies.documents.values())
+    total_clusters = sum(len(kb_clusters) for kb_clusters in dependencies.clusters.values())
+
     health_data = {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "statistics": {
-            "documents": len(dependencies.documents),
-            "clusters": len(dependencies.clusters),
+            "documents": total_documents,
+            "clusters": total_clusters,
             "users": len(dependencies.users),
+            "knowledge_bases": len(dependencies.documents),  # Number of KBs
             "vector_store_size": len(dependencies.vector_store.docs) if hasattr(dependencies.vector_store, 'docs') else 0
         },
         "dependencies": {}

@@ -12,7 +12,38 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuthStore } from '@/stores/auth';
 import toast from 'react-hot-toast';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+/**
+ * Derive WebSocket URL from API URL to avoid cross-origin issues.
+ * If API is at http://192.168.1.100:8000, WS should be at ws://192.168.1.100:8000
+ */
+function getWebSocketURL(): string {
+  // First check for explicit WS URL
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    return process.env.NEXT_PUBLIC_WS_URL;
+  }
+
+  // Derive from API URL
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws';
+  const wsHost = apiUrl.replace(/^https?:\/\//, ''); // Remove http:// or https://
+
+  return `${wsProtocol}://${wsHost}`;
+}
+
+const WS_URL = getWebSocketURL();
+
+/**
+ * Check if JWT token is expired
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expiry = payload.exp * 1000; // Convert to ms
+    return Date.now() > expiry;
+  } catch {
+    return true; // Treat invalid tokens as expired
+  }
+}
 
 export type WebSocketEventType =
   | 'connected'
@@ -54,6 +85,9 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const eventHandlersRef = useRef<Map<WebSocketEventType, Set<EventHandler>>>(new Map());
+  const reconnectAttemptsRef = useRef<number>(0);
+  const maxReconnectAttempts = 10;
+  const isConnectingRef = useRef<boolean>(false);
 
   const [state, setState] = useState<WebSocketState>({
     isConnected: false,
@@ -188,60 +222,102 @@ export function useWebSocket() {
 
   // Connect to WebSocket
   const connect = useCallback(() => {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current) {
+      return;
+    }
+
     const token = localStorage.getItem('token');
-    if (!token || !isAuthenticated) return;
+    if (!token || !isAuthenticated) {
+      return;
+    }
+
+    // Check if token is expired before attempting connection
+    if (isTokenExpired(token)) {
+      console.log('WebSocket: Token expired, not connecting');
+      return;
+    }
 
     // Clean up existing connection
     if (wsRef.current) {
       wsRef.current.close();
     }
 
-    const ws = new WebSocket(`${WS_URL}/ws?token=${token}`);
+    isConnectingRef.current = true;
 
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setState(prev => ({ ...prev, isConnected: true }));
+    try {
+      const ws = new WebSocket(`${WS_URL}/ws?token=${token}`);
 
-      // Start ping interval (keep-alive every 30s)
-      pingIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ event: 'ping', data: {} }));
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        isConnectingRef.current = false;
+        reconnectAttemptsRef.current = 0; // Reset on successful connection
+        setState(prev => ({ ...prev, isConnected: true }));
+
+        // Start ping interval (keep-alive every 30s)
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: 'ping', data: {} }));
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketEvent;
+          handleMessage(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
         }
-      }, 30000);
-    };
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketEvent;
-        handleMessage(message);
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected:', event.code, event.reason);
+        isConnectingRef.current = false;
+        setState(prev => ({ ...prev, isConnected: false }));
 
-    ws.onclose = (event) => {
-      console.log('WebSocket disconnected:', event.code, event.reason);
-      setState(prev => ({ ...prev, isConnected: false }));
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+        }
 
-      // Clear ping interval
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
+        // Attempt reconnection with exponential backoff
+        // Don't reconnect if:
+        // - Intentional close (1000)
+        // - Auth failure (4001)
+        // - Max attempts reached
+        // - Page is unloading (1001)
+        const shouldReconnect =
+          event.code !== 1000 &&
+          event.code !== 1001 &&
+          event.code !== 4001 &&
+          reconnectAttemptsRef.current < maxReconnectAttempts;
 
-      // Attempt reconnection (unless intentional close)
-      if (event.code !== 1000 && event.code !== 4001) {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('Attempting WebSocket reconnection...');
-          connect();
-        }, 5000);
-      }
-    };
+        if (shouldReconnect) {
+          reconnectAttemptsRef.current += 1;
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+          console.log(`WebSocket reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, delay);
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          console.log('WebSocket: Max reconnection attempts reached');
+          toast.error('Real-time connection lost. Please refresh the page.');
+        }
+      };
 
-    wsRef.current = ws;
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        isConnectingRef.current = false;
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
+      isConnectingRef.current = false;
+    }
   }, [isAuthenticated, handleMessage]);
 
   // Disconnect from WebSocket
@@ -256,6 +332,8 @@ export function useWebSocket() {
       wsRef.current.close(1000, 'User disconnected');
       wsRef.current = null;
     }
+    isConnectingRef.current = false;
+    reconnectAttemptsRef.current = 0; // Reset reconnect attempts on manual disconnect
     setState(prev => ({ ...prev, isConnected: false }));
   }, []);
 
