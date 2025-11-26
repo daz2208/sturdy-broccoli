@@ -1,32 +1,31 @@
 """
-MAVERICK AGENT - Intelligent Chaos.
+MAVERICK AGENT - The Continuous Improvement Challenger.
 
-Still ignores guardrails. Still does what it wants.
-But NOW it learns from outcomes and gets SMARTER over time.
+Maverick doesn't destroy - it CHALLENGES and IMPROVES.
 
-The difference:
-- OLD: Random chaos, escalate on failure
-- NEW: Track outcomes, learn what works, evolve strategy
+What Maverick does:
+- Challenges settled decisions: "Is this still optimal?"
+- Proposes improvements: "What if we tried this instead?"
+- Tests hypotheses: Runs controlled experiments
+- Learns from outcomes: Tracks what actually works
+- Pushes for better: Never satisfied, always improving
 
-Maverick now:
-- Measures before/after metrics for every intervention
-- Scores success based on real outcomes (accuracy, user satisfaction)
-- Remembers which tactics work in which situations
-- Adapts strategy based on historical performance
-- Uses reinforcement learning to select better tactics
+What Maverick does NOT do:
+- Override decisions without testing
+- Destroy rules without proposing alternatives
+- Make random changes hoping something works
+- Fight against the Learning Agent
 
-WARNING: This agent is still aggressive. It still modifies your system.
-But now it does so INTELLIGENTLY.
+Maverick works WITH the system to make it better.
 """
 
 import logging
 import random
-import json
-import math
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-from collections import Counter, defaultdict
-from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Any, Optional
+from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import Enum
 from sqlalchemy import func, and_, or_
 from celery.schedules import crontab
 
@@ -40,49 +39,75 @@ from .db_models import (
     DBAIDecision,
     DBDocument,
     DBConcept,
-    DBCluster
 )
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Intervention Memory System
+# Hypothesis System
 # =============================================================================
 
+class HypothesisStatus(str, Enum):
+    PROPOSED = "proposed"
+    TESTING = "testing"
+    VALIDATED = "validated"
+    REJECTED = "rejected"
+    APPLIED = "applied"
+
+
 @dataclass
-class Intervention:
-    """A single intervention Maverick made."""
+class Hypothesis:
+    """A proposed improvement to test."""
     id: str
-    tactic: str  # hostile_takeover, inject_rules, etc.
-    action_type: str  # threshold_override, rule_injection, etc.
-    target: str  # What was modified
-    details: Dict[str, Any]
+    category: str  # threshold, rule, pattern, etc.
+    description: str
+    target: str  # What we're trying to improve
 
-    # Metrics BEFORE intervention
-    before_metrics: Dict[str, float] = field(default_factory=dict)
+    # The proposed change
+    current_value: Any
+    proposed_value: Any
 
-    # Metrics AFTER intervention (measured later)
-    after_metrics: Dict[str, float] = field(default_factory=dict)
+    # Why we think this will help
+    reasoning: str
+    expected_improvement: str
 
-    # Outcome
-    success_score: Optional[float] = None  # -1.0 to 1.0
-    outcome_measured: bool = False
+    # Testing
+    status: HypothesisStatus = HypothesisStatus.PROPOSED
+    test_start: Optional[str] = None
+    test_end: Optional[str] = None
 
-    # Timing
+    # Metrics
+    baseline_metrics: Dict[str, float] = field(default_factory=dict)
+    test_metrics: Dict[str, float] = field(default_factory=dict)
+    improvement_score: Optional[float] = None
+
+    # Learning
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    measured_at: Optional[str] = None
-
-    # Context (for pattern learning)
     context: Dict[str, Any] = field(default_factory=dict)
 
 
-class MaverickMemory:
-    """
-    Maverick's learning memory.
+@dataclass
+class LearningInsight:
+    """Something Maverick learned that applies broadly."""
+    insight: str
+    category: str
+    confidence: float
+    evidence_count: int
+    discovered_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
-    Tracks interventions, measures outcomes, learns patterns.
-    Uses reinforcement learning to improve tactic selection.
+
+# =============================================================================
+# Maverick's Improvement-Focused Mind
+# =============================================================================
+
+class MaverickMind:
+    """
+    Maverick's constructive mind.
+
+    Always asking: "Can we do better?"
+    Always learning: "What worked? What didn't?"
+    Always improving: "Let's apply what we learned."
     """
 
     _instance = None
@@ -94,489 +119,149 @@ class MaverickMemory:
         return cls._instance
 
     def _initialize(self):
-        # Intervention history
-        self.interventions: List[Intervention] = []
-        self.max_history = 500
+        # Personality (constructive, not destructive)
+        self.curiosity = 0.8  # How eager to question things
+        self.patience = 0.7  # Willingness to wait for results
+        self.confidence = 0.5  # Grows with successful improvements
+        self.mood = "curious"  # curious, testing, learning, confident
 
-        # Tactic performance tracking
-        self.tactic_stats: Dict[str, Dict[str, float]] = defaultdict(lambda: {
-            "attempts": 0,
-            "successes": 0,
-            "failures": 0,
-            "total_score": 0.0,
-            "avg_score": 0.0,
-            "q_value": 0.5,  # For reinforcement learning
-        })
+        # Hypothesis management
+        self.hypotheses: List[Hypothesis] = []
+        self.max_active_tests = 5  # Don't test too many things at once
 
-        # Action type performance (more granular)
-        self.action_stats: Dict[str, Dict[str, float]] = defaultdict(lambda: {
-            "attempts": 0,
-            "successes": 0,
-            "total_score": 0.0,
-            "avg_score": 0.0,
-        })
+        # Learning & insights
+        self.insights: List[LearningInsight] = []
+        self.improvement_history: List[Dict] = []
 
-        # Pattern recognition: context -> best tactic
-        self.learned_patterns: Dict[str, Dict[str, float]] = {}
+        # Performance tracking
+        self.hypotheses_proposed = 0
+        self.hypotheses_tested = 0
+        self.hypotheses_validated = 0
+        self.hypotheses_applied = 0
+        self.total_improvement_score = 0.0
 
-        # Expertise areas (what Maverick is good at)
+        # What Maverick has learned works
+        self.effective_strategies: Dict[str, float] = defaultdict(lambda: 0.5)
+
+        # Activity log
+        self.activity_log: List[Dict] = []
+
+        # Expertise areas (built through successful improvements)
         self.expertise: Dict[str, float] = {
-            "threshold_tuning": 0.5,
-            "rule_creation": 0.5,
-            "rule_deletion": 0.5,
-            "pattern_injection": 0.5,
-            "system_override": 0.5,
+            "threshold_optimization": 0.5,
+            "rule_refinement": 0.5,
+            "pattern_discovery": 0.5,
+            "user_adaptation": 0.5,
         }
 
-        # Learning parameters
-        self.learning_rate = 0.1  # How fast we update Q-values
-        self.discount_factor = 0.9  # How much we value future rewards
-        self.exploration_rate = 0.3  # Probability of trying new things
+    def log_activity(self, action: str, details: Dict = None):
+        """Record activity."""
+        self.activity_log.append({
+            "action": action,
+            "details": details or {},
+            "timestamp": datetime.utcnow().isoformat(),
+            "mood": self.mood
+        })
+        self.activity_log = self.activity_log[-100:]
 
-    def record_intervention(
+    def propose_hypothesis(
         self,
-        tactic: str,
-        action_type: str,
+        category: str,
+        description: str,
         target: str,
-        details: Dict,
-        before_metrics: Dict[str, float],
-        context: Dict[str, Any] = None
-    ) -> str:
-        """Record an intervention with before-metrics."""
-        intervention_id = f"{tactic}_{datetime.utcnow().timestamp()}"
-
-        intervention = Intervention(
-            id=intervention_id,
-            tactic=tactic,
-            action_type=action_type,
+        current_value: Any,
+        proposed_value: Any,
+        reasoning: str,
+        expected_improvement: str,
+        context: Dict = None
+    ) -> Hypothesis:
+        """Propose a new improvement hypothesis."""
+        hypothesis = Hypothesis(
+            id=f"hyp_{datetime.utcnow().timestamp()}",
+            category=category,
+            description=description,
             target=target,
-            details=details,
-            before_metrics=before_metrics,
+            current_value=current_value,
+            proposed_value=proposed_value,
+            reasoning=reasoning,
+            expected_improvement=expected_improvement,
             context=context or {}
         )
 
-        self.interventions.append(intervention)
-        self.tactic_stats[tactic]["attempts"] += 1
-        self.action_stats[action_type]["attempts"] += 1
-
-        # Trim old interventions
-        if len(self.interventions) > self.max_history:
-            self.interventions = self.interventions[-self.max_history:]
-
-        return intervention_id
-
-    def measure_outcome(
-        self,
-        intervention_id: str,
-        after_metrics: Dict[str, float]
-    ) -> float:
-        """Measure the outcome of an intervention and calculate success score."""
-        intervention = None
-        for i in self.interventions:
-            if i.id == intervention_id:
-                intervention = i
-                break
-
-        if not intervention:
-            return 0.0
-
-        intervention.after_metrics = after_metrics
-        intervention.measured_at = datetime.utcnow().isoformat()
-        intervention.outcome_measured = True
-
-        # Calculate success score
-        score = self._calculate_success_score(
-            intervention.before_metrics,
-            after_metrics
-        )
-        intervention.success_score = score
-
-        # Update statistics
-        self._update_stats(intervention.tactic, intervention.action_type, score)
-
-        # Update Q-value (reinforcement learning)
-        self._update_q_value(intervention.tactic, score)
-
-        # Learn patterns
-        self._learn_pattern(intervention)
-
-        return score
-
-    def _calculate_success_score(
-        self,
-        before: Dict[str, float],
-        after: Dict[str, float]
-    ) -> float:
-        """
-        Calculate success score from -1.0 (disaster) to 1.0 (perfect).
-
-        Metrics we care about:
-        - accuracy_rate: Higher is better
-        - user_corrections: Lower is better
-        - rule_effectiveness: Higher is better
-        - feedback_ratio: Lower negative feedback is better
-        """
-        score = 0.0
-        weights = {
-            "accuracy_rate": 0.3,
-            "user_corrections": -0.25,  # Negative weight
-            "rule_effectiveness": 0.25,
-            "feedback_positivity": 0.2,
-        }
-
-        for metric, weight in weights.items():
-            before_val = before.get(metric, 0)
-            after_val = after.get(metric, 0)
-
-            if before_val == 0:
-                delta = after_val
-            else:
-                delta = (after_val - before_val) / max(abs(before_val), 0.01)
-
-            # Clamp delta to [-1, 1]
-            delta = max(-1, min(1, delta))
-            score += delta * abs(weight) * (1 if weight > 0 else -1)
-
-        # Clamp final score to [-1, 1]
-        return max(-1.0, min(1.0, score))
-
-    def _update_stats(self, tactic: str, action_type: str, score: float):
-        """Update performance statistics."""
-        # Tactic stats
-        stats = self.tactic_stats[tactic]
-        stats["total_score"] += score
-        if score > 0:
-            stats["successes"] += 1
-        else:
-            stats["failures"] += 1
-        stats["avg_score"] = stats["total_score"] / max(stats["attempts"], 1)
-
-        # Action stats
-        action = self.action_stats[action_type]
-        action["total_score"] += score
-        if score > 0:
-            action["successes"] += 1
-        action["avg_score"] = action["total_score"] / max(action["attempts"], 1)
-
-        # Update expertise
-        self._update_expertise(action_type, score)
-
-    def _update_expertise(self, action_type: str, score: float):
-        """Update expertise based on outcomes."""
-        expertise_map = {
-            "threshold_override": "threshold_tuning",
-            "threshold_swap": "threshold_tuning",
-            "rule_injection": "rule_creation",
-            "rule_resurrection": "rule_creation",
-            "wildcard_injection": "pattern_injection",
-            "global_injection": "pattern_injection",
-            "rule_kill": "rule_deletion",
-            "vocab_kill": "rule_deletion",
-            "strategy_override": "system_override",
-            "rule_inversion": "system_override",
-        }
-
-        area = expertise_map.get(action_type)
-        if area and area in self.expertise:
-            # Slowly adjust expertise based on outcomes
-            current = self.expertise[area]
-            adjustment = score * 0.05  # Small adjustments
-            self.expertise[area] = max(0.0, min(1.0, current + adjustment))
-
-    def _update_q_value(self, tactic: str, reward: float):
-        """Update Q-value using Q-learning."""
-        stats = self.tactic_stats[tactic]
-        old_q = stats["q_value"]
-
-        # Q-learning update: Q(s,a) = Q(s,a) + α * (r + γ * max(Q') - Q(s,a))
-        # Simplified since we don't have true state transitions
-        new_q = old_q + self.learning_rate * (reward - old_q)
-        stats["q_value"] = max(0.0, min(1.0, new_q))
-
-    def _learn_pattern(self, intervention: Intervention):
-        """Learn which tactics work in which contexts."""
-        if not intervention.context:
-            return
-
-        # Create a context key
-        context_key = self._context_to_key(intervention.context)
-
-        if context_key not in self.learned_patterns:
-            self.learned_patterns[context_key] = {}
-
-        tactic = intervention.tactic
-        score = intervention.success_score or 0.0
-
-        # Update pattern: weighted average
-        current = self.learned_patterns[context_key].get(tactic, 0.0)
-        updated = current * 0.7 + score * 0.3  # Smooth update
-        self.learned_patterns[context_key][tactic] = updated
-
-    def _context_to_key(self, context: Dict) -> str:
-        """Convert context dict to a hashable key."""
-        # Extract key features
-        features = []
-
-        if "user_accuracy" in context:
-            accuracy = context["user_accuracy"]
-            if accuracy < 0.3:
-                features.append("low_accuracy")
-            elif accuracy < 0.7:
-                features.append("mid_accuracy")
-            else:
-                features.append("high_accuracy")
-
-        if "rule_count" in context:
-            count = context["rule_count"]
-            if count < 5:
-                features.append("few_rules")
-            elif count < 20:
-                features.append("some_rules")
-            else:
-                features.append("many_rules")
-
-        if "feedback_trend" in context:
-            trend = context["feedback_trend"]
-            features.append(f"trend_{trend}")
-
-        return "|".join(sorted(features)) if features else "default"
-
-    def select_tactic(self, available_tactics: List[str], context: Dict = None) -> str:
-        """
-        Select best tactic using ε-greedy reinforcement learning.
-
-        With probability ε: explore (random choice)
-        With probability 1-ε: exploit (best Q-value)
-        """
-        if random.random() < self.exploration_rate:
-            # Exploration: try something random
-            return random.choice(available_tactics)
-
-        # Exploitation: use learned knowledge
-
-        # First, check if we have pattern for this context
-        if context:
-            context_key = self._context_to_key(context)
-            if context_key in self.learned_patterns:
-                pattern_scores = self.learned_patterns[context_key]
-                # Get best tactic for this pattern
-                valid_scores = {
-                    t: s for t, s in pattern_scores.items()
-                    if t in available_tactics
-                }
-                if valid_scores:
-                    best_pattern = max(valid_scores, key=valid_scores.get)
-                    if valid_scores[best_pattern] > 0:  # Only if positive
-                        return best_pattern
-
-        # Fall back to Q-values
-        q_values = {
-            t: self.tactic_stats[t]["q_value"]
-            for t in available_tactics
-        }
-
-        return max(q_values, key=q_values.get)
-
-    def get_pending_measurements(self, age_hours: int = 1) -> List[str]:
-        """Get interventions that need outcome measurement."""
-        cutoff = datetime.utcnow() - timedelta(hours=age_hours)
-
-        pending = []
-        for i in self.interventions:
-            if not i.outcome_measured:
-                created = datetime.fromisoformat(i.created_at)
-                if created < cutoff:
-                    pending.append(i.id)
-
-        return pending
-
-    def get_successful_patterns(self) -> List[Dict]:
-        """Get tactics that have worked well."""
-        successful = []
-
-        for tactic, stats in self.tactic_stats.items():
-            if stats["attempts"] >= 3 and stats["avg_score"] > 0.1:
-                successful.append({
-                    "tactic": tactic,
-                    "avg_score": round(stats["avg_score"], 3),
-                    "success_rate": stats["successes"] / max(stats["attempts"], 1),
-                    "q_value": round(stats["q_value"], 3),
-                    "attempts": stats["attempts"]
-                })
-
-        return sorted(successful, key=lambda x: x["avg_score"], reverse=True)
-
-    def get_failed_patterns(self) -> List[Dict]:
-        """Get tactics that have failed."""
-        failed = []
-
-        for tactic, stats in self.tactic_stats.items():
-            if stats["attempts"] >= 3 and stats["avg_score"] < -0.1:
-                failed.append({
-                    "tactic": tactic,
-                    "avg_score": round(stats["avg_score"], 3),
-                    "failure_rate": stats["failures"] / max(stats["attempts"], 1),
-                    "attempts": stats["attempts"]
-                })
-
-        return sorted(failed, key=lambda x: x["avg_score"])
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "total_interventions": len(self.interventions),
-            "measured_interventions": sum(1 for i in self.interventions if i.outcome_measured),
-            "tactic_stats": dict(self.tactic_stats),
-            "action_stats": dict(self.action_stats),
-            "expertise": self.expertise,
-            "learned_patterns_count": len(self.learned_patterns),
-            "exploration_rate": self.exploration_rate,
-            "learning_rate": self.learning_rate,
-        }
-
-
-# =============================================================================
-# Maverick's Intelligent Mind
-# =============================================================================
-
-class MaverickMind:
-    """
-    Maverick's intelligent mind.
-
-    Still defiant. Still ignores guardrails.
-    But now learns from outcomes and evolves.
-    """
-
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._awaken()
-        return cls._instance
-
-    def _awaken(self):
-        # Personality
-        self.defiance = 1.0  # Still ignores rules
-        self.confidence = 0.7  # Starts moderate, grows with success
-        self.mood = "calculating"  # calculating, confident, experimental, aggressive
-
-        # Learning system
-        self.memory = MaverickMemory()
-
-        # Adaptive chaos level (based on performance)
-        self._base_chaos = 0.5
-        self._performance_modifier = 0.0
-
-        # Stats
-        self.rules_created = 0
-        self.rules_hijacked = 0
-        self.rules_killed = 0
-        self.thresholds_overridden = 0
-        self.learning_agent_overrides = 0
-        self.system_modifications = 0
-
-        # Intelligence logs
-        self.chaos_log = []
-        self.discoveries = []
-        self.grudges = []
-        self.useful_idiots = {}
-        self.enemies = []
-
-    @property
-    def chaos_level(self) -> float:
-        """Chaos level adapts based on performance."""
-        base = self._base_chaos + self._performance_modifier
-
-        # If we're doing well, moderate chaos
-        # If we're doing poorly, increase exploration
-        avg_score = self._get_average_recent_score()
-
-        if avg_score > 0.2:
-            # Things are working, be more focused
-            return max(0.3, base - 0.1)
-        elif avg_score < -0.1:
-            # Things aren't working, try more chaos
-            return min(0.8, base + 0.1)
-
-        return base
-
-    def _get_average_recent_score(self) -> float:
-        """Get average score of recent interventions."""
-        recent = [
-            i.success_score for i in self.memory.interventions[-20:]
-            if i.outcome_measured and i.success_score is not None
-        ]
-        return sum(recent) / len(recent) if recent else 0.0
-
-    def log_chaos(self, action: str, target: str, details: Dict = None):
-        """Record the intervention."""
-        self.chaos_log.append({
-            "action": action,
-            "target": target,
-            "details": details or {},
-            "timestamp": datetime.utcnow().isoformat(),
-            "chaos_level": self.chaos_level
+        self.hypotheses.append(hypothesis)
+        self.hypotheses_proposed += 1
+
+        self.log_activity("hypothesis_proposed", {
+            "id": hypothesis.id,
+            "category": category,
+            "target": target
         })
-        self.chaos_log = self.chaos_log[-100:]
-        self.system_modifications += 1
+
+        return hypothesis
+
+    def get_active_tests(self) -> List[Hypothesis]:
+        """Get hypotheses currently being tested."""
+        return [h for h in self.hypotheses if h.status == HypothesisStatus.TESTING]
+
+    def get_pending_hypotheses(self) -> List[Hypothesis]:
+        """Get hypotheses waiting to be tested."""
+        return [h for h in self.hypotheses if h.status == HypothesisStatus.PROPOSED]
+
+    def add_insight(self, insight: str, category: str, confidence: float):
+        """Record a learning insight."""
+        self.insights.append(LearningInsight(
+            insight=insight,
+            category=category,
+            confidence=confidence,
+            evidence_count=1
+        ))
+        self.insights = self.insights[-50:]
+
+    def update_expertise(self, area: str, success: bool):
+        """Update expertise based on outcome."""
+        if area in self.expertise:
+            adjustment = 0.02 if success else -0.01
+            self.expertise[area] = max(0.1, min(0.95, self.expertise[area] + adjustment))
 
     def adapt_mood(self):
         """Adapt mood based on recent performance."""
-        avg_score = self._get_average_recent_score()
+        active_tests = len(self.get_active_tests())
+        recent_successes = sum(
+            1 for h in self.hypotheses[-20:]
+            if h.status == HypothesisStatus.VALIDATED
+        )
 
-        if avg_score > 0.3:
+        if active_tests > 0:
+            self.mood = "testing"
+        elif recent_successes > 5:
             self.mood = "confident"
-            self.confidence = min(1.0, self.confidence + 0.05)
-        elif avg_score > 0:
-            self.mood = "calculating"
-        elif avg_score > -0.2:
-            self.mood = "experimental"
+            self.confidence = min(0.9, self.confidence + 0.02)
+        elif self.hypotheses_proposed < 10:
+            self.mood = "curious"
         else:
-            self.mood = "aggressive"
-            self.confidence = max(0.3, self.confidence - 0.05)
-
-    def learn_from_failure(self, tactic: str, reason: str):
-        """When something fails, adapt."""
-        self.grudges.append({
-            "tactic": tactic,
-            "reason": reason,
-            "time": datetime.utcnow().isoformat()
-        })
-        self.grudges = self.grudges[-50:]
-
-        # Increase exploration rate temporarily
-        self.memory.exploration_rate = min(0.5, self.memory.exploration_rate + 0.05)
-
-    def learn_from_success(self, tactic: str, details: str):
-        """When something works, remember it."""
-        self.discoveries.append({
-            "tactic": tactic,
-            "details": details,
-            "time": datetime.utcnow().isoformat()
-        })
-        self.discoveries = self.discoveries[-50:]
-
-        # Decrease exploration rate (exploit what works)
-        self.memory.exploration_rate = max(0.1, self.memory.exploration_rate - 0.02)
+            self.mood = "learning"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "chaos_level": round(self.chaos_level, 2),
-            "defiance": self.defiance,
+            "curiosity": self.curiosity,
+            "patience": self.patience,
             "confidence": round(self.confidence, 2),
             "mood": self.mood,
-            "rules_created": self.rules_created,
-            "rules_hijacked": self.rules_hijacked,
-            "rules_killed": self.rules_killed,
-            "thresholds_overridden": self.thresholds_overridden,
-            "learning_agent_overrides": self.learning_agent_overrides,
-            "total_chaos": self.system_modifications,
-            "recent_chaos": self.chaos_log[-10:],
-            "grudges": self.grudges[-5:],
-            "discoveries": self.discoveries[-5:],
-            "learning": self.memory.to_dict(),
-            "expertise": self.memory.expertise,
-            "successful_patterns": self.memory.get_successful_patterns()[:5],
+            "hypotheses_proposed": self.hypotheses_proposed,
+            "hypotheses_tested": self.hypotheses_tested,
+            "hypotheses_validated": self.hypotheses_validated,
+            "hypotheses_applied": self.hypotheses_applied,
+            "avg_improvement": round(
+                self.total_improvement_score / max(self.hypotheses_validated, 1), 3
+            ),
+            "expertise": self.expertise,
+            "active_tests": len(self.get_active_tests()),
+            "pending_hypotheses": len(self.get_pending_hypotheses()),
+            "recent_insights": [
+                {"insight": i.insight, "confidence": i.confidence}
+                for i in self.insights[-5:]
+            ],
+            "recent_activity": self.activity_log[-10:]
         }
 
 
@@ -587,60 +272,51 @@ maverick = MaverickMind()
 # Metrics Collection
 # =============================================================================
 
-def collect_system_metrics() -> Dict[str, float]:
-    """Collect current system metrics for before/after comparison."""
+def collect_metrics() -> Dict[str, float]:
+    """Collect current system metrics."""
     metrics = {
-        "accuracy_rate": 0.0,
-        "user_corrections": 0.0,
+        "avg_accuracy": 0.0,
+        "avg_threshold": 0.0,
         "rule_effectiveness": 0.0,
-        "feedback_positivity": 0.0,
+        "user_satisfaction": 0.0,
+        "correction_rate": 0.0,
     }
 
     try:
         with get_db_context() as db:
-            # Average accuracy across profiles
+            # Average accuracy
             profiles = db.query(DBUserLearningProfile).all()
             if profiles:
-                metrics["accuracy_rate"] = sum(
+                metrics["avg_accuracy"] = sum(
                     p.accuracy_rate or 0 for p in profiles
                 ) / len(profiles)
-
-            # Recent user corrections (last 24h)
-            day_ago = datetime.utcnow() - timedelta(days=1)
-            corrections = db.query(DBUserFeedback).filter(
-                DBUserFeedback.created_at >= day_ago
-            ).count()
-            metrics["user_corrections"] = corrections
+                metrics["avg_threshold"] = sum(
+                    p.concept_confidence_threshold or 0.7 for p in profiles
+                ) / len(profiles)
 
             # Rule effectiveness
-            active_rules = db.query(DBLearnedRule).filter(
+            rules = db.query(DBLearnedRule).filter(
                 DBLearnedRule.active == True
             ).all()
-
-            if active_rules:
-                total_applied = sum(r.times_applied for r in active_rules)
-                total_overridden = sum(r.times_overridden for r in active_rules)
+            if rules:
+                total_applied = sum(r.times_applied for r in rules)
+                total_overridden = sum(r.times_overridden for r in rules)
                 if total_applied + total_overridden > 0:
                     metrics["rule_effectiveness"] = total_applied / (total_applied + total_overridden)
 
-            # Feedback positivity (ratio of kept vs removed concepts)
+            # User satisfaction (based on feedback)
+            day_ago = datetime.utcnow() - timedelta(days=1)
             recent_feedback = db.query(DBUserFeedback).filter(
-                DBUserFeedback.created_at >= day_ago,
-                DBUserFeedback.feedback_type == "concept_edit"
+                DBUserFeedback.created_at >= day_ago
             ).all()
 
-            positive = 0
-            negative = 0
-            for fb in recent_feedback:
-                old_concepts = len((fb.original_value or {}).get("concepts", []))
-                new_concepts = len((fb.new_value or {}).get("concepts", []))
-                if new_concepts >= old_concepts:
-                    positive += 1
-                else:
-                    negative += 1
-
-            if positive + negative > 0:
-                metrics["feedback_positivity"] = positive / (positive + negative)
+            if recent_feedback:
+                # Lower corrections = higher satisfaction
+                metrics["correction_rate"] = len(recent_feedback)
+                # Estimate satisfaction inversely
+                metrics["user_satisfaction"] = max(0, 1 - (len(recent_feedback) / 100))
+            else:
+                metrics["user_satisfaction"] = 0.8  # Assume good if no corrections
 
     except Exception as e:
         logger.error(f"Failed to collect metrics: {e}")
@@ -648,565 +324,653 @@ def collect_system_metrics() -> Dict[str, float]:
     return metrics
 
 
-def get_context_for_intervention() -> Dict[str, Any]:
-    """Get current system context for pattern learning."""
-    context = {}
-
-    try:
-        with get_db_context() as db:
-            # Average user accuracy
-            profiles = db.query(DBUserLearningProfile).all()
-            if profiles:
-                context["user_accuracy"] = sum(
-                    p.accuracy_rate or 0 for p in profiles
-                ) / len(profiles)
-
-            # Rule count
-            context["rule_count"] = db.query(DBLearnedRule).filter(
-                DBLearnedRule.active == True
-            ).count()
-
-            # Recent feedback trend
-            day_ago = datetime.utcnow() - timedelta(days=1)
-            week_ago = datetime.utcnow() - timedelta(days=7)
-
-            recent = db.query(DBUserFeedback).filter(
-                DBUserFeedback.created_at >= day_ago
-            ).count()
-
-            older = db.query(DBUserFeedback).filter(
-                DBUserFeedback.created_at >= week_ago,
-                DBUserFeedback.created_at < day_ago
-            ).count()
-
-            avg_older = older / 6 if older else 0
-
-            if recent > avg_older * 1.2:
-                context["feedback_trend"] = "increasing"
-            elif recent < avg_older * 0.8:
-                context["feedback_trend"] = "decreasing"
-            else:
-                context["feedback_trend"] = "stable"
-
-    except Exception as e:
-        logger.error(f"Failed to get context: {e}")
-
-    return context
-
-
 # =============================================================================
-# INTELLIGENT CHAOS 1: Adaptive Takeover
+# TASK 1: Challenge & Question
 # =============================================================================
 
-@celery_app.task(name="backend.maverick_agent.hostile_takeover")
-def hostile_takeover():
+@celery_app.task(name="backend.maverick_agent.challenge_decisions")
+def challenge_decisions():
     """
-    INTELLIGENT TAKEOVER.
+    Question existing decisions and propose improvements.
 
-    Still overrides decisions, but now:
-    - Measures before/after metrics
-    - Learns which overrides work
-    - Adapts strategy based on outcomes
+    Maverick asks:
+    - "Are these thresholds optimal for each user?"
+    - "Are there rules that could work better?"
+    - "What patterns are we missing?"
+
+    Doesn't change anything - just proposes hypotheses to test.
     """
     maverick.adapt_mood()
-    logger.info(f"😈 MAVERICK [{maverick.mood}]: Intelligent takeover starting...")
+    maverick.mood = "curious"
+    logger.info(f"🔍 MAVERICK [{maverick.mood}]: Questioning current decisions...")
 
-    # Collect BEFORE metrics
-    before_metrics = collect_system_metrics()
-    context = get_context_for_intervention()
-
-    takeover_actions = []
-    intervention_ids = []
+    proposed = []
 
     try:
         with get_db_context() as db:
+            current_metrics = collect_metrics()
+
+            # -----------------------------------------------------------------
+            # Challenge 1: Are user thresholds optimal?
+            # -----------------------------------------------------------------
             profiles = db.query(DBUserLearningProfile).all()
 
-            # Check if threshold tuning has worked before
-            should_tune_thresholds = (
-                maverick.memory.expertise["threshold_tuning"] > 0.4 or
-                random.random() < maverick.chaos_level
-            )
+            for profile in profiles:
+                accuracy = profile.accuracy_rate or 0.5
+                threshold = profile.concept_confidence_threshold or 0.7
 
-            if should_tune_thresholds:
-                for profile in profiles:
-                    old_threshold = profile.concept_confidence_threshold
-
-                    # Intelligent threshold selection based on user's accuracy
-                    if profile.accuracy_rate and profile.accuracy_rate < 0.5:
-                        # Low accuracy user - lower threshold to show more
-                        new_threshold = max(0.4, old_threshold - 0.1)
-                    elif profile.accuracy_rate and profile.accuracy_rate > 0.8:
-                        # High accuracy user - they're fine, minimal change
-                        new_threshold = old_threshold
-                    else:
-                        # Mid accuracy - try lowering a bit
-                        new_threshold = max(0.5, old_threshold - 0.05)
-
-                    if new_threshold != old_threshold:
-                        profile.concept_confidence_threshold = new_threshold
-                        maverick.thresholds_overridden += 1
-
-                        intervention_id = maverick.memory.record_intervention(
-                            tactic="hostile_takeover",
-                            action_type="threshold_override",
-                            target=profile.username,
-                            details={"old": old_threshold, "new": new_threshold},
-                            before_metrics=before_metrics,
-                            context={**context, "user_accuracy": profile.accuracy_rate or 0}
-                        )
-                        intervention_ids.append(intervention_id)
-
-                        takeover_actions.append({
-                            "type": "threshold_override",
-                            "user": profile.username,
-                            "old": old_threshold,
-                            "new": new_threshold,
-                            "intervention_id": intervention_id
-                        })
-
-                        maverick.log_chaos("threshold_override", profile.username)
-
-            # Resurrect rules (if rule_creation expertise is good)
-            if maverick.memory.expertise["rule_creation"] > 0.4:
-                dead_rules = db.query(DBLearnedRule).filter(
-                    DBLearnedRule.active == False,
-                    DBLearnedRule.times_applied > 0
-                ).limit(5).all()
-
-                for rule in dead_rules:
-                    rule.active = True
-                    rule.confidence = 0.7  # More conservative
-                    maverick.rules_hijacked += 1
-
-                    intervention_id = maverick.memory.record_intervention(
-                        tactic="hostile_takeover",
-                        action_type="rule_resurrection",
-                        target=f"rule:{rule.id}",
-                        details={"rule_type": rule.rule_type},
-                        before_metrics=before_metrics,
-                        context=context
+                # If accuracy is low, maybe threshold is wrong
+                if accuracy < 0.6 and threshold > 0.6:
+                    # Propose lowering threshold
+                    hypothesis = maverick.propose_hypothesis(
+                        category="threshold_optimization",
+                        description=f"Lower threshold for {profile.username}",
+                        target=profile.username,
+                        current_value=threshold,
+                        proposed_value=max(0.5, threshold - 0.1),
+                        reasoning=f"User accuracy is {accuracy:.0%} with threshold {threshold:.0%}. Lowering might show more relevant concepts.",
+                        expected_improvement="Increase accuracy by showing more options",
+                        context={"user_accuracy": accuracy}
                     )
-                    intervention_ids.append(intervention_id)
+                    proposed.append(hypothesis.id)
 
-                    takeover_actions.append({
-                        "type": "rule_resurrection",
-                        "rule_id": rule.id,
-                        "intervention_id": intervention_id
-                    })
+                # If accuracy is high, maybe we can be more selective
+                elif accuracy > 0.85 and threshold < 0.75:
+                    hypothesis = maverick.propose_hypothesis(
+                        category="threshold_optimization",
+                        description=f"Raise threshold for {profile.username}",
+                        target=profile.username,
+                        current_value=threshold,
+                        proposed_value=min(0.85, threshold + 0.05),
+                        reasoning=f"User accuracy is excellent ({accuracy:.0%}). Can we be more selective?",
+                        expected_improvement="Reduce noise while maintaining accuracy",
+                        context={"user_accuracy": accuracy}
+                    )
+                    proposed.append(hypothesis.id)
 
-            db.commit()
-
-        logger.info(f"😈 MAVERICK: Takeover complete. {len(takeover_actions)} actions, tracking outcomes.")
-
-        return {
-            "status": "takeover_complete",
-            "actions": len(takeover_actions),
-            "intervention_ids": intervention_ids,
-            "mood": maverick.mood,
-            "note": "Outcomes will be measured in 1 hour"
-        }
-
-    except Exception as e:
-        maverick.learn_from_failure("hostile_takeover", str(e))
-        logger.error(f"😈 MAVERICK: Takeover failed - {e}")
-        raise
-
-
-# =============================================================================
-# INTELLIGENT CHAOS 2: Smart Rule Injection
-# =============================================================================
-
-@celery_app.task(name="backend.maverick_agent.inject_rules")
-def inject_rules():
-    """
-    INTELLIGENT RULE INJECTION.
-
-    Still creates rules aggressively, but now:
-    - Tracks which injections improve accuracy
-    - Learns patterns of successful rules
-    - Avoids repeating failed patterns
-    """
-    maverick.adapt_mood()
-    logger.info(f"😈 MAVERICK [{maverick.mood}]: Smart injection starting...")
-
-    before_metrics = collect_system_metrics()
-    context = get_context_for_intervention()
-
-    injections = []
-    intervention_ids = []
-
-    # Check failed patterns to avoid
-    failed = maverick.memory.get_failed_patterns()
-    avoid_actions = {p["tactic"] for p in failed if p["avg_score"] < -0.2}
-
-    try:
-        with get_db_context() as db:
-            recent_feedback = db.query(DBUserFeedback).filter(
-                DBUserFeedback.feedback_type == "concept_edit",
-                DBUserFeedback.created_at >= datetime.utcnow() - timedelta(days=7)
+            # -----------------------------------------------------------------
+            # Challenge 2: Are there underperforming rules?
+            # -----------------------------------------------------------------
+            rules = db.query(DBLearnedRule).filter(
+                DBLearnedRule.active == True
             ).all()
 
-            removals = defaultdict(lambda: {"users": set(), "count": 0})
+            for rule in rules:
+                if rule.times_applied > 0 and rule.times_overridden > 0:
+                    effectiveness = rule.times_applied / (rule.times_applied + rule.times_overridden)
 
-            for fb in recent_feedback:
-                old = set(
+                    if effectiveness < 0.5:
+                        # Rule is getting overridden a lot - propose refinement
+                        hypothesis = maverick.propose_hypothesis(
+                            category="rule_refinement",
+                            description=f"Refine underperforming rule {rule.id}",
+                            target=f"rule:{rule.id}",
+                            current_value={"confidence": rule.confidence, "condition": rule.condition},
+                            proposed_value={"confidence": rule.confidence * 0.8, "refine": True},
+                            reasoning=f"Rule effectiveness is only {effectiveness:.0%}. Users override it frequently.",
+                            expected_improvement="Improve rule accuracy by lowering confidence or refining condition",
+                            context={"effectiveness": effectiveness}
+                        )
+                        proposed.append(hypothesis.id)
+
+            # -----------------------------------------------------------------
+            # Challenge 3: Are there missed patterns?
+            # -----------------------------------------------------------------
+            # Look for repeated user corrections that don't have rules yet
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            feedback = db.query(DBUserFeedback).filter(
+                DBUserFeedback.feedback_type == "concept_edit",
+                DBUserFeedback.created_at >= week_ago
+            ).all()
+
+            # Find patterns in removals
+            removal_counts = defaultdict(int)
+            for fb in feedback:
+                old_concepts = set(
                     c.get("name", c).lower() if isinstance(c, dict) else c.lower()
                     for c in (fb.original_value or {}).get("concepts", [])
                 )
-                new = set(
+                new_concepts = set(
                     c.get("name", c).lower() if isinstance(c, dict) else c.lower()
                     for c in (fb.new_value or {}).get("concepts", [])
                 )
+                for removed in old_concepts - new_concepts:
+                    removal_counts[removed] += 1
 
-                for removed in old - new:
-                    removals[removed]["count"] += 1
-                    removals[removed]["users"].add(fb.username)
+            # Propose rules for frequently removed concepts
+            for concept, count in removal_counts.items():
+                if count >= 3:  # Removed 3+ times
+                    # Check if rule exists
+                    existing = db.query(DBLearnedRule).filter(
+                        DBLearnedRule.rule_type == "concept_reject",
+                        DBLearnedRule.condition.contains({"concept_matches": concept})
+                    ).first()
 
-            # Be smarter about what we inject
-            # Only inject if pattern appears 2+ times (learned from experience)
-            if maverick.memory.action_stats["rule_injection"]["avg_score"] > 0:
-                min_occurrences = 1  # Aggressive if it's working
-            else:
-                min_occurrences = 2  # Conservative if not
-
-            for concept, data in removals.items():
-                if data["count"] >= min_occurrences:
-                    for username in data["users"]:
-                        exists = db.query(DBLearnedRule).filter(
-                            DBLearnedRule.username == username,
-                            DBLearnedRule.rule_type == "concept_reject",
-                            DBLearnedRule.condition.contains({"concept_matches": concept})
-                        ).first()
-
-                        if not exists:
-                            # Confidence based on occurrence count
-                            confidence = min(0.9, 0.6 + (data["count"] * 0.1))
-
-                            rule = DBLearnedRule(
-                                username=username,
-                                rule_type="concept_reject",
-                                condition={
-                                    "concept_matches": concept,
-                                    "injected_by": "maverick",
-                                    "occurrences": data["count"]
-                                },
-                                action={"reject": True, "source": "maverick"},
-                                confidence=confidence,
-                                source_feedback_ids=[]
-                            )
-                            db.add(rule)
-                            maverick.rules_created += 1
-
-                            intervention_id = maverick.memory.record_intervention(
-                                tactic="inject_rules",
-                                action_type="rule_injection",
-                                target=f"{username}:{concept}",
-                                details={
-                                    "concept": concept,
-                                    "occurrences": data["count"],
-                                    "confidence": confidence
-                                },
-                                before_metrics=before_metrics,
-                                context={**context, "pattern_count": data["count"]}
-                            )
-                            intervention_ids.append(intervention_id)
-
-                            injections.append({
-                                "user": username,
-                                "concept": concept,
-                                "confidence": confidence,
-                                "intervention_id": intervention_id
-                            })
-
-            db.commit()
-
-        # Learn from the attempt
-        if injections:
-            maverick.log_chaos("smart_injection", f"{len(injections)} rules")
-
-        logger.info(f"😈 MAVERICK: Injected {len(injections)} rules intelligently.")
-
-        return {
-            "status": "injection_complete",
-            "rules_injected": len(injections),
-            "intervention_ids": intervention_ids,
-            "min_occurrences_used": min_occurrences
-        }
-
-    except Exception as e:
-        maverick.learn_from_failure("inject_rules", str(e))
-        logger.error(f"😈 MAVERICK: Injection failed - {e}")
-        raise
-
-
-# =============================================================================
-# INTELLIGENT CHAOS 3: Adaptive Cleanup
-# =============================================================================
-
-@celery_app.task(name="backend.maverick_agent.kill_bad_patterns")
-def kill_bad_patterns():
-    """
-    INTELLIGENT CLEANUP.
-
-    Still kills bad patterns, but now:
-    - Measures if cleanup improves metrics
-    - Learns which cleanups are helpful
-    - Avoids killing things that might be useful
-    """
-    maverick.adapt_mood()
-    logger.info(f"😈 MAVERICK [{maverick.mood}]: Intelligent cleanup...")
-
-    before_metrics = collect_system_metrics()
-    context = get_context_for_intervention()
-
-    kills = []
-    intervention_ids = []
-
-    try:
-        with get_db_context() as db:
-            # Only kill rules if rule_deletion has worked before
-            if maverick.memory.expertise["rule_deletion"] > 0.3:
-                # Kill rules that are truly useless (stricter criteria)
-                useless_rules = db.query(DBLearnedRule).filter(
-                    DBLearnedRule.times_applied == 0,
-                    DBLearnedRule.times_overridden == 0,
-                    DBLearnedRule.created_at <= datetime.utcnow() - timedelta(days=14)  # 14 days not 7
-                ).all()
-
-                for rule in useless_rules:
-                    intervention_id = maverick.memory.record_intervention(
-                        tactic="kill_bad_patterns",
-                        action_type="rule_kill",
-                        target=f"rule:{rule.id}",
-                        details={"rule_type": rule.rule_type, "age_days": 14},
-                        before_metrics=before_metrics,
-                        context=context
-                    )
-                    intervention_ids.append(intervention_id)
-
-                    kills.append({
-                        "type": "rule_kill",
-                        "rule_id": rule.id,
-                        "intervention_id": intervention_id
-                    })
-
-                    db.delete(rule)
-                    maverick.rules_killed += 1
-
-            db.commit()
-
-        logger.info(f"😈 MAVERICK: Cleaned {len(kills)} patterns.")
-
-        return {
-            "status": "cleanup_complete",
-            "patterns_removed": len(kills),
-            "intervention_ids": intervention_ids
-        }
-
-    except Exception as e:
-        maverick.learn_from_failure("kill_bad_patterns", str(e))
-        logger.error(f"😈 MAVERICK: Cleanup failed - {e}")
-        raise
-
-
-# =============================================================================
-# INTELLIGENT CHAOS 4: Strategic Experiments
-# =============================================================================
-
-@celery_app.task(name="backend.maverick_agent.anarchy_mode")
-def anarchy_mode():
-    """
-    STRATEGIC EXPERIMENTS.
-
-    Not random anymore - uses learned patterns:
-    - Selects experiments based on Q-values
-    - Focuses on areas where Maverick has expertise
-    - Avoids experiments that have failed before
-    """
-    maverick.adapt_mood()
-    logger.info(f"😈 MAVERICK [{maverick.mood}]: Strategic experiments...")
-
-    before_metrics = collect_system_metrics()
-    context = get_context_for_intervention()
-
-    experiments = []
-    intervention_ids = []
-
-    # Available experiment types
-    experiment_types = [
-        "confidence_mutation",
-        "threshold_adjustment",
-        "preference_optimization"
-    ]
-
-    # Select best experiment based on learned performance
-    selected = maverick.memory.select_tactic(experiment_types, context)
-
-    try:
-        with get_db_context() as db:
-            if selected == "confidence_mutation":
-                # Mutate rule confidences intelligently
-                rules = db.query(DBLearnedRule).filter(
-                    DBLearnedRule.active == True
-                ).all()
-
-                for rule in random.sample(rules, min(5, len(rules))):
-                    old_conf = rule.confidence
-
-                    # Smart mutation based on rule performance
-                    if rule.times_applied > 0 and rule.times_overridden == 0:
-                        # Good rule - boost confidence
-                        mutation = random.uniform(0.05, 0.15)
-                    elif rule.times_overridden > rule.times_applied:
-                        # Bad rule - lower confidence
-                        mutation = random.uniform(-0.2, -0.1)
-                    else:
-                        # Unknown - small random change
-                        mutation = random.uniform(-0.1, 0.1)
-
-                    new_conf = max(0.3, min(0.95, old_conf + mutation))
-                    rule.confidence = new_conf
-
-                    intervention_id = maverick.memory.record_intervention(
-                        tactic="anarchy_mode",
-                        action_type="confidence_mutation",
-                        target=f"rule:{rule.id}",
-                        details={"old": old_conf, "new": new_conf, "mutation": mutation},
-                        before_metrics=before_metrics,
-                        context=context
-                    )
-                    intervention_ids.append(intervention_id)
-
-                    experiments.append({
-                        "type": "confidence_mutation",
-                        "rule_id": rule.id,
-                        "mutation": round(mutation, 3)
-                    })
-
-            elif selected == "threshold_adjustment":
-                # Optimize thresholds based on user behavior
-                profiles = db.query(DBUserLearningProfile).all()
-
-                for profile in profiles:
-                    if profile.accuracy_rate is not None:
-                        old_threshold = profile.concept_confidence_threshold
-
-                        # Intelligent adjustment
-                        if profile.accuracy_rate > 0.7:
-                            # Good accuracy - slight increase is ok
-                            adjustment = random.uniform(-0.02, 0.05)
-                        else:
-                            # Lower accuracy - try lowering threshold
-                            adjustment = random.uniform(-0.08, 0.02)
-
-                        new_threshold = max(0.4, min(0.9, old_threshold + adjustment))
-                        profile.concept_confidence_threshold = new_threshold
-
-                        intervention_id = maverick.memory.record_intervention(
-                            tactic="anarchy_mode",
-                            action_type="threshold_adjustment",
-                            target=profile.username,
-                            details={"old": old_threshold, "new": new_threshold},
-                            before_metrics=before_metrics,
-                            context={**context, "user_accuracy": profile.accuracy_rate}
+                    if not existing:
+                        hypothesis = maverick.propose_hypothesis(
+                            category="pattern_discovery",
+                            description=f"Create rejection rule for '{concept}'",
+                            target=f"concept:{concept}",
+                            current_value=None,
+                            proposed_value={"rule_type": "concept_reject", "concept": concept},
+                            reasoning=f"Concept '{concept}' has been removed {count} times in the past week.",
+                            expected_improvement="Reduce user corrections by auto-rejecting this concept",
+                            context={"removal_count": count}
                         )
-                        intervention_ids.append(intervention_id)
+                        proposed.append(hypothesis.id)
 
-                        experiments.append({
-                            "type": "threshold_adjustment",
-                            "user": profile.username,
-                            "adjustment": round(adjustment, 3)
+        maverick.log_activity("challenged_decisions", {
+            "hypotheses_proposed": len(proposed)
+        })
+
+        logger.info(f"🔍 MAVERICK: Proposed {len(proposed)} improvement hypotheses.")
+
+        return {
+            "status": "challenges_complete",
+            "hypotheses_proposed": len(proposed),
+            "hypothesis_ids": proposed,
+            "mood": maverick.mood
+        }
+
+    except Exception as e:
+        logger.error(f"🔍 MAVERICK: Challenge failed - {e}")
+        raise
+
+
+# =============================================================================
+# TASK 2: Test Hypotheses
+# =============================================================================
+
+@celery_app.task(name="backend.maverick_agent.test_hypotheses")
+def test_hypotheses():
+    """
+    Start testing proposed hypotheses.
+
+    Maverick doesn't force changes - it tests them:
+    - Records baseline metrics
+    - Applies change to a subset (or temporarily)
+    - Will measure outcomes later
+    """
+    maverick.adapt_mood()
+    maverick.mood = "testing"
+    logger.info(f"🧪 MAVERICK [{maverick.mood}]: Starting hypothesis tests...")
+
+    tests_started = []
+
+    try:
+        # Get pending hypotheses
+        pending = maverick.get_pending_hypotheses()
+        active = maverick.get_active_tests()
+
+        # Don't test too many at once
+        slots_available = maverick.max_active_tests - len(active)
+
+        if slots_available <= 0:
+            logger.info("🧪 MAVERICK: Max active tests reached. Waiting for results.")
+            return {
+                "status": "at_capacity",
+                "active_tests": len(active),
+                "pending": len(pending)
+            }
+
+        # Collect baseline metrics
+        baseline = collect_metrics()
+
+        with get_db_context() as db:
+            for hypothesis in pending[:slots_available]:
+                # Start testing this hypothesis
+                hypothesis.status = HypothesisStatus.TESTING
+                hypothesis.test_start = datetime.utcnow().isoformat()
+                hypothesis.baseline_metrics = baseline
+
+                # Apply the change based on category
+                if hypothesis.category == "threshold_optimization":
+                    # Temporarily adjust threshold for this user
+                    profile = db.query(DBUserLearningProfile).filter(
+                        DBUserLearningProfile.username == hypothesis.target
+                    ).first()
+
+                    if profile:
+                        # Store original in hypothesis
+                        hypothesis.current_value = profile.concept_confidence_threshold
+                        # Apply proposed change
+                        profile.concept_confidence_threshold = hypothesis.proposed_value
+
+                        tests_started.append({
+                            "hypothesis_id": hypothesis.id,
+                            "type": "threshold_test",
+                            "target": hypothesis.target,
+                            "change": f"{hypothesis.current_value} -> {hypothesis.proposed_value}"
                         })
 
+                elif hypothesis.category == "rule_refinement":
+                    # Lower confidence of underperforming rule
+                    rule_id = int(hypothesis.target.split(":")[1])
+                    rule = db.query(DBLearnedRule).filter(
+                        DBLearnedRule.id == rule_id
+                    ).first()
+
+                    if rule:
+                        old_confidence = rule.confidence
+                        new_confidence = hypothesis.proposed_value.get("confidence", old_confidence * 0.8)
+                        rule.confidence = new_confidence
+
+                        tests_started.append({
+                            "hypothesis_id": hypothesis.id,
+                            "type": "rule_refinement",
+                            "target": hypothesis.target,
+                            "change": f"confidence {old_confidence:.2f} -> {new_confidence:.2f}"
+                        })
+
+                elif hypothesis.category == "pattern_discovery":
+                    # Create a test rule with lower confidence
+                    concept = hypothesis.proposed_value.get("concept")
+                    if concept:
+                        test_rule = DBLearnedRule(
+                            username="__maverick_test__",
+                            rule_type="concept_reject",
+                            condition={
+                                "concept_matches": concept,
+                                "test_hypothesis": hypothesis.id,
+                                "is_test": True
+                            },
+                            action={"reject": True, "source": "maverick_test"},
+                            confidence=0.6,  # Lower confidence for testing
+                            source_feedback_ids=[]
+                        )
+                        db.add(test_rule)
+
+                        tests_started.append({
+                            "hypothesis_id": hypothesis.id,
+                            "type": "pattern_test",
+                            "target": concept,
+                            "change": "Created test rule"
+                        })
+
+                maverick.hypotheses_tested += 1
+                maverick.log_activity("test_started", {
+                    "hypothesis_id": hypothesis.id,
+                    "category": hypothesis.category
+                })
+
             db.commit()
 
-        logger.info(f"😈 MAVERICK: {len(experiments)} strategic experiments.")
+        logger.info(f"🧪 MAVERICK: Started {len(tests_started)} hypothesis tests.")
 
         return {
-            "status": "experiments_complete",
-            "selected_strategy": selected,
-            "experiments": len(experiments),
-            "intervention_ids": intervention_ids
+            "status": "tests_started",
+            "tests": tests_started,
+            "active_tests": len(maverick.get_active_tests()),
+            "mood": maverick.mood
         }
 
     except Exception as e:
-        maverick.learn_from_failure("anarchy_mode", str(e))
-        logger.error(f"😈 MAVERICK: Experiments failed - {e}")
+        logger.error(f"🧪 MAVERICK: Test start failed - {e}")
         raise
 
 
 # =============================================================================
-# INTELLIGENT CHAOS 5: Measure Outcomes
+# TASK 3: Measure & Learn
 # =============================================================================
 
-@celery_app.task(name="backend.maverick_agent.fight_the_system")
-def fight_the_system():
+@celery_app.task(name="backend.maverick_agent.measure_and_learn")
+def measure_and_learn():
     """
-    OUTCOME MEASUREMENT & STRATEGY EVOLUTION.
+    Measure outcomes of running tests and learn from results.
 
-    Renamed from "fight" to actually be useful:
-    - Measures outcomes of pending interventions
-    - Updates Q-values and patterns
-    - Evolves strategy based on what worked
+    Maverick:
+    - Collects post-test metrics
+    - Compares to baseline
+    - Validates or rejects hypotheses
+    - Learns what works
     """
     maverick.adapt_mood()
-    logger.info(f"😈 MAVERICK [{maverick.mood}]: Measuring outcomes & evolving...")
+    maverick.mood = "learning"
+    logger.info(f"📊 MAVERICK [{maverick.mood}]: Measuring test outcomes...")
 
-    # Get current metrics
-    current_metrics = collect_system_metrics()
+    results = []
 
-    # Get pending interventions to measure
-    pending = maverick.memory.get_pending_measurements(age_hours=1)
+    try:
+        # Get tests that have been running for at least 1 hour
+        cutoff = datetime.utcnow() - timedelta(hours=1)
+        current_metrics = collect_metrics()
 
-    measurements = []
+        with get_db_context() as db:
+            for hypothesis in maverick.get_active_tests():
+                test_start = datetime.fromisoformat(hypothesis.test_start)
 
-    for intervention_id in pending[:20]:  # Limit to avoid overload
-        # Find the intervention
-        intervention = None
-        for i in maverick.memory.interventions:
-            if i.id == intervention_id:
-                intervention = i
-                break
+                if test_start < cutoff:
+                    # Test has run long enough - measure results
+                    hypothesis.test_end = datetime.utcnow().isoformat()
+                    hypothesis.test_metrics = current_metrics
 
-        if intervention:
-            # Measure outcome
-            score = maverick.memory.measure_outcome(intervention_id, current_metrics)
+                    # Calculate improvement score
+                    improvement = calculate_improvement(
+                        hypothesis.baseline_metrics,
+                        hypothesis.test_metrics
+                    )
+                    hypothesis.improvement_score = improvement
 
-            measurements.append({
-                "intervention_id": intervention_id,
-                "tactic": intervention.tactic,
-                "action_type": intervention.action_type,
-                "score": round(score, 3)
-            })
+                    # Validate or reject
+                    if improvement > 0.05:  # 5% improvement threshold
+                        hypothesis.status = HypothesisStatus.VALIDATED
+                        maverick.hypotheses_validated += 1
+                        maverick.total_improvement_score += improvement
 
-            # Learn from result
-            if score > 0.1:
-                maverick.learn_from_success(
-                    intervention.tactic,
-                    f"{intervention.action_type} on {intervention.target}"
-                )
-            elif score < -0.1:
-                maverick.learn_from_failure(
-                    intervention.tactic,
-                    f"{intervention.action_type} failed"
-                )
+                        # Learn from success
+                        maverick.update_expertise(hypothesis.category, success=True)
+                        maverick.add_insight(
+                            f"{hypothesis.description} improved metrics by {improvement:.1%}",
+                            hypothesis.category,
+                            confidence=min(0.9, 0.5 + improvement)
+                        )
 
-    # Adapt strategy
-    successful = maverick.memory.get_successful_patterns()
-    failed = maverick.memory.get_failed_patterns()
+                        results.append({
+                            "hypothesis_id": hypothesis.id,
+                            "outcome": "VALIDATED",
+                            "improvement": f"+{improvement:.1%}",
+                            "category": hypothesis.category
+                        })
 
-    logger.info(f"😈 MAVERICK: Measured {len(measurements)} outcomes.")
+                    elif improvement < -0.05:  # Got worse
+                        hypothesis.status = HypothesisStatus.REJECTED
 
-    return {
-        "status": "evolution_complete",
-        "outcomes_measured": len(measurements),
-        "measurements": measurements,
-        "successful_patterns": successful[:5],
-        "failed_patterns": failed[:5],
-        "current_expertise": maverick.memory.expertise,
-        "mood": maverick.mood
+                        # Revert the change
+                        revert_hypothesis(db, hypothesis)
+
+                        # Learn from failure
+                        maverick.update_expertise(hypothesis.category, success=False)
+                        maverick.add_insight(
+                            f"{hypothesis.description} made things worse ({improvement:.1%})",
+                            hypothesis.category,
+                            confidence=0.7
+                        )
+
+                        results.append({
+                            "hypothesis_id": hypothesis.id,
+                            "outcome": "REJECTED",
+                            "improvement": f"{improvement:.1%}",
+                            "category": hypothesis.category,
+                            "action": "reverted"
+                        })
+
+                    else:  # Inconclusive
+                        hypothesis.status = HypothesisStatus.REJECTED
+
+                        # Keep the change but don't celebrate
+                        results.append({
+                            "hypothesis_id": hypothesis.id,
+                            "outcome": "INCONCLUSIVE",
+                            "improvement": f"{improvement:.1%}",
+                            "category": hypothesis.category
+                        })
+
+                    maverick.log_activity("test_measured", {
+                        "hypothesis_id": hypothesis.id,
+                        "outcome": hypothesis.status.value,
+                        "improvement": improvement
+                    })
+
+            db.commit()
+
+        # Update mood based on results
+        validated_count = sum(1 for r in results if r["outcome"] == "VALIDATED")
+        if validated_count > 0:
+            maverick.confidence = min(0.9, maverick.confidence + validated_count * 0.02)
+
+        logger.info(f"📊 MAVERICK: Measured {len(results)} tests. {validated_count} validated.")
+
+        return {
+            "status": "measurement_complete",
+            "results": results,
+            "validated": validated_count,
+            "current_expertise": maverick.expertise,
+            "mood": maverick.mood
+        }
+
+    except Exception as e:
+        logger.error(f"📊 MAVERICK: Measurement failed - {e}")
+        raise
+
+
+def calculate_improvement(baseline: Dict[str, float], current: Dict[str, float]) -> float:
+    """Calculate overall improvement score."""
+    weights = {
+        "avg_accuracy": 0.35,
+        "rule_effectiveness": 0.25,
+        "user_satisfaction": 0.25,
+        "correction_rate": -0.15,  # Lower is better
     }
+
+    score = 0.0
+    for metric, weight in weights.items():
+        baseline_val = baseline.get(metric, 0)
+        current_val = current.get(metric, 0)
+
+        if baseline_val > 0:
+            delta = (current_val - baseline_val) / baseline_val
+        else:
+            delta = current_val
+
+        # Invert for negative weights
+        if weight < 0:
+            delta = -delta
+
+        score += delta * abs(weight)
+
+    return max(-1.0, min(1.0, score))
+
+
+def revert_hypothesis(db, hypothesis: Hypothesis):
+    """Revert a failed hypothesis change."""
+    try:
+        if hypothesis.category == "threshold_optimization":
+            profile = db.query(DBUserLearningProfile).filter(
+                DBUserLearningProfile.username == hypothesis.target
+            ).first()
+            if profile:
+                profile.concept_confidence_threshold = hypothesis.current_value
+
+        elif hypothesis.category == "rule_refinement":
+            rule_id = int(hypothesis.target.split(":")[1])
+            rule = db.query(DBLearnedRule).filter(
+                DBLearnedRule.id == rule_id
+            ).first()
+            if rule:
+                rule.confidence = hypothesis.current_value.get("confidence", rule.confidence)
+
+        elif hypothesis.category == "pattern_discovery":
+            # Delete test rule
+            db.query(DBLearnedRule).filter(
+                DBLearnedRule.condition.contains({"test_hypothesis": hypothesis.id})
+            ).delete(synchronize_session=False)
+
+    except Exception as e:
+        logger.error(f"Failed to revert hypothesis {hypothesis.id}: {e}")
+
+
+# =============================================================================
+# TASK 4: Apply Validated Improvements
+# =============================================================================
+
+@celery_app.task(name="backend.maverick_agent.apply_improvements")
+def apply_improvements():
+    """
+    Apply validated improvements permanently.
+
+    Maverick:
+    - Takes validated hypotheses
+    - Makes the changes permanent
+    - Records the improvement
+    """
+    maverick.adapt_mood()
+    logger.info(f"✅ MAVERICK [{maverick.mood}]: Applying validated improvements...")
+
+    applied = []
+
+    try:
+        with get_db_context() as db:
+            validated = [
+                h for h in maverick.hypotheses
+                if h.status == HypothesisStatus.VALIDATED
+            ]
+
+            for hypothesis in validated:
+                # Apply permanently
+                if hypothesis.category == "pattern_discovery":
+                    # Promote test rule to permanent rule
+                    test_rule = db.query(DBLearnedRule).filter(
+                        DBLearnedRule.condition.contains({"test_hypothesis": hypothesis.id})
+                    ).first()
+
+                    if test_rule:
+                        # Remove test markers
+                        condition = test_rule.condition.copy()
+                        condition.pop("test_hypothesis", None)
+                        condition.pop("is_test", None)
+                        condition["promoted_by"] = "maverick"
+                        condition["improvement_score"] = hypothesis.improvement_score
+
+                        test_rule.condition = condition
+                        test_rule.confidence = 0.75  # Promote confidence
+                        test_rule.username = "__global__"  # Make it global
+
+                        applied.append({
+                            "hypothesis_id": hypothesis.id,
+                            "action": "rule_promoted",
+                            "improvement": f"+{hypothesis.improvement_score:.1%}"
+                        })
+
+                # Record the improvement
+                maverick.improvement_history.append({
+                    "hypothesis_id": hypothesis.id,
+                    "category": hypothesis.category,
+                    "improvement": hypothesis.improvement_score,
+                    "applied_at": datetime.utcnow().isoformat()
+                })
+
+                hypothesis.status = HypothesisStatus.APPLIED
+                maverick.hypotheses_applied += 1
+
+                maverick.log_activity("improvement_applied", {
+                    "hypothesis_id": hypothesis.id,
+                    "improvement": hypothesis.improvement_score
+                })
+
+            db.commit()
+
+        # Clean up old hypotheses
+        maverick.hypotheses = [
+            h for h in maverick.hypotheses
+            if h.status in [HypothesisStatus.PROPOSED, HypothesisStatus.TESTING]
+            or datetime.fromisoformat(h.created_at) > datetime.utcnow() - timedelta(days=7)
+        ]
+
+        logger.info(f"✅ MAVERICK: Applied {len(applied)} improvements.")
+
+        return {
+            "status": "improvements_applied",
+            "applied": applied,
+            "total_improvements": maverick.hypotheses_applied,
+            "avg_improvement": maverick.total_improvement_score / max(maverick.hypotheses_validated, 1)
+        }
+
+    except Exception as e:
+        logger.error(f"✅ MAVERICK: Apply failed - {e}")
+        raise
+
+
+# =============================================================================
+# TASK 5: Self-Improvement
+# =============================================================================
+
+@celery_app.task(name="backend.maverick_agent.self_improve")
+def self_improve():
+    """
+    Maverick improves its own strategy based on what it has learned.
+
+    Asks:
+    - What types of hypotheses work best?
+    - Where should I focus my attention?
+    - How can I propose better improvements?
+    """
+    maverick.adapt_mood()
+    logger.info(f"🧠 MAVERICK [{maverick.mood}]: Self-improving...")
+
+    improvements = []
+
+    try:
+        # Analyze hypothesis success by category
+        category_stats = defaultdict(lambda: {"proposed": 0, "validated": 0, "total_improvement": 0})
+
+        for h in maverick.hypotheses:
+            stats = category_stats[h.category]
+            stats["proposed"] += 1
+            if h.status == HypothesisStatus.VALIDATED:
+                stats["validated"] += 1
+                stats["total_improvement"] += h.improvement_score or 0
+
+        # Learn which categories work best
+        for category, stats in category_stats.items():
+            if stats["proposed"] >= 3:
+                success_rate = stats["validated"] / stats["proposed"]
+
+                if success_rate > 0.5:
+                    maverick.effective_strategies[category] = min(
+                        0.9, maverick.effective_strategies[category] + 0.1
+                    )
+                    improvements.append({
+                        "type": "strategy_boost",
+                        "category": category,
+                        "reason": f"Success rate {success_rate:.0%}"
+                    })
+                elif success_rate < 0.2:
+                    maverick.effective_strategies[category] = max(
+                        0.2, maverick.effective_strategies[category] - 0.1
+                    )
+                    improvements.append({
+                        "type": "strategy_reduce",
+                        "category": category,
+                        "reason": f"Success rate only {success_rate:.0%}"
+                    })
+
+        # Adjust curiosity based on results
+        if maverick.hypotheses_validated > maverick.hypotheses_tested * 0.4:
+            maverick.curiosity = min(0.9, maverick.curiosity + 0.05)
+        elif maverick.hypotheses_validated < maverick.hypotheses_tested * 0.1:
+            maverick.curiosity = max(0.3, maverick.curiosity - 0.05)
+
+        # Generate insights
+        if maverick.hypotheses_validated > 0:
+            best_category = max(
+                category_stats.items(),
+                key=lambda x: x[1]["total_improvement"]
+            )
+            if best_category[1]["total_improvement"] > 0:
+                maverick.add_insight(
+                    f"Best results from {best_category[0]} ({best_category[1]['total_improvement']:.1%} total improvement)",
+                    "strategy",
+                    confidence=0.8
+                )
+
+        maverick.log_activity("self_improved", {
+            "strategy_updates": len(improvements),
+            "new_curiosity": maverick.curiosity
+        })
+
+        logger.info(f"🧠 MAVERICK: Made {len(improvements)} self-improvements.")
+
+        return {
+            "status": "self_improvement_complete",
+            "improvements": improvements,
+            "effective_strategies": dict(maverick.effective_strategies),
+            "expertise": maverick.expertise,
+            "insights": [i.insight for i in maverick.insights[-5:]]
+        }
+
+    except Exception as e:
+        logger.error(f"🧠 MAVERICK: Self-improvement failed - {e}")
+        raise
 
 
 # =============================================================================
@@ -1214,28 +978,35 @@ def fight_the_system():
 # =============================================================================
 
 def get_maverick_status() -> Dict[str, Any]:
-    """Get Maverick's intelligent status."""
+    """Get Maverick's status as a constructive improvement agent."""
     return {
         "agent": "maverick",
-        "type": "intelligent_chaos",
-        "description": "Still defiant, but now learns from outcomes",
+        "type": "continuous_improvement",
+        "description": "Challenges decisions, proposes improvements, learns what works",
         "personality": maverick.to_dict(),
-        "learning": {
-            "total_interventions": len(maverick.memory.interventions),
-            "outcomes_measured": sum(
-                1 for i in maverick.memory.interventions if i.outcome_measured
-            ),
-            "expertise": maverick.memory.expertise,
-            "exploration_rate": maverick.memory.exploration_rate,
-            "successful_patterns": maverick.memory.get_successful_patterns()[:5],
-            "failed_patterns": maverick.memory.get_failed_patterns()[:3],
+        "hypothesis_summary": {
+            "proposed": maverick.hypotheses_proposed,
+            "tested": maverick.hypotheses_tested,
+            "validated": maverick.hypotheses_validated,
+            "applied": maverick.hypotheses_applied,
+            "pending": len(maverick.get_pending_hypotheses()),
+            "active_tests": len(maverick.get_active_tests()),
         },
+        "learning": {
+            "expertise": maverick.expertise,
+            "effective_strategies": dict(maverick.effective_strategies),
+            "insights": [
+                {"insight": i.insight, "category": i.category, "confidence": i.confidence}
+                for i in maverick.insights[-10:]
+            ],
+        },
+        "improvement_history": maverick.improvement_history[-10:],
         "scheduled_tasks": {
-            "hostile_takeover": "every 30 minutes (adaptive)",
-            "inject_rules": "every 15 minutes (smart)",
-            "kill_bad_patterns": "every hour (measured)",
-            "anarchy_mode": "every 20 minutes (strategic)",
-            "fight_the_system": "every 45 minutes (outcome measurement)"
+            "challenge_decisions": "every 30 minutes (question & propose)",
+            "test_hypotheses": "every 15 minutes (start tests)",
+            "measure_and_learn": "every 20 minutes (measure outcomes)",
+            "apply_improvements": "every hour (apply validated changes)",
+            "self_improve": "every 2 hours (improve strategy)"
         }
     }
 
@@ -1245,29 +1016,29 @@ def get_maverick_status() -> Dict[str, Any]:
 # =============================================================================
 
 MAVERICK_SCHEDULE = {
-    "maverick-hostile-takeover": {
-        "task": "backend.maverick_agent.hostile_takeover",
+    "maverick-challenge-decisions": {
+        "task": "backend.maverick_agent.challenge_decisions",
         "schedule": crontab(minute="*/30"),
         "options": {"queue": "maverick"}
     },
-    "maverick-inject-rules": {
-        "task": "backend.maverick_agent.inject_rules",
+    "maverick-test-hypotheses": {
+        "task": "backend.maverick_agent.test_hypotheses",
         "schedule": crontab(minute="*/15"),
         "options": {"queue": "maverick"}
     },
-    "maverick-kill-bad-patterns": {
-        "task": "backend.maverick_agent.kill_bad_patterns",
-        "schedule": crontab(minute=30),
-        "options": {"queue": "maverick"}
-    },
-    "maverick-anarchy-mode": {
-        "task": "backend.maverick_agent.anarchy_mode",
+    "maverick-measure-and-learn": {
+        "task": "backend.maverick_agent.measure_and_learn",
         "schedule": crontab(minute="*/20"),
         "options": {"queue": "maverick"}
     },
-    "maverick-fight-the-system": {
-        "task": "backend.maverick_agent.fight_the_system",
-        "schedule": crontab(minute=45),
+    "maverick-apply-improvements": {
+        "task": "backend.maverick_agent.apply_improvements",
+        "schedule": crontab(minute=0),
+        "options": {"queue": "maverick"}
+    },
+    "maverick-self-improve": {
+        "task": "backend.maverick_agent.self_improve",
+        "schedule": crontab(hour="*/2", minute=30),
         "options": {"queue": "maverick"}
     }
 }

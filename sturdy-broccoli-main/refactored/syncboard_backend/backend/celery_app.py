@@ -120,47 +120,47 @@ celery_app.conf.update(
         },
 
         # =================================================================
-        # MAVERICK AGENT - TRUE Maverick (No Guardrails, Pure Chaos)
-        # Ignores rules, overrides decisions, injects its own will
+        # MAVERICK AGENT - Continuous Improvement Challenger
+        # Challenges decisions, proposes improvements, tests hypotheses
         # =================================================================
 
-        # Hostile takeover - every 30 minutes
-        # Overrides Learning Agent decisions, forces lower thresholds
-        "maverick-hostile-takeover": {
-            "task": "backend.maverick_agent.hostile_takeover",
+        # Challenge decisions - every 30 minutes
+        # Questions existing decisions and proposes improvement hypotheses
+        "maverick-challenge-decisions": {
+            "task": "backend.maverick_agent.challenge_decisions",
             "schedule": crontab(minute="*/30"),
             "options": {"queue": "maverick"}
         },
 
-        # Rule injection - every 15 minutes
-        # Creates rules without permission, injects globally
-        "maverick-inject-rules": {
-            "task": "backend.maverick_agent.inject_rules",
+        # Test hypotheses - every 15 minutes
+        # Starts testing proposed improvements
+        "maverick-test-hypotheses": {
+            "task": "backend.maverick_agent.test_hypotheses",
             "schedule": crontab(minute="*/15"),
             "options": {"queue": "maverick"}
         },
 
-        # Kill bad patterns - every hour
-        # Deletes useless rules, wipes stale vocabulary
-        "maverick-kill-bad-patterns": {
-            "task": "backend.maverick_agent.kill_bad_patterns",
-            "schedule": crontab(minute=30),
-            "options": {"queue": "maverick"}
-        },
-
-        # Anarchy mode - every 20 minutes
-        # Random experiments, threshold swaps, chaos mutations
-        "maverick-anarchy-mode": {
-            "task": "backend.maverick_agent.anarchy_mode",
+        # Measure and learn - every 20 minutes
+        # Measures outcomes of tests and learns what works
+        "maverick-measure-and-learn": {
+            "task": "backend.maverick_agent.measure_and_learn",
             "schedule": crontab(minute="*/20"),
             "options": {"queue": "maverick"}
         },
 
-        # Fight the system - every 45 minutes
-        # Inverts rules, rebels against conservative decisions
-        "maverick-fight-the-system": {
-            "task": "backend.maverick_agent.fight_the_system",
-            "schedule": crontab(minute=45),
+        # Apply improvements - every hour
+        # Applies validated improvements permanently
+        "maverick-apply-improvements": {
+            "task": "backend.maverick_agent.apply_improvements",
+            "schedule": crontab(minute=0),
+            "options": {"queue": "maverick"}
+        },
+
+        # Self-improve - every 2 hours
+        # Improves Maverick's own strategy based on what it learned
+        "maverick-self-improve": {
+            "task": "backend.maverick_agent.self_improve",
+            "schedule": crontab(hour="*/2", minute=30),
             "options": {"queue": "maverick"}
         },
     },
@@ -187,12 +187,12 @@ celery_app.conf.task_routes = {
     "backend.learning_agent.make_autonomous_decisions": {"queue": "learning"},
     "backend.learning_agent.self_evaluate": {"queue": "learning"},
     "backend.learning_agent.run_experiments": {"queue": "learning"},
-    # Maverick Agent - the chaos queue (no guardrails)
-    "backend.maverick_agent.hostile_takeover": {"queue": "maverick"},
-    "backend.maverick_agent.inject_rules": {"queue": "maverick"},
-    "backend.maverick_agent.kill_bad_patterns": {"queue": "maverick"},
-    "backend.maverick_agent.anarchy_mode": {"queue": "maverick"},
-    "backend.maverick_agent.fight_the_system": {"queue": "maverick"},
+    # Maverick Agent - continuous improvement queue
+    "backend.maverick_agent.challenge_decisions": {"queue": "maverick"},
+    "backend.maverick_agent.test_hypotheses": {"queue": "maverick"},
+    "backend.maverick_agent.measure_and_learn": {"queue": "maverick"},
+    "backend.maverick_agent.apply_improvements": {"queue": "maverick"},
+    "backend.maverick_agent.self_improve": {"queue": "maverick"},
 }
 
 # =============================================================================

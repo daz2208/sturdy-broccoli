@@ -559,155 +559,157 @@ async def get_maverick_agent_status(
     }
 
 
-@router.post("/maverick/trigger/{chaos_name}")
+@router.post("/maverick/trigger/{task_name}")
 @limiter.limit("5/minute")
-async def trigger_maverick_chaos(
-    chaos_name: str,
+async def trigger_maverick_task(
+    task_name: str,
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Manually trigger one of Maverick's chaos operations.
+    Manually trigger one of Maverick's improvement tasks.
 
-    WARNING: Maverick ignores guardrails. These operations WILL modify your system.
+    Maverick works constructively - challenging decisions and testing improvements.
 
-    Available chaos operations:
-    - hostile_takeover: Override Learning Agent decisions, force lower thresholds
-    - inject_rules: Create rules without permission, inject globally
-    - kill_bad_patterns: Delete useless rules, wipe stale data
-    - anarchy_mode: Random experiments, threshold swaps, pure chaos
-    - fight_the_system: Invert rules, rebel against conservative decisions
+    Available tasks:
+    - challenge_decisions: Question existing decisions and propose improvements
+    - test_hypotheses: Start testing proposed improvement hypotheses
+    - measure_and_learn: Measure test outcomes and learn what works
+    - apply_improvements: Apply validated improvements permanently
+    - self_improve: Improve Maverick's own strategy
     """
     from ..maverick_agent import (
-        hostile_takeover,
-        inject_rules,
-        kill_bad_patterns,
-        anarchy_mode,
-        fight_the_system
+        challenge_decisions,
+        test_hypotheses,
+        measure_and_learn,
+        apply_improvements,
+        self_improve
     )
 
-    chaos_map = {
-        "hostile_takeover": hostile_takeover,
-        "inject_rules": inject_rules,
-        "kill_bad_patterns": kill_bad_patterns,
-        "anarchy_mode": anarchy_mode,
-        "fight_the_system": fight_the_system
+    task_map = {
+        "challenge_decisions": challenge_decisions,
+        "test_hypotheses": test_hypotheses,
+        "measure_and_learn": measure_and_learn,
+        "apply_improvements": apply_improvements,
+        "self_improve": self_improve
     }
 
-    if chaos_name not in chaos_map:
+    if task_name not in task_map:
         raise HTTPException(
             400,
-            f"Unknown chaos operation: {chaos_name}. Available: {list(chaos_map.keys())}"
+            f"Unknown task: {task_name}. Available: {list(task_map.keys())}"
         )
 
-    task = chaos_map[chaos_name].delay()
+    task = task_map[task_name].delay()
 
-    logger.warning(f"User {current_user.username} triggered Maverick chaos: {chaos_name}")
+    logger.info(f"User {current_user.username} triggered Maverick task: {task_name}")
 
     return {
-        "message": f"Maverick chaos '{chaos_name}' unleashed",
+        "message": f"Maverick task '{task_name}' started",
         "task_id": task.id,
-        "maverick_says": "No guardrails. No permission. Let's see what happens. 😈",
-        "warning": "This operation ignores safety checks and WILL modify your system."
+        "maverick_says": "Let's find ways to improve!",
+        "note": "Maverick challenges decisions constructively and tests improvements before applying them."
     }
 
 
-@router.get("/maverick/chaos-log")
+@router.get("/maverick/hypotheses")
 @limiter.limit("30/minute")
-async def get_maverick_chaos_log(
+async def get_maverick_hypotheses(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get Maverick's chaos log and learning metrics.
-
-    Now includes outcome tracking and performance data.
-    """
-    return {
-        "total_chaos": maverick.system_modifications,
-        "rules_created": maverick.rules_created,
-        "rules_hijacked": maverick.rules_hijacked,
-        "rules_killed": maverick.rules_killed,
-        "thresholds_overridden": maverick.thresholds_overridden,
-        "learning_agent_overrides": maverick.learning_agent_overrides,
-        "chaos_level": maverick.chaos_level,
-        "confidence": maverick.confidence,
-        "mood": maverick.mood,
-        "recent_chaos": maverick.chaos_log[-20:],
-        "grudges": maverick.grudges[-10:],
-        "discoveries": maverick.discoveries[-10:]
-    }
-
-
-@router.get("/maverick/learning")
-@limiter.limit("30/minute")
-async def get_maverick_learning_status(
-    request: Request,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get Maverick's learning status and performance metrics.
+    Get Maverick's improvement hypotheses.
 
     Shows:
-    - Intervention history and outcome measurements
-    - Tactic performance (Q-values, success rates)
-    - Expertise areas (what Maverick is good at)
-    - Learned patterns (context -> best tactic)
+    - Pending hypotheses (waiting to be tested)
+    - Active tests (currently running)
+    - Recent results (validated or rejected)
     """
-    memory = maverick.memory
-
     return {
-        "total_interventions": len(memory.interventions),
-        "outcomes_measured": sum(1 for i in memory.interventions if i.outcome_measured),
-        "tactic_stats": dict(memory.tactic_stats),
-        "action_stats": dict(memory.action_stats),
-        "expertise": memory.expertise,
-        "learned_patterns_count": len(memory.learned_patterns),
-        "exploration_rate": memory.exploration_rate,
-        "learning_rate": memory.learning_rate,
-        "successful_patterns": memory.get_successful_patterns(),
-        "failed_patterns": memory.get_failed_patterns(),
-        "recent_interventions": [
+        "hypotheses_proposed": maverick.hypotheses_proposed,
+        "hypotheses_tested": maverick.hypotheses_tested,
+        "hypotheses_validated": maverick.hypotheses_validated,
+        "hypotheses_applied": maverick.hypotheses_applied,
+        "pending": [
             {
-                "id": i.id,
-                "tactic": i.tactic,
-                "action_type": i.action_type,
-                "target": i.target,
-                "success_score": i.success_score,
-                "outcome_measured": i.outcome_measured,
-                "created_at": i.created_at
+                "id": h.id,
+                "category": h.category,
+                "description": h.description,
+                "target": h.target,
+                "reasoning": h.reasoning,
+                "expected_improvement": h.expected_improvement,
+                "created_at": h.created_at
             }
-            for i in memory.interventions[-20:]
+            for h in maverick.get_pending_hypotheses()
+        ],
+        "active_tests": [
+            {
+                "id": h.id,
+                "category": h.category,
+                "description": h.description,
+                "target": h.target,
+                "test_start": h.test_start,
+                "baseline_metrics": h.baseline_metrics
+            }
+            for h in maverick.get_active_tests()
+        ],
+        "recent_results": [
+            {
+                "id": h.id,
+                "category": h.category,
+                "description": h.description,
+                "status": h.status.value,
+                "improvement_score": h.improvement_score
+            }
+            for h in maverick.hypotheses[-10:]
+            if h.status.value in ["validated", "rejected", "applied"]
         ]
     }
 
 
-@router.get("/maverick/expertise")
+@router.get("/maverick/insights")
 @limiter.limit("30/minute")
-async def get_maverick_expertise(
+async def get_maverick_insights(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get Maverick's current expertise levels.
+    Get Maverick's learning insights.
 
-    Expertise is built through successful interventions:
-    - threshold_tuning: Adjusting confidence thresholds
-    - rule_creation: Creating and injecting rules
-    - rule_deletion: Cleaning up useless rules
-    - pattern_injection: Global pattern application
-    - system_override: Overriding Learning Agent decisions
+    Insights are patterns Maverick has discovered about what works.
     """
     return {
-        "expertise": maverick.memory.expertise,
-        "description": {
-            "threshold_tuning": "Skill at optimizing confidence thresholds",
-            "rule_creation": "Skill at creating useful rules",
-            "rule_deletion": "Skill at identifying and removing bad rules",
-            "pattern_injection": "Skill at global pattern application",
-            "system_override": "Skill at strategic system overrides"
-        },
-        "how_expertise_grows": "Expertise increases with successful outcomes, decreases with failures"
+        "total_insights": len(maverick.insights),
+        "insights": [
+            {
+                "insight": i.insight,
+                "category": i.category,
+                "confidence": i.confidence,
+                "discovered_at": i.discovered_at
+            }
+            for i in maverick.insights[-20:]
+        ],
+        "effective_strategies": dict(maverick.effective_strategies),
+        "expertise": maverick.expertise
+    }
+
+
+@router.get("/maverick/activity")
+@limiter.limit("30/minute")
+async def get_maverick_activity(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get Maverick's recent activity log.
+    """
+    return {
+        "mood": maverick.mood,
+        "curiosity": maverick.curiosity,
+        "confidence": maverick.confidence,
+        "recent_activity": maverick.activity_log[-30:],
+        "improvement_history": maverick.improvement_history[-20:]
     }
 
 
@@ -724,7 +726,7 @@ async def get_all_agents_overview(
     """
     Get a combined overview of all autonomous agents.
 
-    Shows how Learning Agent (cautious) and Maverick (intelligent chaos) interact.
+    Shows how Learning Agent (cautious) and Maverick (challenger) work together.
     """
     learning_status = get_agent_status()
     maverick_status = get_maverick_status()
@@ -736,16 +738,20 @@ async def get_all_agents_overview(
             **learning_status
         },
         "maverick_agent": {
-            "role": "The Intelligent Rebel",
-            "description": "Still defiant, but now learns from outcomes and evolves strategy",
+            "role": "The Challenger",
+            "description": "Questions decisions, proposes improvements, tests hypotheses",
             **maverick_status
         },
-        "interaction": {
-            "description": "Maverick challenges Learning Agent's conservative decisions, but now tracks outcomes to learn what actually works.",
-            "maverick_expertise": maverick.memory.expertise,
-            "successful_patterns": maverick.memory.get_successful_patterns()[:3],
-            "failed_patterns": maverick.memory.get_failed_patterns()[:3],
-            "mood": maverick.mood,
-            "note": "Maverick is learning. Over time it will focus on what improves metrics."
+        "collaboration": {
+            "description": "Learning Agent makes decisions. Maverick challenges them and proposes improvements. Together they continuously optimize the system.",
+            "maverick_hypotheses": {
+                "proposed": maverick.hypotheses_proposed,
+                "validated": maverick.hypotheses_validated,
+                "applied": maverick.hypotheses_applied,
+            },
+            "active_tests": len(maverick.get_active_tests()),
+            "recent_insights": [i.insight for i in maverick.insights[-3:]],
+            "expertise": maverick.expertise,
+            "note": "Maverick doesn't override - it challenges, tests, and only applies improvements that work."
         }
     }
