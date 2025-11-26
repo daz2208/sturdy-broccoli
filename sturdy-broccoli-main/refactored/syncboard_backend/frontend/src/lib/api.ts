@@ -934,6 +934,237 @@ class ApiClient {
     return data;
   }
 
+  // ==========================================================================
+  // AUTONOMOUS AGENTS (Learning Agent + Maverick)
+  // ==========================================================================
+
+  /**
+   * Get combined overview of all agents
+   */
+  async getAgentsOverview(): Promise<{
+    learning_agent: {
+      role: string;
+      description: string;
+      status: string;
+      mode: string;
+      current_strategy: string;
+      total_observations: number;
+      total_actions: number;
+      autonomous_rules_created: number;
+      accuracy_trend: string;
+    };
+    maverick_agent: {
+      role: string;
+      description: string;
+      mood: string;
+      curiosity: number;
+      confidence: number;
+      hypotheses_proposed: number;
+      hypotheses_validated: number;
+      hypotheses_applied: number;
+    };
+    collaboration: {
+      description: string;
+      maverick_hypotheses: { proposed: number; validated: number; applied: number };
+      active_tests: number;
+      recent_insights: string[];
+      expertise: Record<string, number>;
+    };
+  }> {
+    const { data } = await this.client.get('/learning/agents/overview');
+    return data;
+  }
+
+  /**
+   * Get Learning Agent status
+   */
+  async getLearningAgentStatus(): Promise<{
+    is_autonomous: boolean;
+    status: string;
+    mode: string;
+    current_strategy: string;
+    total_observations: number;
+    total_actions: number;
+    autonomous_rules_created: number;
+    autonomous_decisions: number;
+    last_observation: any;
+    last_action: any;
+    accuracy_history: Array<{ accuracy: number; sample_size: number; timestamp: string }>;
+  }> {
+    const { data } = await this.client.get('/learning/agent/status');
+    return data;
+  }
+
+  /**
+   * Get autonomous decisions made by the agent
+   */
+  async getAgentDecisions(limit: number = 20): Promise<{
+    count: number;
+    autonomous_decisions: Array<{
+      id: number;
+      type: string;
+      condition: any;
+      action: any;
+      confidence: number;
+      times_applied: number;
+      times_overridden: number;
+      active: boolean;
+      created_at: string;
+      accuracy: number | null;
+    }>;
+  }> {
+    const { data } = await this.client.get('/learning/agent/decisions', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Manually trigger a Learning Agent task
+   */
+  async triggerLearningAgentTask(taskName: string): Promise<{ message: string; task_id: string }> {
+    const { data } = await this.client.post(`/learning/agent/trigger/${taskName}`);
+    return data;
+  }
+
+  /**
+   * Get Maverick Agent status
+   */
+  async getMaverickStatus(): Promise<{
+    agent: string;
+    tagline: string;
+    mood: string;
+    curiosity: number;
+    confidence: number;
+    hypotheses_proposed: number;
+    hypotheses_tested: number;
+    hypotheses_validated: number;
+    hypotheses_applied: number;
+    expertise: Record<string, number>;
+  }> {
+    const { data } = await this.client.get('/learning/maverick/status');
+    return data;
+  }
+
+  /**
+   * Get Maverick's hypotheses
+   */
+  async getMaverickHypotheses(): Promise<{
+    hypotheses_proposed: number;
+    hypotheses_tested: number;
+    hypotheses_validated: number;
+    hypotheses_applied: number;
+    pending: Array<{
+      id: string;
+      category: string;
+      description: string;
+      target: string;
+      reasoning: string;
+      expected_improvement: string;
+      created_at: string;
+    }>;
+    active_tests: Array<{
+      id: string;
+      category: string;
+      description: string;
+      target: string;
+      test_start: string;
+      baseline_metrics: any;
+    }>;
+    recent_results: Array<{
+      id: string;
+      category: string;
+      description: string;
+      status: string;
+      improvement_score: number;
+    }>;
+  }> {
+    const { data } = await this.client.get('/learning/maverick/hypotheses');
+    return data;
+  }
+
+  /**
+   * Get Maverick's learning insights
+   */
+  async getMaverickInsights(): Promise<{
+    total_insights: number;
+    insights: Array<{
+      insight: string;
+      category: string;
+      confidence: number;
+      discovered_at: string;
+    }>;
+    effective_strategies: Record<string, number>;
+    expertise: Record<string, number>;
+  }> {
+    const { data } = await this.client.get('/learning/maverick/insights');
+    return data;
+  }
+
+  /**
+   * Get Maverick's activity log
+   */
+  async getMaverickActivity(): Promise<{
+    mood: string;
+    curiosity: number;
+    confidence: number;
+    recent_activity: string[];
+    improvement_history: Array<{ timestamp: string; action: string; result: string }>;
+  }> {
+    const { data } = await this.client.get('/learning/maverick/activity');
+    return data;
+  }
+
+  /**
+   * Trigger a Maverick task
+   */
+  async triggerMaverickTask(taskName: string): Promise<{ message: string; task_id: string; maverick_says: string }> {
+    const { data } = await this.client.post(`/learning/maverick/trigger/${taskName}`);
+    return data;
+  }
+
+  /**
+   * Get learned rules
+   */
+  async getLearnedRules(ruleType?: string, includeInactive?: boolean): Promise<{
+    count: number;
+    rules: Array<{
+      id: number;
+      type: string;
+      condition: any;
+      action: any;
+      confidence: number;
+      times_applied: number;
+      times_overridden: number;
+      active: boolean;
+      created_at: string;
+    }>;
+  }> {
+    const { data } = await this.client.get('/learning/rules', {
+      params: { rule_type: ruleType, include_inactive: includeInactive }
+    });
+    return data;
+  }
+
+  /**
+   * Get concept vocabulary
+   */
+  async getVocabulary(): Promise<{
+    count: number;
+    vocabulary: Array<{
+      id: number;
+      canonical_name: string;
+      category: string;
+      variants: string[];
+      always_include: boolean;
+      never_include: boolean;
+      times_seen: number;
+      times_kept: number;
+      times_removed: number;
+    }>;
+  }> {
+    const { data } = await this.client.get('/learning/vocabulary');
+    return data;
+  }
+
   // Generic request methods for flexibility
   async get<T = unknown>(path: string, params?: Record<string, unknown>): Promise<T> {
     const { data } = await this.client.get(path, { params });

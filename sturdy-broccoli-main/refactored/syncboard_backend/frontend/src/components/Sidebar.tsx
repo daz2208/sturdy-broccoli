@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home, Search, FileText, FolderOpen, BarChart3, Lightbulb,
   Cloud, Database, Brain, Target, Workflow, Code, Settings,
-  LogOut, ChevronDown, ChevronRight, CheckCircle, Bookmark
+  LogOut, ChevronDown, ChevronRight, CheckCircle, Bookmark, Bot
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { useState } from 'react';
@@ -24,6 +24,7 @@ const navigation: NavItem[] = [
   { name: 'Clusters', href: '/clusters', icon: FolderOpen },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'AI Validation', href: '/ai-validation', icon: CheckCircle },
+  { name: 'Agent Monitor', href: '/agents', icon: Bot },
   { name: 'Build Ideas', href: '/build', icon: Lightbulb },
   { name: 'Saved Ideas', href: '/saved-ideas', icon: Bookmark },
   { name: 'Integrations', href: '/integrations', icon: Cloud },
