@@ -60,6 +60,7 @@ export interface UploadResponse {
   title: string;
   source_type: string;
   primary_topic?: string;
+  job_id?: string;  // For async/Celery processing
 }
 
 export interface BatchUploadResponse {
@@ -89,8 +90,22 @@ export interface SearchResponse {
 export interface BuildSuggestion {
   title: string;
   description: string;
+  feasibility: string;
+  effort_estimate: string;
+  complexity_level?: string;
   required_skills: string[];
-  estimated_effort: string;
+  missing_knowledge?: string[];
+  relevant_clusters?: number[];
+  starter_steps?: string[];
+  file_structure?: string;
+  starter_code?: string;
+  learning_path?: string[];
+  recommended_resources?: string[];
+  expected_outcomes?: string[];
+  troubleshooting_tips?: string[];
+  knowledge_coverage?: string;
+  // Legacy fields for backward compatibility
+  estimated_effort?: string;
   market_potential?: string;
   difficulty?: string;
   tech_stack?: string[];

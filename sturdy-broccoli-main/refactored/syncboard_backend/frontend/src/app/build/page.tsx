@@ -21,25 +21,7 @@ import {
   Bookmark,
   Sparkles
 } from 'lucide-react';
-
-interface BuildSuggestion {
-  title: string;
-  description: string;
-  feasibility: string;
-  effort_estimate: string;
-  complexity_level?: string;
-  required_skills: string[];
-  missing_knowledge?: string[];
-  relevant_clusters?: number[];
-  starter_steps?: string[];
-  file_structure?: string;
-  starter_code?: string;
-  learning_path?: string[];
-  recommended_resources?: string[];
-  expected_outcomes?: string[];
-  troubleshooting_tips?: string[];
-  knowledge_coverage?: string;
-}
+import { BuildSuggestion } from '@/types/api';
 
 function CodeBlock({ code, language = 'python' }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
