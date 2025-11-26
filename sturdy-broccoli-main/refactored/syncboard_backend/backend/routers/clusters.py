@@ -152,7 +152,7 @@ async def update_cluster(
     # Broadcast WebSocket event for real-time updates
     try:
         await broadcast_cluster_updated(
-            knowledge_base_id=int(kb_id),
+            knowledge_base_id=kb_id,
             cluster_id=cluster_id,
             cluster_name=cluster.name,
             document_count=len(cluster.doc_ids)
@@ -278,7 +278,7 @@ async def delete_cluster(
             # Broadcast WebSocket event for real-time updates
             try:
                 await broadcast_cluster_deleted(
-                    knowledge_base_id=int(kb_id),
+                    knowledge_base_id=kb_id,
                     cluster_id=cluster_id
                 )
             except Exception as ws_err:
@@ -319,7 +319,7 @@ async def delete_cluster(
             # Broadcast WebSocket event for real-time updates
             try:
                 await broadcast_cluster_deleted(
-                    knowledge_base_id=int(kb_id),
+                    knowledge_base_id=kb_id,
                     cluster_id=cluster_id
                 )
             except Exception as ws_err:

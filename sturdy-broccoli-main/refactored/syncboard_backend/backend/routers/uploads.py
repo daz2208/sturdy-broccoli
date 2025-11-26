@@ -352,7 +352,7 @@ async def upload_text_content(
         # Broadcast WebSocket event for real-time updates
         try:
             await broadcast_document_created(
-                knowledge_base_id=int(kb_id),
+                knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=f"Text Document #{doc_id}",
                 source_type="text",

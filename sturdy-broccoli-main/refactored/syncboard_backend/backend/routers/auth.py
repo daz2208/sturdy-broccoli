@@ -194,7 +194,8 @@ async def oauth_login(provider: str, request: Request):
     state = secrets.token_urlsafe(32)
 
     # Store state in Redis with 10 minute expiry
-    await redis_client.setex(f"oauth_state:{state}", 600, provider)
+    if redis_client:
+        redis_client.setex(f"oauth_state:{state}", 600, provider)
 
     # Build authorization URL
     params = {
@@ -245,13 +246,14 @@ async def oauth_callback(provider: str, request: Request, code: str = None, stat
         return RedirectResponse(url=f"{FRONTEND_URL}/login?error=missing_params")
 
     # Verify state token
-    stored_provider = await redis_client.get(f"oauth_state:{state}")
-    if not stored_provider or stored_provider.decode() != provider:
+    stored_provider = redis_client.get(f"oauth_state:{state}") if redis_client else None
+    if not stored_provider or stored_provider != provider:
         logger.warning(f"Invalid OAuth state token for {provider}")
         return RedirectResponse(url=f"{FRONTEND_URL}/login?error=invalid_state")
 
     # Delete used state token
-    await redis_client.delete(f"oauth_state:{state}")
+    if redis_client:
+        redis_client.delete(f"oauth_state:{state}")
 
     config = get_oauth_config(provider)
 
