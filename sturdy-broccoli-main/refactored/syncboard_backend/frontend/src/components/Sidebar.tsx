@@ -49,6 +49,7 @@ const navigation: NavItem[] = [
   { name: 'Projects', href: '/projects', icon: Target },
   { name: 'Workflows', href: '/workflows', icon: Workflow },
   { name: 'Generated Code', href: '/generated-code', icon: Code },
+  { name: 'Usage & Billing', href: '/usage', icon: BarChart3 },
   { name: 'Admin', href: '/admin', icon: Settings },
 ];
 
