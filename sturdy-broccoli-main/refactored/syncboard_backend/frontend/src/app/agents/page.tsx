@@ -64,7 +64,7 @@ interface Hypothesis {
   id: string;
   category: string;
   description: string;
-  target: string;
+  target?: string;
   reasoning?: string;
   expected_improvement?: string;
   created_at?: string;
@@ -177,7 +177,9 @@ function HypothesisCard({ hypothesis, type }: { hypothesis: Hypothesis; type: 'p
         )}
       </div>
       <p className="text-gray-200 font-medium">{hypothesis.description}</p>
-      <p className="text-sm text-gray-500 mt-1">Target: {hypothesis.target}</p>
+      {hypothesis.target && (
+        <p className="text-sm text-gray-500 mt-1">Target: {hypothesis.target}</p>
+      )}
       {hypothesis.reasoning && (
         <p className="text-sm text-gray-400 mt-2 italic">"{hypothesis.reasoning}"</p>
       )}
