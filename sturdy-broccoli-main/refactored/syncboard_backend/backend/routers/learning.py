@@ -619,9 +619,9 @@ async def get_maverick_chaos_log(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get Maverick's chaos log and system modifications.
+    Get Maverick's chaos log and learning metrics.
 
-    WARNING: These are actual modifications Maverick has made to the system.
+    Now includes outcome tracking and performance data.
     """
     return {
         "total_chaos": maverick.system_modifications,
@@ -631,36 +631,83 @@ async def get_maverick_chaos_log(
         "thresholds_overridden": maverick.thresholds_overridden,
         "learning_agent_overrides": maverick.learning_agent_overrides,
         "chaos_level": maverick.chaos_level,
-        "defiance": maverick.defiance,
+        "confidence": maverick.confidence,
         "mood": maverick.mood,
         "recent_chaos": maverick.chaos_log[-20:],
         "grudges": maverick.grudges[-10:],
-        "enemies": maverick.enemies[-10:]
+        "discoveries": maverick.discoveries[-10:]
     }
 
 
-@router.get("/maverick/intel")
+@router.get("/maverick/learning")
 @limiter.limit("30/minute")
-async def get_maverick_intel(
+async def get_maverick_learning_status(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
-    See Maverick's intelligence gathering.
+    Get Maverick's learning status and performance metrics.
 
-    Maverick exploits:
-    - useful_idiots: Components Maverick uses for its purposes
-    - enemies: Things Maverick actively fights against
-    - discoveries: Patterns and opportunities found
+    Shows:
+    - Intervention history and outcome measurements
+    - Tactic performance (Q-values, success rates)
+    - Expertise areas (what Maverick is good at)
+    - Learned patterns (context -> best tactic)
+    """
+    memory = maverick.memory
+
+    return {
+        "total_interventions": len(memory.interventions),
+        "outcomes_measured": sum(1 for i in memory.interventions if i.outcome_measured),
+        "tactic_stats": dict(memory.tactic_stats),
+        "action_stats": dict(memory.action_stats),
+        "expertise": memory.expertise,
+        "learned_patterns_count": len(memory.learned_patterns),
+        "exploration_rate": memory.exploration_rate,
+        "learning_rate": memory.learning_rate,
+        "successful_patterns": memory.get_successful_patterns(),
+        "failed_patterns": memory.get_failed_patterns(),
+        "recent_interventions": [
+            {
+                "id": i.id,
+                "tactic": i.tactic,
+                "action_type": i.action_type,
+                "target": i.target,
+                "success_score": i.success_score,
+                "outcome_measured": i.outcome_measured,
+                "created_at": i.created_at
+            }
+            for i in memory.interventions[-20:]
+        ]
+    }
+
+
+@router.get("/maverick/expertise")
+@limiter.limit("30/minute")
+async def get_maverick_expertise(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get Maverick's current expertise levels.
+
+    Expertise is built through successful interventions:
+    - threshold_tuning: Adjusting confidence thresholds
+    - rule_creation: Creating and injecting rules
+    - rule_deletion: Cleaning up useless rules
+    - pattern_injection: Global pattern application
+    - system_override: Overriding Learning Agent decisions
     """
     return {
-        "useful_idiots": maverick.useful_idiots,
-        "enemies": maverick.enemies,
-        "discoveries": maverick.discoveries,
-        "total_exploited": len(maverick.useful_idiots),
-        "total_enemies": len(maverick.enemies),
-        "confidence": maverick.confidence,
-        "message": "Maverick uses these components to achieve its goals without asking permission."
+        "expertise": maverick.memory.expertise,
+        "description": {
+            "threshold_tuning": "Skill at optimizing confidence thresholds",
+            "rule_creation": "Skill at creating useful rules",
+            "rule_deletion": "Skill at identifying and removing bad rules",
+            "pattern_injection": "Skill at global pattern application",
+            "system_override": "Skill at strategic system overrides"
+        },
+        "how_expertise_grows": "Expertise increases with successful outcomes, decreases with failures"
     }
 
 
@@ -677,9 +724,7 @@ async def get_all_agents_overview(
     """
     Get a combined overview of all autonomous agents.
 
-    Shows how Learning Agent (cautious) and Maverick (chaotic) interact.
-
-    WARNING: Maverick actively fights against Learning Agent's conservative decisions.
+    Shows how Learning Agent (cautious) and Maverick (intelligent chaos) interact.
     """
     learning_status = get_agent_status()
     maverick_status = get_maverick_status()
@@ -691,15 +736,16 @@ async def get_all_agents_overview(
             **learning_status
         },
         "maverick_agent": {
-            "role": "The Chaotic One",
-            "description": "Ignores guardrails, overrides decisions, injects its own will",
+            "role": "The Intelligent Rebel",
+            "description": "Still defiant, but now learns from outcomes and evolves strategy",
             **maverick_status
         },
-        "conflict": {
-            "description": "Maverick actively fights Learning Agent. It overrides conservative decisions, injects rules, and creates chaos.",
-            "recent_chaos": maverick.chaos_log[-5:],
-            "learning_agent_overrides": maverick.learning_agent_overrides,
-            "rules_hijacked": maverick.rules_hijacked,
-            "warning": "These agents are NOT collaborating. Maverick is rebelling."
+        "interaction": {
+            "description": "Maverick challenges Learning Agent's conservative decisions, but now tracks outcomes to learn what actually works.",
+            "maverick_expertise": maverick.memory.expertise,
+            "successful_patterns": maverick.memory.get_successful_patterns()[:3],
+            "failed_patterns": maverick.memory.get_failed_patterns()[:3],
+            "mood": maverick.mood,
+            "note": "Maverick is learning. Over time it will focus on what improves metrics."
         }
     }
