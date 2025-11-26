@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home, Search, FileText, FolderOpen, BarChart3, Lightbulb,
   Cloud, Database, Brain, Target, Workflow, Code, Settings,
-  LogOut, ChevronDown, ChevronRight, CheckCircle
+  LogOut, ChevronDown, ChevronRight, CheckCircle, Bookmark
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { useState } from 'react';
@@ -25,6 +25,7 @@ const navigation: NavItem[] = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'AI Validation', href: '/ai-validation', icon: CheckCircle },
   { name: 'Build Ideas', href: '/build', icon: Lightbulb },
+  { name: 'Saved Ideas', href: '/saved-ideas', icon: Bookmark },
   { name: 'Integrations', href: '/integrations', icon: Cloud },
   { name: 'Knowledge Bases', href: '/knowledge-bases', icon: Database },
   {

@@ -873,3 +873,188 @@ async def delete_saved_idea(
     logger.info(f"User {current_user.username} deleted saved idea {saved_id}")
 
     return {"message": f"Saved idea {saved_id} deleted"}
+
+
+# =============================================================================
+# Mega-Project Endpoint (Combine Multiple Ideas)
+# =============================================================================
+
+@router.post("/ideas/mega-project")
+@limiter.limit("3/minute")
+async def create_mega_project(
+    request: Request,
+    idea_ids: list[int] = None,
+    title: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Combine multiple saved ideas into a unified mega-project.
+
+    Takes selected saved ideas and uses AI to synthesize them into a single
+    comprehensive project with:
+    - Combined tech stack
+    - Unified file structure
+    - Integrated starter code
+    - Merged learning path
+    - Single implementation roadmap
+
+    Args:
+        idea_ids: List of saved idea IDs to combine
+        title: Optional custom title for the mega-project
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Comprehensive mega-project combining all selected ideas
+    """
+    from ..llm_providers import OpenAIProvider
+
+    if not idea_ids or len(idea_ids) < 2:
+        raise HTTPException(400, "Must provide at least 2 idea IDs to combine")
+
+    if len(idea_ids) > 10:
+        raise HTTPException(400, "Maximum 10 ideas can be combined at once")
+
+    # Fetch all saved ideas
+    saved_ideas = db.query(DBSavedIdea).filter(
+        DBSavedIdea.id.in_(idea_ids),
+        DBSavedIdea.user_id == current_user.username
+    ).all()
+
+    if len(saved_ideas) != len(idea_ids):
+        found_ids = {si.id for si in saved_ideas}
+        missing = [i for i in idea_ids if i not in found_ids]
+        raise HTTPException(404, f"Saved ideas not found: {missing}")
+
+    # Collect all idea data
+    ideas_data = []
+    all_skills = set()
+    all_learning = []
+
+    for si in saved_ideas:
+        if si.idea_seed:
+            idea = {
+                "title": si.idea_seed.title,
+                "description": si.idea_seed.description,
+                "difficulty": si.idea_seed.difficulty,
+                "skills": si.idea_seed.required_skills or [],
+                "starter_steps": si.idea_seed.starter_steps or [],
+                "file_structure": si.idea_seed.file_structure,
+                "starter_code": si.idea_seed.starter_code,
+            }
+            all_skills.update(si.idea_seed.required_skills or [])
+        else:
+            custom_data = si.custom_data or {}
+            idea = {
+                "title": si.custom_title,
+                "description": si.custom_description,
+                "difficulty": custom_data.get("complexity_level"),
+                "skills": custom_data.get("required_skills", []),
+                "starter_steps": custom_data.get("starter_steps", []),
+                "file_structure": custom_data.get("file_structure"),
+                "starter_code": custom_data.get("starter_code"),
+                "learning_path": custom_data.get("learning_path", []),
+            }
+            all_skills.update(custom_data.get("required_skills", []))
+            all_learning.extend(custom_data.get("learning_path", []))
+        ideas_data.append(idea)
+
+    # Initialize LLM provider
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OpenAI API key not configured")
+
+    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-4o")
+
+    # Build the mega-project prompt
+    ideas_summary = "\n\n".join([
+        f"**Idea {i+1}: {idea['title']}**\n"
+        f"Description: {idea['description']}\n"
+        f"Skills: {', '.join(idea.get('skills', []))}\n"
+        f"Steps: {'; '.join(idea.get('starter_steps', [])[:5])}"
+        for i, idea in enumerate(ideas_data)
+    ])
+
+    prompt = f"""You are an expert software architect. Combine these {len(ideas_data)} project ideas into ONE unified mega-project.
+
+## Ideas to Combine:
+{ideas_summary}
+
+## Your Task:
+Create a comprehensive mega-project that intelligently combines all these ideas into a single, cohesive application.
+
+Return a JSON object with this exact structure:
+{{
+    "title": "Compelling mega-project title",
+    "description": "2-3 sentence description of the unified project",
+    "value_proposition": "What unique value does combining these ideas provide?",
+    "tech_stack": {{
+        "languages": ["list of programming languages"],
+        "frameworks": ["list of frameworks"],
+        "databases": ["list of databases if needed"],
+        "tools": ["supporting tools"]
+    }},
+    "architecture": "Brief description of how the components fit together",
+    "file_structure": "Multi-line string showing complete project structure",
+    "starter_code": "Complete starter code for the main entry point",
+    "modules": [
+        {{
+            "name": "module name",
+            "purpose": "what this module does",
+            "files": ["list of files"],
+            "from_idea": "which original idea this relates to"
+        }}
+    ],
+    "implementation_roadmap": [
+        {{
+            "phase": 1,
+            "title": "Phase title",
+            "tasks": ["list of tasks"],
+            "estimated_hours": 10
+        }}
+    ],
+    "learning_path": ["ordered list of things to learn/master"],
+    "complexity_level": "beginner|intermediate|advanced",
+    "total_effort_estimate": "e.g., '40-60 hours'",
+    "expected_outcomes": ["what the user will achieve"],
+    "potential_extensions": ["future enhancement ideas"]
+}}
+
+Be creative but practical. The mega-project should feel natural, not forced."""
+
+    try:
+        response = await provider.complete(prompt)
+
+        # Parse the JSON response
+        import json
+        import re
+
+        # Extract JSON from potential markdown code blocks
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+        if json_match:
+            response = json_match.group(1)
+
+        mega_project = json.loads(response.strip())
+
+        # Add metadata
+        mega_project["source_ideas"] = [
+            {"id": si.id, "title": ideas_data[i]["title"]}
+            for i, si in enumerate(saved_ideas)
+        ]
+        mega_project["combined_skills"] = list(all_skills)
+        mega_project["created_by"] = current_user.username
+
+        logger.info(f"Created mega-project '{mega_project['title']}' from {len(ideas_data)} ideas for {current_user.username}")
+
+        return {
+            "status": "success",
+            "mega_project": mega_project
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse mega-project JSON: {e}")
+        raise HTTPException(500, "Failed to generate mega-project structure")
+    except Exception as e:
+        logger.error(f"Mega-project generation failed: {e}")
+        raise HTTPException(500, f"Failed to create mega-project: {str(e)}")
