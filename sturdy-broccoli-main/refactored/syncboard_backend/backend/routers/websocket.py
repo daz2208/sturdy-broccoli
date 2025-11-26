@@ -29,6 +29,15 @@ router = APIRouter(
 )
 
 
+def _get_kb_id_sync(username: str) -> str:
+    """Synchronous helper to get KB ID (runs in thread pool)."""
+    db = SessionLocal()
+    try:
+        return get_user_default_kb_id(username, db)
+    finally:
+        db.close()
+
+
 async def get_user_from_token(token: str) -> tuple[str, str]:
     """
     Validate JWT token and return username and default KB ID.
@@ -42,18 +51,16 @@ async def get_user_from_token(token: str) -> tuple[str, str]:
     Raises:
         HTTPException: If token is invalid
     """
+    import asyncio
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Invalid token")
 
-        # Get user's default KB
-        db = SessionLocal()
-        try:
-            kb_id = get_user_default_kb_id(username, db)
-        finally:
-            db.close()
+        # Get user's default KB - run in thread pool to avoid blocking event loop
+        kb_id = await asyncio.to_thread(_get_kb_id_sync, username)
 
         return username, kb_id
 

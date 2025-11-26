@@ -55,6 +55,26 @@ import asyncio
 # Initialize logger
 logger = logging.getLogger(__name__)
 
+
+def run_async(coro):
+    """
+    Safely run an async coroutine from sync Celery context.
+
+    Handles the case where an event loop may or may not exist.
+    This avoids 'run_async() cannot be called from a running event loop' errors.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop, safe to use run_async()
+        return run_async(coro)
+    else:
+        # Loop exists, create a new one in a thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result(timeout=30)
+
 CONCEPT_SAMPLE_CHARS = 12_000  # limit sent to LLM for concept extraction
 MAX_SINGLE_DOCUMENT_CHARS = 200_000  # cap single-document payloads to keep processing responsive
 
@@ -81,7 +101,7 @@ def chunk_document_sync(doc_id: int, content: str, kb_id: str) -> dict:
                 return {}
 
             # Run async chunking in sync context
-            result = asyncio.run(
+            result = run_async(
                 chunk_document_on_upload(
                     db=db,
                     document=db_doc,
@@ -185,7 +205,7 @@ def find_or_create_cluster_sync(
 
     # Broadcast WebSocket event for real-time updates (new cluster created)
     try:
-        asyncio.run(broadcast_cluster_created(
+        run_async(broadcast_cluster_created(
             knowledge_base_id=kb_id,
             cluster_id=cluster_id,
             cluster_name=kb_clusters[cluster_id].name,
@@ -281,7 +301,7 @@ def process_multi_document_zip(
 
             # Stage: AI analysis with AGENTIC LEARNING
             # Uses extract_with_learning() which applies past corrections and user preferences
-            extraction = asyncio.run(
+            extraction = run_async(
                 concept_extractor.extract_with_learning(
                     content=document_text,
                     source_type="file",
@@ -300,7 +320,7 @@ def process_multi_document_zip(
 
             # Record AI decision for concept extraction (agentic learning)
             try:
-                asyncio.run(feedback_service.record_ai_decision(
+                run_async(feedback_service.record_ai_decision(
                     decision_type="concept_extraction",
                     username=user_id,
                     input_data={"content_sample": document_text[:500], "source_type": "file", "filename": doc_filename},
@@ -348,7 +368,7 @@ def process_multi_document_zip(
                 if cluster_id and len(extraction.get("concepts", [])) >= 3:
                     clustering_confidence = 0.85  # Higher confidence with more concepts
 
-                asyncio.run(feedback_service.record_ai_decision(
+                run_async(feedback_service.record_ai_decision(
                     decision_type="clustering",
                     username=user_id,
                     input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
@@ -581,7 +601,7 @@ def process_file_upload(
         # AGENTIC LEARNING: Use extract_with_learning() which applies past corrections
         # This closes the feedback loop - the system actually learns from user corrections
         import asyncio
-        extraction = asyncio.run(
+        extraction = run_async(
             concept_extractor.extract_with_learning(
                 content=analysis_text,
                 source_type="file",
@@ -601,7 +621,7 @@ def process_file_upload(
 
         # Record AI decision for concept extraction (agentic learning)
         try:
-            asyncio.run(feedback_service.record_ai_decision(
+            run_async(feedback_service.record_ai_decision(
                 decision_type="concept_extraction",
                 username=user_id,
                 input_data={"content_sample": analysis_text[:500], "source_type": "file", "filename": filename_safe},
@@ -664,7 +684,7 @@ def process_file_upload(
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
                 clustering_confidence = 0.85  # Higher confidence with more concepts
 
-            asyncio.run(feedback_service.record_ai_decision(
+            run_async(feedback_service.record_ai_decision(
                 decision_type="clustering",
                 username=user_id,
                 input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
@@ -799,7 +819,7 @@ def process_file_upload(
 
         # Broadcast WebSocket event for real-time updates
         try:
-            asyncio.run(broadcast_document_created(
+            run_async(broadcast_document_created(
                 knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=filename_safe,
@@ -811,7 +831,7 @@ def process_file_upload(
 
         # Broadcast job completion for progress UI
         try:
-            asyncio.run(broadcast_job_completed(
+            run_async(broadcast_job_completed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="file_upload",
@@ -846,7 +866,7 @@ def process_file_upload(
         )
         # Broadcast job failure
         try:
-            asyncio.run(broadcast_job_failed(
+            run_async(broadcast_job_failed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="file_upload",
@@ -1180,7 +1200,7 @@ def process_url_upload(
 
         # Broadcast WebSocket event for real-time updates
         try:
-            asyncio.run(broadcast_document_created(
+            run_async(broadcast_document_created(
                 knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=youtube_metadata.get('video_title', url_safe[:50]) if is_youtube else url_safe[:50],
@@ -1192,7 +1212,7 @@ def process_url_upload(
 
         # Broadcast job completion for progress UI
         try:
-            asyncio.run(broadcast_job_completed(
+            run_async(broadcast_job_completed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="url_upload",
@@ -1226,7 +1246,7 @@ def process_url_upload(
         )
         # Broadcast job failure
         try:
-            asyncio.run(broadcast_job_failed(
+            run_async(broadcast_job_failed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="url_upload",
@@ -1539,7 +1559,7 @@ def process_image_upload(
 
         # Broadcast WebSocket event for real-time updates
         try:
-            asyncio.run(broadcast_document_created(
+            run_async(broadcast_document_created(
                 knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=filename_safe,
@@ -1551,7 +1571,7 @@ def process_image_upload(
 
         # Broadcast job completion for progress UI
         try:
-            asyncio.run(broadcast_job_completed(
+            run_async(broadcast_job_completed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="image_upload",
@@ -1586,7 +1606,7 @@ def process_image_upload(
         )
         # Broadcast job failure
         try:
-            asyncio.run(broadcast_job_failed(
+            run_async(broadcast_job_failed(
                 username=user_id,
                 job_id=self.request.id,
                 job_type="image_upload",
@@ -1913,7 +1933,7 @@ def import_github_files_task(
 
                 # AGENTIC LEARNING: Use extract_with_learning() which applies past corrections
                 import asyncio
-                extraction = asyncio.run(
+                extraction = run_async(
                     concept_extractor.extract_with_learning(
                         content=file_content,
                         source_type="github",
@@ -1932,7 +1952,7 @@ def import_github_files_task(
 
                 # Record AI decision for concept extraction (agentic learning)
                 try:
-                    asyncio.run(feedback_service.record_ai_decision(
+                    run_async(feedback_service.record_ai_decision(
                         decision_type="concept_extraction",
                         username=user_id,
                         input_data={"content_sample": file_content[:500], "source_type": "github", "filename": file_path},
@@ -1968,7 +1988,7 @@ def import_github_files_task(
                     if cluster_id and len(concepts_list) >= 3:
                         clustering_confidence = 0.85
 
-                    asyncio.run(feedback_service.record_ai_decision(
+                    run_async(feedback_service.record_ai_decision(
                         decision_type="clustering",
                         username=user_id,
                         input_data={"concepts": concepts_list, "suggested_cluster": suggested_cluster},
