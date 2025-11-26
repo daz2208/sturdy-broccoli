@@ -237,6 +237,43 @@ class ApiClient {
     return data;
   }
 
+  async saveIdea(idea: {
+    idea_seed_id?: number;
+    custom_title?: string;
+    custom_description?: string;
+    custom_data?: any;
+    notes?: string;
+    status?: string;
+  }): Promise<{ message: string; saved_idea: any }> {
+    const { data } = await this.client.post('/ideas/save', null, {
+      params: {
+        idea_seed_id: idea.idea_seed_id,
+        title: idea.custom_title,
+        description: idea.custom_description,
+        suggestion_data: idea.custom_data ? JSON.stringify(idea.custom_data) : undefined,
+        notes: idea.notes
+      }
+    });
+    return data;
+  }
+
+  async getSavedIdeas(status?: string, limit?: number): Promise<{ count: number; saved_ideas: any[] }> {
+    const { data } = await this.client.get('/ideas/saved', { params: { status, limit } });
+    return data;
+  }
+
+  async updateSavedIdea(savedId: number, updates: { status?: string; notes?: string }): Promise<any> {
+    const { data } = await this.client.put(`/ideas/saved/${savedId}`, null, {
+      params: { status: updates.status, notes: updates.notes }
+    });
+    return data;
+  }
+
+  async deleteSavedIdea(savedId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/ideas/saved/${savedId}`);
+    return data;
+  }
+
   // ==========================================================================
   // ANALYTICS
   // ==========================================================================
