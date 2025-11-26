@@ -869,7 +869,7 @@ class DBDocumentComment(Base):
     __tablename__ = "document_comments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
 
     # Comment content
@@ -1070,7 +1070,7 @@ class DBAIDecision(Base):
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Related entities
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True, index=True)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Decision details
@@ -1129,7 +1129,7 @@ class DBUserFeedback(Base):
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Related entities
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True, index=True)
     ai_decision_id = Column(Integer, ForeignKey("ai_decisions.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Feedback details

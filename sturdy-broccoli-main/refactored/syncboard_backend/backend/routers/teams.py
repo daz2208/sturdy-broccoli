@@ -106,7 +106,9 @@ class MemberResponse(BaseModel):
     can_invite: bool
     can_edit_docs: bool
     can_delete_docs: bool
+    can_manage_kb: bool
     joined_at: datetime
+    last_active_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -185,7 +187,7 @@ def log_activity(
     username: str = None,
     team_id: str = None,
     kb_id: str = None,
-    metadata: str = None
+    details: str = None
 ):
     """Log an activity event."""
     activity = DBActivityLog(
@@ -196,7 +198,7 @@ def log_activity(
         resource_type=resource_type,
         resource_id=resource_id,
         resource_name=resource_name,
-        metadata=metadata
+        details=details
     )
     db.add(activity)
 
@@ -736,4 +738,4 @@ async def get_team_activity(
         DBActivityLog.team_id == team_id
     ).order_by(DBActivityLog.created_at.desc()).limit(limit).all()
 
-    return [ActivityResponse(**{c.name: getattr(a, c.name) for c in a.__table__.columns if c.name not in ['team_id', 'knowledge_base_id', 'metadata']}) for a in activities]
+    return [ActivityResponse(**{c.name: getattr(a, c.name) for c in a.__table__.columns if c.name not in ['team_id', 'knowledge_base_id', 'details']}) for a in activities]
