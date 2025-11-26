@@ -250,6 +250,86 @@ services:
     networks:
       - syncboard-network
 
+  # Celery Beat - Scheduler for periodic tasks (agents)
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-beat
+    restart: unless-stopped
+    command: celery -A backend.celery_app beat --loglevel=info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+    volumes:
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
+  # Celery worker - Learning Agent (autonomous learning tasks)
+  celery-worker-learning:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-learning
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q learning --concurrency=1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+    volumes:
+      - ./storage:/app/storage
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
+  # Celery worker - Maverick Agent (continuous improvement challenger)
+  celery-worker-maverick:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-maverick
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q maverick --concurrency=1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+    volumes:
+      - ./storage:/app/storage
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+
   # Flower - Celery monitoring dashboard
   flower:
     build:
