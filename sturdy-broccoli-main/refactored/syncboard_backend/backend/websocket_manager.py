@@ -116,7 +116,8 @@ class ConnectionManager:
         self,
         websocket: WebSocket,
         username: str,
-        knowledge_base_id: str
+        knowledge_base_id: str,
+        already_accepted: bool = False
     ) -> UserConnection:
         """
         Accept a new WebSocket connection.
@@ -125,11 +126,13 @@ class ConnectionManager:
             websocket: FastAPI WebSocket instance
             username: Authenticated user's username
             knowledge_base_id: User's active knowledge base (UUID string)
+            already_accepted: If True, skip calling accept() (already done)
 
         Returns:
             UserConnection object
         """
-        await websocket.accept()
+        if not already_accepted:
+            await websocket.accept()
 
         connection = UserConnection(
             websocket=websocket,

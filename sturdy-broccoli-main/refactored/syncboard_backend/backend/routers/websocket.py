@@ -90,15 +90,19 @@ async def websocket_endpoint(
     - viewing: {"doc_id": 123} - Set currently viewed document
     - ping: {} - Keep-alive ping
     """
-    # Authenticate
+    # MUST accept WebSocket BEFORE any close() calls (RFC 6455)
+    await websocket.accept()
+
+    # Now authenticate
     try:
         username, kb_id = await get_user_from_token(token)
     except HTTPException as e:
+        # Now we can properly close with error code
         await websocket.close(code=4001, reason="Authentication failed")
         return
 
-    # Connect
-    connection = await manager.connect(websocket, username, kb_id)
+    # Register connection with manager (already accepted, so skip accept in manager)
+    connection = await manager.connect(websocket, username, kb_id, already_accepted=True)
 
     try:
         while True:
