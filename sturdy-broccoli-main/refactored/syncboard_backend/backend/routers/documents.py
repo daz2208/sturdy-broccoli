@@ -242,7 +242,7 @@ async def delete_document(
     # Broadcast WebSocket event for real-time updates
     try:
         await broadcast_document_deleted(
-            knowledge_base_id=int(kb_id),
+            knowledge_base_id=kb_id,
             doc_id=doc_id,
             deleted_by=user.username
         )
@@ -350,7 +350,7 @@ async def update_document_metadata(
     # Broadcast WebSocket event for real-time updates
     try:
         await broadcast_document_updated(
-            knowledge_base_id=int(kb_id),
+            knowledge_base_id=kb_id,
             doc_id=doc_id,
             updated_by=user.username,
             changes=updates
