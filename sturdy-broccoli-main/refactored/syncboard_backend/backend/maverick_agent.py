@@ -39,6 +39,7 @@ from .db_models import (
     DBAIDecision,
     DBDocument,
     DBConcept,
+    DBMaverickAgentState,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,14 +109,18 @@ class MaverickMind:
     Always asking: "Can we do better?"
     Always learning: "What worked? What didn't?"
     Always improving: "Let's apply what we learned."
+
+    State is persisted to database so it survives restarts.
     """
 
     _instance = None
+    AGENT_KEY = "default"  # For future multi-tenant support
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialize()
+            cls._instance._load_from_db()
         return cls._instance
 
     def _initialize(self):
@@ -154,6 +159,163 @@ class MaverickMind:
             "user_adaptation": 0.5,
         }
 
+    def _hypothesis_to_dict(self, h: Hypothesis) -> Dict:
+        """Convert Hypothesis dataclass to dict for JSON serialization."""
+        return {
+            "id": h.id,
+            "category": h.category,
+            "description": h.description,
+            "target": h.target,
+            "current_value": h.current_value,
+            "proposed_value": h.proposed_value,
+            "reasoning": h.reasoning,
+            "expected_improvement": h.expected_improvement,
+            "status": h.status.value if isinstance(h.status, HypothesisStatus) else h.status,
+            "test_start": h.test_start,
+            "test_end": h.test_end,
+            "baseline_metrics": h.baseline_metrics,
+            "test_metrics": h.test_metrics,
+            "improvement_score": h.improvement_score,
+            "created_at": h.created_at,
+            "context": h.context,
+        }
+
+    def _dict_to_hypothesis(self, d: Dict) -> Hypothesis:
+        """Convert dict back to Hypothesis dataclass."""
+        status_val = d.get("status", "proposed")
+        if isinstance(status_val, str):
+            try:
+                status = HypothesisStatus(status_val)
+            except ValueError:
+                status = HypothesisStatus.PROPOSED
+        else:
+            status = status_val
+
+        return Hypothesis(
+            id=d.get("id", f"hyp_{datetime.utcnow().timestamp()}"),
+            category=d.get("category", ""),
+            description=d.get("description", ""),
+            target=d.get("target", ""),
+            current_value=d.get("current_value"),
+            proposed_value=d.get("proposed_value"),
+            reasoning=d.get("reasoning", ""),
+            expected_improvement=d.get("expected_improvement", ""),
+            status=status,
+            test_start=d.get("test_start"),
+            test_end=d.get("test_end"),
+            baseline_metrics=d.get("baseline_metrics", {}),
+            test_metrics=d.get("test_metrics", {}),
+            improvement_score=d.get("improvement_score"),
+            created_at=d.get("created_at", datetime.utcnow().isoformat()),
+            context=d.get("context", {}),
+        )
+
+    def _insight_to_dict(self, i: LearningInsight) -> Dict:
+        """Convert LearningInsight to dict."""
+        return {
+            "insight": i.insight,
+            "category": i.category,
+            "confidence": i.confidence,
+            "evidence_count": i.evidence_count,
+            "discovered_at": i.discovered_at,
+        }
+
+    def _dict_to_insight(self, d: Dict) -> LearningInsight:
+        """Convert dict back to LearningInsight."""
+        return LearningInsight(
+            insight=d.get("insight", ""),
+            category=d.get("category", ""),
+            confidence=d.get("confidence", 0.5),
+            evidence_count=d.get("evidence_count", 1),
+            discovered_at=d.get("discovered_at", datetime.utcnow().isoformat()),
+        )
+
+    def _load_from_db(self):
+        """Load persisted state from database."""
+        try:
+            with get_db_context() as db:
+                state = db.query(DBMaverickAgentState).filter_by(
+                    agent_key=self.AGENT_KEY
+                ).first()
+
+                if state:
+                    self.curiosity = state.curiosity or 0.8
+                    self.patience = state.patience or 0.7
+                    self.confidence = state.confidence or 0.5
+                    self.mood = state.mood or "curious"
+                    self.hypotheses_proposed = state.hypotheses_proposed or 0
+                    self.hypotheses_tested = state.hypotheses_tested or 0
+                    self.hypotheses_validated = state.hypotheses_validated or 0
+                    self.hypotheses_applied = state.hypotheses_applied or 0
+                    self.total_improvement_score = state.total_improvement_score or 0.0
+
+                    # Convert JSON lists back to dataclass objects
+                    self.hypotheses = [
+                        self._dict_to_hypothesis(h)
+                        for h in (state.hypotheses or [])
+                    ]
+                    self.insights = [
+                        self._dict_to_insight(i)
+                        for i in (state.insights or [])
+                    ]
+                    self.improvement_history = state.improvement_history or []
+                    self.effective_strategies = defaultdict(
+                        lambda: 0.5, state.effective_strategies or {}
+                    )
+                    self.expertise = state.expertise or {
+                        "threshold_optimization": 0.5,
+                        "rule_refinement": 0.5,
+                        "pattern_discovery": 0.5,
+                        "user_adaptation": 0.5,
+                    }
+                    self.activity_log = state.activity_log or []
+
+                    logger.info(f"🔥 MAVERICK: Loaded state from database (proposed={self.hypotheses_proposed}, validated={self.hypotheses_validated})")
+                else:
+                    logger.info("🔥 MAVERICK: No existing state found, starting fresh")
+        except Exception as e:
+            logger.warning(f"🔥 MAVERICK: Could not load state from database: {e}")
+
+    def _save_to_db(self):
+        """Persist current state to database."""
+        try:
+            with get_db_context() as db:
+                state = db.query(DBMaverickAgentState).filter_by(
+                    agent_key=self.AGENT_KEY
+                ).first()
+
+                if not state:
+                    state = DBMaverickAgentState(agent_key=self.AGENT_KEY)
+                    db.add(state)
+
+                state.curiosity = self.curiosity
+                state.patience = self.patience
+                state.confidence = self.confidence
+                state.mood = self.mood
+                state.hypotheses_proposed = self.hypotheses_proposed
+                state.hypotheses_tested = self.hypotheses_tested
+                state.hypotheses_validated = self.hypotheses_validated
+                state.hypotheses_applied = self.hypotheses_applied
+                state.total_improvement_score = self.total_improvement_score
+
+                # Convert dataclass objects to JSON-serializable dicts
+                state.hypotheses = [
+                    self._hypothesis_to_dict(h)
+                    for h in self.hypotheses[-100:]  # Keep last 100
+                ]
+                state.insights = [
+                    self._insight_to_dict(i)
+                    for i in self.insights[-50:]  # Keep last 50
+                ]
+                state.improvement_history = self.improvement_history[-100:]
+                state.effective_strategies = dict(self.effective_strategies)
+                state.expertise = self.expertise
+                state.activity_log = self.activity_log[-100:]
+
+                db.commit()
+        except Exception as e:
+            logger.warning(f"🔥 MAVERICK: Could not save state to database: {e}")
+
     def log_activity(self, action: str, details: Dict = None):
         """Record activity."""
         self.activity_log.append({
@@ -163,6 +325,7 @@ class MaverickMind:
             "mood": self.mood
         })
         self.activity_log = self.activity_log[-100:]
+        self._save_to_db()
 
     def propose_hypothesis(
         self,
@@ -196,6 +359,7 @@ class MaverickMind:
             "category": category,
             "target": target
         })
+        # Note: _save_to_db called by log_activity
 
         return hypothesis
 
@@ -216,12 +380,14 @@ class MaverickMind:
             evidence_count=1
         ))
         self.insights = self.insights[-50:]
+        self._save_to_db()
 
     def update_expertise(self, area: str, success: bool):
         """Update expertise based on outcome."""
         if area in self.expertise:
             adjustment = 0.02 if success else -0.01
             self.expertise[area] = max(0.1, min(0.95, self.expertise[area] + adjustment))
+            self._save_to_db()
 
     def adapt_mood(self):
         """Adapt mood based on recent performance."""
@@ -231,6 +397,7 @@ class MaverickMind:
             if h.status == HypothesisStatus.VALIDATED
         )
 
+        old_mood = self.mood
         if active_tests > 0:
             self.mood = "testing"
         elif recent_successes > 5:
@@ -240,6 +407,10 @@ class MaverickMind:
             self.mood = "curious"
         else:
             self.mood = "learning"
+
+        # Only save if something changed
+        if self.mood != old_mood:
+            self._save_to_db()
 
     def to_dict(self) -> Dict[str, Any]:
         return {

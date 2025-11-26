@@ -1629,20 +1629,18 @@ def find_duplicates_background(
         )
 
         # Import here to avoid circular dependency
-        from .routers.duplicates import find_duplicate_groups
+        from .duplicate_detection import DuplicateDetector
+        from .dependencies import get_vector_store
 
-        # Get user's documents (iterate over all KBs - metadata is nested {kb_id: {doc_id: meta}})
-        user_docs = {}
-        for kb_id, kb_meta in metadata.items():
-            for doc_id, meta in kb_meta.items():
-                if meta.owner == user_id:
-                    user_docs[doc_id] = meta
-
-        # Find duplicates
-        duplicate_groups = find_duplicate_groups(
-            user_docs=user_docs,
-            threshold=threshold
-        )
+        # Use duplicate detector with database context
+        with get_db_context() as db:
+            detector = DuplicateDetector(db, vector_store)
+            result = detector.find_duplicates(
+                username=user_id,
+                similarity_threshold=threshold,
+                limit=100
+            )
+            duplicate_groups = result.get("groups", [])
 
         logger.info(
             f"Background task: Found {len(duplicate_groups)} duplicate groups for user {user_id}"
@@ -1913,18 +1911,47 @@ def import_github_files_task(
                 kb_documents = get_kb_documents(kb_id)
                 kb_metadata = get_kb_metadata(kb_id)
 
-                # Extract concepts
-                concepts_list = concept_extractor.extract_concepts(file_content)
+                # AGENTIC LEARNING: Use extract_with_learning() which applies past corrections
+                import asyncio
+                extraction = asyncio.run(
+                    concept_extractor.extract_with_learning(
+                        content=file_content,
+                        source_type="github",
+                        username=user_id,
+                        knowledge_base_id=kb_id
+                    )
+                )
+
+                # Log learning metadata if applied
+                learning_applied = extraction.get("learning_applied", {})
+                if learning_applied.get("corrections_used", 0) > 0:
+                    logger.info(
+                        f"Agentic learning applied to GitHub file {file_path}: "
+                        f"{learning_applied['corrections_used']} corrections"
+                    )
+
+                # Record AI decision for concept extraction (agentic learning)
+                try:
+                    asyncio.run(feedback_service.record_ai_decision(
+                        decision_type="concept_extraction",
+                        username=user_id,
+                        input_data={"content_sample": file_content[:500], "source_type": "github", "filename": file_path},
+                        output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
+                        confidence_score=extraction.get("confidence_score", 0.5),
+                        knowledge_base_id=kb_id,
+                        model_name="gpt-4o-mini"
+                    ))
+                except Exception as e:
+                    logger.warning(f"Failed to record concept extraction decision: {e}")
+
+                # Get values from extraction result (not non-existent methods)
+                skill_level = extraction.get("skill_level", "unknown")
+                suggested_cluster = extraction.get("suggested_cluster", "General")
+                concepts_list = extraction.get("concepts", [])
 
                 # Add to vector store
                 doc_id = vector_store.add_document(file_content)
                 kb_documents[doc_id] = file_content
-
-                # Determine skill level
-                skill_level = concept_extractor.determine_skill_level(file_content)
-
-                # Suggest cluster name
-                suggested_cluster = clustering_engine.suggest_cluster_name(concepts_list)
 
                 # Find or create cluster (with kb_id)
                 cluster_id = find_or_create_cluster_sync(
@@ -1935,6 +1962,26 @@ def import_github_files_task(
                     kb_id=kb_id
                 )
 
+                # Record AI decision for clustering (agentic learning)
+                try:
+                    clustering_confidence = 0.75
+                    if cluster_id and len(concepts_list) >= 3:
+                        clustering_confidence = 0.85
+
+                    asyncio.run(feedback_service.record_ai_decision(
+                        decision_type="clustering",
+                        username=user_id,
+                        input_data={"concepts": concepts_list, "suggested_cluster": suggested_cluster},
+                        output_data={"cluster_id": cluster_id, "cluster_name": suggested_cluster},
+                        confidence_score=clustering_confidence,
+                        knowledge_base_id=kb_id,
+                        document_id=doc_id,
+                        cluster_id=cluster_id,
+                        model_name="heuristic"
+                    ))
+                except Exception as e:
+                    logger.warning(f"Failed to record clustering decision: {e}")
+
                 # Store metadata (KB-scoped)
                 doc_metadata = DocumentMetadata(
                     doc_id=doc_id,
@@ -1942,6 +1989,7 @@ def import_github_files_task(
                     source_type="github",
                     source_url=file_data.get("html_url"),
                     filename=file_path,
+                    concepts=[Concept(**c) for c in concepts_list],
                     cluster_id=cluster_id,
                     skill_level=skill_level,
                     knowledge_base_id=kb_id,

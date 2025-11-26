@@ -193,6 +193,63 @@ async def delete_knowledge_base(
     db.commit()
 
 
+@router.get("/{kb_id}/stats")
+async def get_knowledge_base_stats(
+    kb_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get statistics for a knowledge base.
+
+    Returns:
+        - total_documents: Number of documents in the KB
+        - total_clusters: Number of clusters in the KB
+        - total_concepts: Total concepts extracted
+        - disk_usage_mb: Approximate storage used
+    """
+    kb = db.query(DBKnowledgeBase).filter(
+        DBKnowledgeBase.id == kb_id,
+        DBKnowledgeBase.owner_username == current_user.username
+    ).first()
+
+    if not kb:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge base not found"
+        )
+
+    # Count documents
+    total_documents = db.query(DBDocument).filter(
+        DBDocument.knowledge_base_id == kb_id
+    ).count()
+
+    # Count clusters
+    total_clusters = db.query(DBCluster).filter(
+        DBCluster.knowledge_base_id == kb_id
+    ).count()
+
+    # Estimate total concepts (from documents)
+    from sqlalchemy import func
+    from ..db_models import DBConcept
+    total_concepts = db.query(DBConcept).join(DBDocument).filter(
+        DBDocument.knowledge_base_id == kb_id
+    ).count()
+
+    # Estimate disk usage (based on content length)
+    content_size = db.query(func.sum(DBDocument.content_length)).filter(
+        DBDocument.knowledge_base_id == kb_id
+    ).scalar() or 0
+    disk_usage_mb = round(content_size / (1024 * 1024), 2)
+
+    return {
+        "knowledge_base_id": kb_id,
+        "total_documents": total_documents,
+        "total_clusters": total_clusters,
+        "total_concepts": total_concepts,
+        "disk_usage_mb": disk_usage_mb
+    }
+
+
 # =============================================================================
 # Build Suggestions
 # =============================================================================

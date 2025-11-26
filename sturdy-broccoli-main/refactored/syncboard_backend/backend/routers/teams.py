@@ -560,6 +560,41 @@ async def accept_invitation(
     return {"message": "Joined team successfully", "team_id": invitation.team_id}
 
 
+@router.delete("/{team_id}/invitations/{invitation_id}")
+async def cancel_team_invitation(
+    team_id: str,
+    invitation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel a pending team invitation.
+
+    Args:
+        team_id: Team ID
+        invitation_id: Invitation ID to cancel
+        current_user: Must be team admin
+
+    Returns:
+        Success message
+    """
+    require_team_role(db, team_id, current_user.username, "admin")
+
+    invitation = db.query(DBTeamInvitation).filter(
+        DBTeamInvitation.id == invitation_id,
+        DBTeamInvitation.team_id == team_id,
+        DBTeamInvitation.status == "pending"
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found or already processed")
+
+    invitation.status = "cancelled"
+    invitation.responded_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Invitation cancelled successfully"}
+
+
 # =============================================================================
 # Knowledge Base Sharing Endpoints
 # =============================================================================
@@ -637,6 +672,50 @@ async def list_shared_kbs(
             })
 
     return result
+
+
+@router.delete("/{team_id}/knowledge-bases/{kb_id}")
+async def unlink_kb_from_team(
+    team_id: str,
+    kb_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a knowledge base from the team.
+
+    Args:
+        team_id: Team ID
+        kb_id: Knowledge base ID to remove
+        current_user: Must be team admin
+
+    Returns:
+        Success message
+    """
+    require_team_role(db, team_id, current_user.username, "admin")
+
+    share = db.query(DBTeamKnowledgeBase).filter(
+        DBTeamKnowledgeBase.team_id == team_id,
+        DBTeamKnowledgeBase.knowledge_base_id == kb_id
+    ).first()
+
+    if not share:
+        raise HTTPException(status_code=404, detail="Knowledge base not shared with this team")
+
+    # Get KB name for activity log
+    kb = db.query(DBKnowledgeBase).filter(DBKnowledgeBase.id == kb_id).first()
+    kb_name = kb.name if kb else kb_id
+
+    db.delete(share)
+
+    # Update team KB count
+    team = db.query(DBTeam).filter(DBTeam.id == team_id).first()
+    if team and team.kb_count > 0:
+        team.kb_count -= 1
+
+    log_activity(db, "unshared", "knowledge_base", kb_id, kb_name, current_user.username, team_id, kb_id)
+    db.commit()
+
+    return {"message": "Knowledge base removed from team"}
 
 
 # =============================================================================

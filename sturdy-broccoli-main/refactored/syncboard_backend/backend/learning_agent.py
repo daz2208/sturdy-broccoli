@@ -31,7 +31,8 @@ from .db_models import (
     DBDocument,
     DBConcept,
     DBCluster,
-    DBDocumentChunk
+    DBDocumentChunk,
+    DBLearningAgentState
 )
 
 logger = logging.getLogger(__name__)
@@ -44,15 +45,17 @@ logger = logging.getLogger(__name__)
 class AutonomousAgentState:
     """
     Tracks the agent's autonomous decision-making state.
-    Persists metrics across task executions.
+    Persists metrics to database so they survive restarts.
     """
 
     _instance = None
+    AGENT_KEY = "default"  # For future multi-tenant support
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._init_state()
+            cls._instance._load_from_db()
         return cls._instance
 
     def _init_state(self):
@@ -68,6 +71,60 @@ class AutonomousAgentState:
         self.accuracy_history = []
         self.current_strategy = "conservative"  # conservative, balanced, aggressive
 
+    def _load_from_db(self):
+        """Load persisted state from database."""
+        try:
+            with get_db_context() as db:
+                state = db.query(DBLearningAgentState).filter_by(
+                    agent_key=self.AGENT_KEY
+                ).first()
+
+                if state:
+                    self.status = state.status or "idle"
+                    self.mode = state.mode or "observing"
+                    self.current_strategy = state.current_strategy or "conservative"
+                    self.total_observations = state.total_observations or 0
+                    self.total_actions = state.total_actions or 0
+                    self.autonomous_rules_created = state.autonomous_rules_created or 0
+                    self.autonomous_decisions = state.autonomous_decisions or 0
+                    self.experiments_active = state.experiments_active or {}
+                    self.accuracy_history = state.accuracy_history or []
+                    self.last_observation = state.last_observation
+                    self.last_action = state.last_action
+                    logger.info(f"🤖 Learning Agent: Loaded state from database (observations={self.total_observations})")
+                else:
+                    logger.info("🤖 Learning Agent: No existing state found, starting fresh")
+        except Exception as e:
+            logger.warning(f"🤖 Learning Agent: Could not load state from database: {e}")
+
+    def _save_to_db(self):
+        """Persist current state to database."""
+        try:
+            with get_db_context() as db:
+                state = db.query(DBLearningAgentState).filter_by(
+                    agent_key=self.AGENT_KEY
+                ).first()
+
+                if not state:
+                    state = DBLearningAgentState(agent_key=self.AGENT_KEY)
+                    db.add(state)
+
+                state.status = self.status
+                state.mode = self.mode
+                state.current_strategy = self.current_strategy
+                state.total_observations = self.total_observations
+                state.total_actions = self.total_actions
+                state.autonomous_rules_created = self.autonomous_rules_created
+                state.autonomous_decisions = self.autonomous_decisions
+                state.experiments_active = self.experiments_active
+                state.accuracy_history = self.accuracy_history[-100:]  # Keep last 100
+                state.last_observation = self.last_observation
+                state.last_action = self.last_action
+
+                db.commit()
+        except Exception as e:
+            logger.warning(f"🤖 Learning Agent: Could not save state to database: {e}")
+
     def record_observation(self, observation_type: str, data: Dict):
         """Record an observation made by the agent."""
         self.last_observation = {
@@ -77,6 +134,7 @@ class AutonomousAgentState:
         }
         self.total_observations += 1
         self.mode = "observing"
+        self._save_to_db()
 
     def record_action(self, action_type: str, details: Dict):
         """Record an autonomous action taken."""
@@ -88,6 +146,7 @@ class AutonomousAgentState:
         self.total_actions += 1
         self.autonomous_decisions += 1
         self.mode = "acting"
+        self._save_to_db()
 
     def record_accuracy(self, accuracy: float, sample_size: int):
         """Track accuracy over time to detect trends."""
@@ -98,6 +157,7 @@ class AutonomousAgentState:
         })
         # Keep last 100 measurements
         self.accuracy_history = self.accuracy_history[-100:]
+        self._save_to_db()
 
     def get_accuracy_trend(self) -> str:
         """Determine if accuracy is improving, stable, or declining."""
@@ -382,6 +442,7 @@ def make_autonomous_decisions():
                             )
                             db.add(rule)
                             agent.autonomous_rules_created += 1
+                            agent._save_to_db()  # Persist counter update
 
                             actions_taken.append({
                                 "type": "rule_created",
@@ -554,13 +615,16 @@ def self_evaluate():
             if trend == "declining" and agent.current_strategy != "conservative":
                 agent.current_strategy = "conservative"
                 strategy_change = "Switched to conservative strategy due to declining accuracy"
+                agent._save_to_db()  # Persist strategy change
             elif trend == "improving" and overall_accuracy > 0.8:
                 if agent.current_strategy == "conservative":
                     agent.current_strategy = "balanced"
                     strategy_change = "Upgraded to balanced strategy due to high accuracy"
+                    agent._save_to_db()  # Persist strategy change
                 elif agent.current_strategy == "balanced" and overall_accuracy > 0.9:
                     agent.current_strategy = "aggressive"
                     strategy_change = "Upgraded to aggressive strategy due to excellent accuracy"
+                    agent._save_to_db()  # Persist strategy change
 
             # Calculate per-user accuracy
             user_accuracy = {}
