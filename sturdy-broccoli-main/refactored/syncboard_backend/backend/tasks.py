@@ -186,7 +186,7 @@ def find_or_create_cluster_sync(
     # Broadcast WebSocket event for real-time updates (new cluster created)
     try:
         asyncio.run(broadcast_cluster_created(
-            knowledge_base_id=int(kb_id),
+            knowledge_base_id=kb_id,
             cluster_id=cluster_id,
             cluster_name=kb_clusters[cluster_id].name,
             document_count=len(kb_clusters[cluster_id].doc_ids)
@@ -800,7 +800,7 @@ def process_file_upload(
         # Broadcast WebSocket event for real-time updates
         try:
             asyncio.run(broadcast_document_created(
-                knowledge_base_id=int(kb_id),
+                knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=filename_safe,
                 source_type="file",
@@ -1181,7 +1181,7 @@ def process_url_upload(
         # Broadcast WebSocket event for real-time updates
         try:
             asyncio.run(broadcast_document_created(
-                knowledge_base_id=int(kb_id),
+                knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=youtube_metadata.get('video_title', url_safe[:50]) if is_youtube else url_safe[:50],
                 source_type="url",
@@ -1540,7 +1540,7 @@ def process_image_upload(
         # Broadcast WebSocket event for real-time updates
         try:
             asyncio.run(broadcast_document_created(
-                knowledge_base_id=int(kb_id) if kb_id != "default" else 0,
+                knowledge_base_id=kb_id,
                 doc_id=doc_id,
                 title=filename_safe,
                 source_type="image",
