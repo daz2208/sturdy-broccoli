@@ -84,7 +84,7 @@ class UserConnection:
     """Represents a connected user's WebSocket session."""
     websocket: WebSocket
     username: str
-    knowledge_base_id: int
+    knowledge_base_id: str  # UUID string
     connected_at: datetime = field(default_factory=datetime.utcnow)
     currently_viewing: Optional[int] = None  # doc_id currently being viewed
 
@@ -104,8 +104,8 @@ class ConnectionManager:
         # Map: username -> List[UserConnection]
         self.user_connections: Dict[str, List[UserConnection]] = {}
 
-        # Map: kb_id -> Set[username] (for room-based broadcasting)
-        self.kb_rooms: Dict[int, Set[str]] = {}
+        # Map: kb_id (UUID string) -> Set[username] (for room-based broadcasting)
+        self.kb_rooms: Dict[str, Set[str]] = {}
 
         # Map: doc_id -> Set[username] (presence tracking)
         self.document_viewers: Dict[int, Set[str]] = {}
@@ -116,7 +116,7 @@ class ConnectionManager:
         self,
         websocket: WebSocket,
         username: str,
-        knowledge_base_id: int
+        knowledge_base_id: str
     ) -> UserConnection:
         """
         Accept a new WebSocket connection.
@@ -124,7 +124,7 @@ class ConnectionManager:
         Args:
             websocket: FastAPI WebSocket instance
             username: Authenticated user's username
-            knowledge_base_id: User's active knowledge base
+            knowledge_base_id: User's active knowledge base (UUID string)
 
         Returns:
             UserConnection object
@@ -214,7 +214,7 @@ class ConnectionManager:
 
     async def broadcast_to_kb(
         self,
-        knowledge_base_id: int,
+        knowledge_base_id: str,
         event: WebSocketEvent,
         exclude_user: Optional[str] = None
     ):
@@ -222,7 +222,7 @@ class ConnectionManager:
         Broadcast event to all users in a knowledge base.
 
         Args:
-            knowledge_base_id: Target KB
+            knowledge_base_id: Target KB (UUID string)
             event: Event to broadcast
             exclude_user: Optional username to exclude (usually sender)
         """
@@ -282,12 +282,12 @@ class ConnectionManager:
         """Get list of usernames currently viewing a document."""
         return list(self.document_viewers.get(doc_id, set()))
 
-    def get_online_users(self, knowledge_base_id: Optional[int] = None) -> List[str]:
+    def get_online_users(self, knowledge_base_id: Optional[str] = None) -> List[str]:
         """
         Get list of online users.
 
         Args:
-            knowledge_base_id: Optional KB filter
+            knowledge_base_id: Optional KB filter (UUID string)
 
         Returns:
             List of online usernames
@@ -310,7 +310,7 @@ manager = ConnectionManager()
 # =============================================================================
 
 async def broadcast_document_created(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     doc_id: int,
     title: str,
     source_type: str,
@@ -333,7 +333,7 @@ async def broadcast_document_created(
 
 
 async def broadcast_document_updated(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     doc_id: int,
     updated_by: str,
     changes: Dict[str, Any] = None
@@ -354,7 +354,7 @@ async def broadcast_document_updated(
 
 
 async def broadcast_document_deleted(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     doc_id: int,
     deleted_by: str
 ):
@@ -371,7 +371,7 @@ async def broadcast_document_deleted(
 
 
 async def broadcast_cluster_created(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     cluster_id: int,
     cluster_name: str,
     document_count: int
@@ -391,7 +391,7 @@ async def broadcast_cluster_created(
 
 
 async def broadcast_cluster_updated(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     cluster_id: int,
     cluster_name: str,
     document_count: int
@@ -411,7 +411,7 @@ async def broadcast_cluster_updated(
 
 
 async def broadcast_cluster_deleted(
-    knowledge_base_id: int,
+    knowledge_base_id: str,
     cluster_id: int
 ):
     """Broadcast cluster deletion event."""
