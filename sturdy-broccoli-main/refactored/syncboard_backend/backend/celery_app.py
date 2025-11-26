@@ -177,11 +177,11 @@ celery_app.conf.update(
 # Route different task types to different queues for priority management
 celery_app.conf.task_routes = {
     "backend.tasks.process_file_upload": {"queue": "uploads"},
-    "backend.tasks.process_youtube_url": {"queue": "uploads"},
+    "backend.tasks.process_url_upload": {"queue": "uploads"},  # Handles YouTube, web articles, etc.
+    "backend.tasks.process_image_upload": {"queue": "uploads"},  # Image/OCR processing
     "backend.tasks.import_github_files_task": {"queue": "uploads"},  # Phase 5: GitHub import
     "backend.tasks.find_duplicates_background": {"queue": "analysis"},
     "backend.tasks.generate_build_suggestions": {"queue": "analysis"},
-    "backend.tasks.generate_analytics": {"queue": "low_priority"},
     # Autonomous Learning Agent - dedicated queue
     "backend.learning_agent.observe_outcomes": {"queue": "learning"},
     "backend.learning_agent.make_autonomous_decisions": {"queue": "learning"},

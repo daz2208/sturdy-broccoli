@@ -479,11 +479,11 @@ async def submit_feedback(
 
     # If partial/rejected with corrections, record the new value
     if request.new_value and request.validation_result in ['partial', 'rejected']:
-        # Import db_models to access UserFeedback
-        from ..db_models import UserFeedback
+        # Import db_models to access DBUserFeedback
+        from ..db_models import DBUserFeedback
 
         # Create additional feedback record for the correction
-        feedback = UserFeedback(
+        feedback = DBUserFeedback(
             feedback_type='concept_correction',
             username=current_user.username,
             knowledge_base_id=kb_id,
@@ -731,11 +731,11 @@ async def get_user_feedback_list(
     Returns:
         List of user feedback records
     """
-    from ..db_models import UserFeedback
+    from ..db_models import DBUserFeedback
 
-    feedback_records = db.query(UserFeedback).filter(
-        UserFeedback.username == current_user.username
-    ).order_by(UserFeedback.created_at.desc()).limit(limit).all()
+    feedback_records = db.query(DBUserFeedback).filter(
+        DBUserFeedback.username == current_user.username
+    ).order_by(DBUserFeedback.created_at.desc()).limit(limit).all()
 
     result = []
     for feedback in feedback_records:

@@ -869,7 +869,7 @@ class DBDocumentComment(Base):
     __tablename__ = "document_comments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
 
     # Comment content
@@ -1070,7 +1070,7 @@ class DBAIDecision(Base):
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Related entities
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True, index=True)
     cluster_id = Column(Integer, ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Decision details
@@ -1129,7 +1129,7 @@ class DBUserFeedback(Base):
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Related entities
-    document_id = Column(Integer, ForeignKey("documents.doc_id", ondelete="CASCADE"), nullable=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True, index=True)
     ai_decision_id = Column(Integer, ForeignKey("ai_decisions.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Feedback details
@@ -1313,3 +1313,93 @@ class DBUserLearningProfile(Base):
 
     def __repr__(self):
         return f"<DBUserLearningProfile(user='{self.username}', accuracy={self.accuracy_rate:.2%})>"
+
+
+# =============================================================================
+# Autonomous Agent State Persistence Models
+# =============================================================================
+
+class DBLearningAgentState(Base):
+    """
+    Persists the AutonomousAgentState singleton so metrics survive restarts.
+
+    Without this, the Agent Monitor shows all zeros after every deployment/restart
+    because the singleton state is only in memory.
+    """
+    __tablename__ = "learning_agent_state"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_key = Column(String(50), unique=True, nullable=False, default="default")  # For future multi-tenant support
+
+    # Agent status
+    status = Column(String(50), default="idle", nullable=False)  # idle, running, error
+    mode = Column(String(50), default="observing", nullable=False)  # observing, learning, experimenting, acting
+    current_strategy = Column(String(50), default="conservative", nullable=False)  # conservative, balanced, aggressive
+
+    # Counters
+    total_observations = Column(Integer, default=0, nullable=False)
+    total_actions = Column(Integer, default=0, nullable=False)
+    autonomous_rules_created = Column(Integer, default=0, nullable=False)
+    autonomous_decisions = Column(Integer, default=0, nullable=False)
+
+    # State data (JSON for complex structures)
+    experiments_active = Column(JSON, default=dict, nullable=False)
+    accuracy_history = Column(JSON, default=list, nullable=False)  # List of {accuracy, sample_size, timestamp}
+    last_observation = Column(JSON, nullable=True)  # {type, data, timestamp}
+    last_action = Column(JSON, nullable=True)  # {type, details, timestamp}
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('idx_learning_agent_key', 'agent_key'),
+    )
+
+    def __repr__(self):
+        return f"<DBLearningAgentState(status='{self.status}', mode='{self.mode}', observations={self.total_observations})>"
+
+
+class DBMaverickAgentState(Base):
+    """
+    Persists the MaverickMind singleton so improvement metrics survive restarts.
+
+    Maverick tracks hypotheses, insights, and improvement history - all lost
+    on restart without database persistence.
+    """
+    __tablename__ = "maverick_agent_state"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_key = Column(String(50), unique=True, nullable=False, default="default")
+
+    # Personality metrics
+    curiosity = Column(Float, default=0.8, nullable=False)
+    patience = Column(Float, default=0.7, nullable=False)
+    confidence = Column(Float, default=0.5, nullable=False)
+    mood = Column(String(50), default="curious", nullable=False)  # curious, testing, learning, confident
+
+    # Counters
+    hypotheses_proposed = Column(Integer, default=0, nullable=False)
+    hypotheses_tested = Column(Integer, default=0, nullable=False)
+    hypotheses_validated = Column(Integer, default=0, nullable=False)
+    hypotheses_applied = Column(Integer, default=0, nullable=False)
+    total_improvement_score = Column(Float, default=0.0, nullable=False)
+
+    # State data (JSON)
+    hypotheses = Column(JSON, default=list, nullable=False)  # List of Hypothesis dicts
+    insights = Column(JSON, default=list, nullable=False)  # List of LearningInsight dicts
+    improvement_history = Column(JSON, default=list, nullable=False)
+    effective_strategies = Column(JSON, default=dict, nullable=False)
+    expertise = Column(JSON, default=dict, nullable=False)
+    activity_log = Column(JSON, default=list, nullable=False)  # Last 100 activities
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index('idx_maverick_agent_key', 'agent_key'),
+    )
+
+    def __repr__(self):
+        return f"<DBMaverickAgentState(mood='{self.mood}', validated={self.hypotheses_validated}, applied={self.hypotheses_applied})>"
