@@ -29,7 +29,7 @@ router = APIRouter(
 )
 
 
-async def get_user_from_token(token: str) -> tuple[str, int]:
+async def get_user_from_token(token: str) -> tuple[str, str]:
     """
     Validate JWT token and return username and default KB ID.
 
@@ -37,7 +37,7 @@ async def get_user_from_token(token: str) -> tuple[str, int]:
         token: JWT access token
 
     Returns:
-        Tuple of (username, knowledge_base_id)
+        Tuple of (username, knowledge_base_id as string)
 
     Raises:
         HTTPException: If token is invalid
@@ -57,8 +57,12 @@ async def get_user_from_token(token: str) -> tuple[str, int]:
 
         return username, kb_id
 
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT decode error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        logger.error(f"Error getting user from token: {e}")
+        raise HTTPException(status_code=401, detail="Authentication error")
 
 
 @router.websocket("/ws")
