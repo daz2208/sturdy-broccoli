@@ -274,6 +274,48 @@ class ApiClient {
     return data;
   }
 
+  async createMegaProject(ideaIds: number[], title?: string): Promise<{
+    status: string;
+    mega_project: {
+      title: string;
+      description: string;
+      value_proposition: string;
+      tech_stack: {
+        languages: string[];
+        frameworks: string[];
+        databases: string[];
+        tools: string[];
+      };
+      architecture: string;
+      file_structure: string;
+      starter_code: string;
+      modules: Array<{
+        name: string;
+        purpose: string;
+        files: string[];
+        from_idea: string;
+      }>;
+      implementation_roadmap: Array<{
+        phase: number;
+        title: string;
+        tasks: string[];
+        estimated_hours: number;
+      }>;
+      learning_path: string[];
+      complexity_level: string;
+      total_effort_estimate: string;
+      expected_outcomes: string[];
+      potential_extensions: string[];
+      source_ideas: Array<{ id: number; title: string }>;
+      combined_skills: string[];
+    };
+  }> {
+    const { data } = await this.client.post('/ideas/mega-project', null, {
+      params: { idea_ids: ideaIds, title }
+    });
+    return data;
+  }
+
   // ==========================================================================
   // ANALYTICS
   // ==========================================================================
