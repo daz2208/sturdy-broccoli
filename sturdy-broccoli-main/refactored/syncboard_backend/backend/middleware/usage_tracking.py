@@ -59,7 +59,7 @@ async def usage_tracking_middleware(request: Request, call_next: Callable) -> Re
                     username=username,
                     plan="free",
                     status="active",
-                    started_at=datetime.utcnow()
+                    cancel_at_period_end=False
                 )
                 db.add(subscription)
                 db.commit()

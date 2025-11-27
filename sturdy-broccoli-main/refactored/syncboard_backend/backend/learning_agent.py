@@ -959,8 +959,23 @@ def _notify_autonomous_actions(actions: List[Dict]):
 
 def get_agent_status() -> Dict[str, Any]:
     """Get comprehensive autonomous agent status."""
+    state = agent.to_dict()
+
+    # Flatten the commonly used fields for UI/monitoring while keeping the raw state
     return {
-        "agent": agent.to_dict(),
+        "status": state.get("status"),
+        "mode": state.get("mode"),
+        "strategy": state.get("strategy"),
+        "current_strategy": state.get("strategy"),
+        "total_observations": state.get("total_observations", 0),
+        "total_actions": state.get("total_actions", 0),
+        "autonomous_rules_created": state.get("autonomous_rules_created", 0),
+        "autonomous_decisions": state.get("autonomous_decisions", 0),
+        "accuracy_trend": state.get("accuracy_trend"),
+        "experiments_active": state.get("experiments_active", 0),
+        "last_observation": state.get("last_observation"),
+        "last_action": state.get("last_action"),
+        "agent": state,  # raw state for any detailed consumers
         "is_autonomous": True,
         "requires_human_trigger": False,
         "scheduled_tasks": {

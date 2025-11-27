@@ -402,11 +402,13 @@ class FeedbackService:
         username: str,
         knowledge_base_id: str,
         limit: int = 10
-    ) -> List[DBAIDecision]:
+    ) -> List[Dict]:
         """
         Get recent low-confidence decisions that need validation.
 
         These should be presented to user for review.
+
+        Returns dictionaries instead of ORM objects to avoid session detachment issues.
         """
         with get_db_context() as db:
             decisions = db.query(DBAIDecision).filter(
@@ -418,7 +420,24 @@ class FeedbackService:
 
             logger.info(f"Found {len(decisions)} low-confidence decisions for {username}")
 
-            return decisions
+            # Convert to dictionaries while session is active to avoid DetachedInstanceError
+            result = []
+            for decision in decisions:
+                result.append({
+                    "id": decision.id,
+                    "decision_type": decision.decision_type,
+                    "output_data": decision.output_data,
+                    "input_data": decision.input_data,
+                    "confidence_score": decision.confidence_score,
+                    "document_id": decision.document_id,
+                    "cluster_id": decision.cluster_id,
+                    "created_at": decision.created_at.isoformat() if decision.created_at else None,
+                    "validated": decision.validated,
+                    "username": decision.username,
+                    "knowledge_base_id": decision.knowledge_base_id
+                })
+
+            return result
 
     # =============================================================================
     # LEARNING LOOP: Feedback Retrieval for Extraction

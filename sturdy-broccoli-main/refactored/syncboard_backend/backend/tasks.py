@@ -66,8 +66,8 @@ def run_async(coro):
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop, safe to use run_async()
-        return run_async(coro)
+        # No running loop, safe to use asyncio.run()
+        return asyncio.run(coro)
     else:
         # Loop exists, create a new one in a thread
         import concurrent.futures
@@ -362,7 +362,12 @@ def process_multi_document_zip(
             )
             kb_metadata[doc_id].cluster_id = cluster_id
 
+            # Save document metadata to database immediately
+            # This ensures doc_id and cluster_id exist before recording AI decisions
+            save_storage_to_db(documents, metadata, clusters, users)
+
             # Record AI decision for clustering (agentic learning)
+            # Must happen AFTER save_storage_to_db so cluster exists in DB
             try:
                 clustering_confidence = 0.75  # Default medium confidence
                 if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -382,10 +387,6 @@ def process_multi_document_zip(
                 logger.debug(f"Recorded clustering decision for ZIP doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
             except Exception as e:
                 logger.warning(f"Failed to record clustering decision: {e}")
-
-            # Save document metadata to database immediately
-            # This ensures doc_id exists before chunking
-            save_storage_to_db(documents, metadata, clusters, users)
 
             # Chunk document for RAG
             chunk_result = chunk_document_sync(doc_id, document_text, kb_id)
@@ -678,7 +679,22 @@ def process_file_upload(
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
+        # Stage 5: Save to database
+        skill_level = extraction.get('skill_level', 'unknown')
+        primary_topic = extraction.get('primary_topic', 'uncategorized')
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "saving",
+                "message": f"Saving: {concept_count} concepts, skill level: {skill_level}, topic: {primary_topic}",
+                "percent": 90
+            }
+        )
+
+        save_storage_to_db(documents, metadata, clusters, users)
+
         # Record AI decision for clustering (agentic learning)
+        # Must happen AFTER save_storage_to_db so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -698,20 +714,6 @@ def process_file_upload(
             logger.debug(f"Recorded clustering decision for doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
         except Exception as e:
             logger.warning(f"Failed to record clustering decision: {e}")
-
-        # Stage 5: Save to database
-        skill_level = extraction.get('skill_level', 'unknown')
-        primary_topic = extraction.get('primary_topic', 'uncategorized')
-        self.update_state(
-            state="PROCESSING",
-            meta={
-                "stage": "saving",
-                "message": f"Saving: {concept_count} concepts, skill level: {skill_level}, topic: {primary_topic}",
-                "percent": 90
-            }
-        )
-
-        save_storage_to_db(documents, metadata, clusters, users)
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
@@ -810,6 +812,22 @@ def process_file_upload(
                     logger.error(f"Failed to update summary status: {db_err}")
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
+
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        idea_result = run_async(generate_document_idea_seeds(
+                            db=db,
+                            document_id=db_doc.id,
+                            knowledge_base_id=kb_id
+                        ))
+                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.warning(f"Idea seed generation failed (non-critical): {e}")
 
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
@@ -1060,7 +1078,22 @@ def process_url_upload(
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
+        # Stage 4: Save
+        skill_level = extraction.get('skill_level', 'unknown')
+        primary_topic = extraction.get('primary_topic', 'uncategorized')
+        self.update_state(
+            state="PROCESSING",
+            meta={
+                "stage": "saving",
+                "message": f"Saving: {concept_count} concepts, skill level: {skill_level}, topic: {primary_topic}",
+                "percent": 90
+            }
+        )
+
+        save_storage_to_db(documents, metadata, clusters, users)
+
         # Record AI decision for clustering (agentic learning)
+        # Must happen AFTER save_storage_to_db so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -1080,20 +1113,6 @@ def process_url_upload(
             logger.debug(f"Recorded clustering decision for URL doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
         except Exception as e:
             logger.warning(f"Failed to record clustering decision: {e}")
-
-        # Stage 4: Save
-        skill_level = extraction.get('skill_level', 'unknown')
-        primary_topic = extraction.get('primary_topic', 'uncategorized')
-        self.update_state(
-            state="PROCESSING",
-            meta={
-                "stage": "saving",
-                "message": f"Saving: {concept_count} concepts, skill level: {skill_level}, topic: {primary_topic}",
-                "percent": 90
-            }
-        )
-
-        save_storage_to_db(documents, metadata, clusters, users)
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
@@ -1192,6 +1211,22 @@ def process_url_upload(
                     logger.error(f"Failed to update summary status: {db_err}")
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
+
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        idea_result = run_async(generate_document_idea_seeds(
+                            db=db,
+                            document_id=db_doc.id,
+                            knowledge_base_id=kb_id
+                        ))
+                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.warning(f"Idea seed generation failed (non-critical): {e}")
 
         logger.info(
             f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id} "
@@ -1430,7 +1465,11 @@ def process_image_upload(
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
+        # Save
+        save_storage_to_db(documents, metadata, clusters, users)
+
         # Record AI decision for clustering (agentic learning)
+        # Must happen AFTER save_storage_to_db so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -1450,9 +1489,6 @@ def process_image_upload(
             logger.debug(f"Recorded clustering decision for image doc {doc_id} → cluster {cluster_id} (confidence: {clustering_confidence:.2f})")
         except Exception as e:
             logger.warning(f"Failed to record clustering decision: {e}")
-
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
         reload_cache_from_db()
         notify_data_changed()  # Notify backend to reload
 
@@ -1551,6 +1587,22 @@ def process_image_upload(
                     logger.error(f"Failed to update summary status: {db_err}")
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
+
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        idea_result = run_async(generate_document_idea_seeds(
+                            db=db,
+                            document_id=db_doc.id,
+                            knowledge_base_id=kb_id
+                        ))
+                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.warning(f"Idea seed generation failed (non-critical): {e}")
 
         logger.info(
             f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} "
@@ -1981,26 +2033,6 @@ def import_github_files_task(
                     skill_level=skill_level,
                     kb_id=kb_id
                 )
-
-                # Record AI decision for clustering (agentic learning)
-                try:
-                    clustering_confidence = 0.75
-                    if cluster_id and len(concepts_list) >= 3:
-                        clustering_confidence = 0.85
-
-                    run_async(feedback_service.record_ai_decision(
-                        decision_type="clustering",
-                        username=user_id,
-                        input_data={"concepts": concepts_list, "suggested_cluster": suggested_cluster},
-                        output_data={"cluster_id": cluster_id, "cluster_name": suggested_cluster},
-                        confidence_score=clustering_confidence,
-                        knowledge_base_id=kb_id,
-                        document_id=doc_id,
-                        cluster_id=cluster_id,
-                        model_name="heuristic"
-                    ))
-                except Exception as e:
-                    logger.warning(f"Failed to record clustering decision: {e}")
 
                 # Store metadata (KB-scoped)
                 doc_metadata = DocumentMetadata(

@@ -1150,11 +1150,20 @@ def self_improve():
 
 def get_maverick_status() -> Dict[str, Any]:
     """Get Maverick's status as a constructive improvement agent."""
+    personality = maverick.to_dict()
+
     return {
         "agent": "maverick",
         "type": "continuous_improvement",
         "description": "Challenges decisions, proposes improvements, learns what works",
-        "personality": maverick.to_dict(),
+        # Flatten common fields for monitoring/UI consumers
+        "mood": personality.get("mood"),
+        "curiosity": personality.get("curiosity"),
+        "confidence": personality.get("confidence"),
+        "hypotheses_proposed": personality.get("hypotheses_proposed", 0),
+        "hypotheses_validated": personality.get("hypotheses_validated", 0),
+        "hypotheses_applied": personality.get("hypotheses_applied", 0),
+        "personality": personality,  # full detail
         "hypothesis_summary": {
             "proposed": maverick.hypotheses_proposed,
             "tested": maverick.hypotheses_tested,

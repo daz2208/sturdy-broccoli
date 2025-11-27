@@ -149,7 +149,8 @@ def get_or_create_subscription(db: Session, username: str) -> DBUserSubscription
         subscription = DBUserSubscription(
             username=username,
             plan="free",
-            status="active"
+            status="active",
+            cancel_at_period_end=False
         )
         db.add(subscription)
         db.commit()

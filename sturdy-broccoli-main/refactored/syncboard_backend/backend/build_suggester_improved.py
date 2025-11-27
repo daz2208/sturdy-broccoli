@@ -21,11 +21,11 @@ from .models import Cluster, DocumentMetadata, BuildSuggestion
 logger = logging.getLogger(__name__)
 
 
-# Minimum thresholds for viable build suggestions
-MIN_DOCUMENTS = 5
-MIN_CONCEPTS = 10
+# Minimum thresholds for viable build suggestions (relaxed for small KBs)
+MIN_DOCUMENTS = 1
+MIN_CONCEPTS = 3
 MIN_CLUSTERS = 1  # At least one coherent knowledge area
-MIN_CONTENT_LENGTH = 2000  # Total characters
+MIN_CONTENT_LENGTH = 200  # Total characters
 
 
 class ImprovedBuildSuggester:

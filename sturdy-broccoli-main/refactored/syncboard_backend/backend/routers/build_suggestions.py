@@ -123,9 +123,13 @@ async def what_can_i_build(
     # Check cache first (100x faster for cached results)
     cached_suggestions = get_cached_build_suggestions(user_id=current_user.username)
 
+    # Treat empty cached payloads as stale and recompute so users aren't stuck
     if cached_suggestions:
-        logger.info(f"Cache HIT: Build suggestions for {current_user.username}")
-        return cached_suggestions
+        if cached_suggestions.get("suggestions"):
+            logger.info(f"Cache HIT: Build suggestions for {current_user.username}")
+            return cached_suggestions
+        else:
+            logger.info(f"Cache STALE (empty suggestions) for {current_user.username} – regenerating")
 
     # Tier 2 Enhancement: Pull pre-computed idea seeds first
     from ..idea_seeds_service import get_user_idea_seeds
@@ -159,12 +163,15 @@ async def what_can_i_build(
         }
     }
 
-    # Cache the result for 30 minutes (1800 seconds)
-    cache_build_suggestions(
-        user_id=current_user.username,
-        suggestions=result,
-        ttl=1800
-    )
+    # Cache the result for 30 minutes (1800 seconds) only if we have suggestions
+    if result["suggestions"]:
+        cache_build_suggestions(
+            user_id=current_user.username,
+            suggestions=result,
+            ttl=1800
+        )
+    else:
+        logger.info(f"Not caching empty build suggestions for {current_user.username}")
 
     return result
 
@@ -636,6 +643,75 @@ async def get_combined_ideas(
         "count": len(ideas),
         "type": "combined",
         "ideas": ideas
+    }
+
+
+@router.post("/idea-seeds/backfill")
+@limiter.limit("5/minute")
+async def backfill_idea_seeds(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Backfill idea seeds for all existing documents that have summaries but no idea seeds.
+
+    Useful for generating idea seeds for documents uploaded before auto-generation was enabled.
+
+    Args:
+        request: FastAPI request (for rate limiting)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Summary of backfill operation
+    """
+    from ..idea_seeds_service import generate_document_idea_seeds
+    from ..db_models import DBDocument, DBBuildIdeaSeed
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Find documents with summaries but no idea seeds
+    docs_without_seeds = db.query(DBDocument).filter(
+        DBDocument.knowledge_base_id == kb_id,
+        DBDocument.summary_status == 'completed',
+        ~DBDocument.id.in_(
+            db.query(DBBuildIdeaSeed.document_id).filter(
+                DBBuildIdeaSeed.knowledge_base_id == kb_id
+            )
+        )
+    ).all()
+
+    logger.info(f"Backfilling idea seeds for {len(docs_without_seeds)} documents in KB {kb_id}")
+
+    generated = 0
+    failed = 0
+    total_ideas = 0
+
+    for doc in docs_without_seeds:
+        try:
+            result = await generate_document_idea_seeds(
+                db=db,
+                document_id=doc.id,
+                knowledge_base_id=kb_id
+            )
+            if result.get('status') == 'success':
+                generated += 1
+                total_ideas += result.get('ideas_generated', 0)
+            else:
+                failed += 1
+        except Exception as e:
+            logger.warning(f"Failed to backfill idea seeds for doc {doc.id}: {e}")
+            failed += 1
+
+    return {
+        "status": "completed",
+        "documents_processed": len(docs_without_seeds),
+        "documents_succeeded": generated,
+        "documents_failed": failed,
+        "total_ideas_generated": total_ideas,
+        "knowledge_base_id": kb_id
     }
 
 

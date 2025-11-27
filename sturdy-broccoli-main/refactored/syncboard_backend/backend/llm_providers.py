@@ -7,6 +7,7 @@ This allows easy switching between OpenAI, Anthropic, local models, etc.
 import os
 import json
 import logging
+import string
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
@@ -425,19 +426,20 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
                 idea_seeds_text += f"   - {seed.get('description', 'No description')[:150]}...\n"
             idea_seeds_text += f"\n✨ ENHANCE, COMBINE, and REFINE these {len(idea_seeds)} pre-computed ideas into {max_suggestions} comprehensive suggestions.\n"
 
-        prompt = f"""Based on this VALIDATED knowledge bank, suggest {max_suggestions} DETAILED practical projects.{idea_seeds_text}
+        prompt_template = string.Template(
+            """Based on this VALIDATED knowledge bank, suggest ${max_suggestions} DETAILED practical projects.${idea_seeds_text}
 
 KNOWLEDGE VALIDATION:
-✅ {stats['total_documents']} documents analyzed
-✅ {stats['unique_concepts']} unique concepts extracted
-✅ {stats['total_clusters']} knowledge areas identified
-✅ Skill levels: {', '.join(f"{k}: {v}" for k, v in stats['skill_distribution'].items())}
+✅ ${stats_docs} documents analyzed
+✅ ${stats_concepts} unique concepts extracted
+✅ ${stats_clusters} knowledge areas identified
+✅ Skill levels: ${stats_skill_levels}
 
 KNOWLEDGE AREAS:
-{areas_text}
+${areas_text}
 
 DETAILED KNOWLEDGE CONTENT:
-{knowledge_summary}
+${knowledge_summary}
 
 Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
 [
@@ -460,7 +462,7 @@ Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
       "Step 7: Deploy to cloud"
     ],
     "file_structure": "project/\\n  src/\\n    __init__.py\\n    main.py\\n    models.py\\n    routes.py\\n  tests/\\n    test_api.py\\n  requirements.txt\\n  README.md\\n  .env.example",
-    "starter_code": "# main.py\\nfrom flask import Flask\\napp = Flask(__name__)\\n\\n@app.route('/')\\ndef home():\\n    return 'Hello World'\\n\\nif __name__ == '__main__':\\n    app.run(debug=True)",
+    "starter_code": "# main.py - Production-ready example with auth, database, error handling\\nfrom flask import Flask, request, jsonify\\nfrom flask_sqlalchemy import SQLAlchemy\\nfrom flask_jwt_extended import JWTManager, create_access_token, jwt_required\\nimport os\\n\\napp = Flask(__name__)\\napp.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')\\napp.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-in-production')\\ndb = SQLAlchemy(app)\\njwt = JWTManager(app)\\n\\nclass User(db.Model):\\n    id = db.Column(db.Integer, primary_key=True)\\n    username = db.Column(db.String(80), unique=True, nullable=False)\\n    email = db.Column(db.String(120), unique=True, nullable=False)\\n\\n@app.route('/api/register', methods=['POST'])\\ndef register():\\n    try:\\n        data = request.get_json()\\n        user = User(username=data['username'], email=data['email'])\\n        db.session.add(user)\\n        db.session.commit()\\n        return jsonify({'message': 'User created', 'id': user.id}), 201\\n    except Exception as e:\\n        return jsonify({'error': str(e)}), 400\\n\\n@app.route('/api/login', methods=['POST'])\\ndef login():\\n    data = request.get_json()\\n    user = User.query.filter_by(username=data['username']).first()\\n    if user:\\n        token = create_access_token(identity=user.id)\\n        return jsonify({'token': token}), 200\\n    return jsonify({'error': 'Invalid credentials'}), 401\\n\\n@app.route('/api/users', methods=['GET'])\\n@jwt_required()\\ndef get_users():\\n    users = User.query.all()\\n    return jsonify([{'id': u.id, 'username': u.username} for u in users])\\n\\nif __name__ == '__main__':\\n    with app.app_context():\\n        db.create_all()\\n    app.run(debug=True)",
     "learning_path": [
       "Study: Flask routing and request handling (2 hours)",
       "Practice: Build a simple REST API (4 hours)",
@@ -497,12 +499,25 @@ IMPORTANT:
 - Be SPECIFIC - not generic
 - Prioritize projects they can START TODAY with existing knowledge"""
 
+        )
+
         try:
+            prompt = prompt_template.substitute(
+                max_suggestions=max_suggestions,
+                idea_seeds_text=idea_seeds_text,
+                stats_docs=stats["total_documents"],
+                stats_concepts=stats["unique_concepts"],
+                stats_clusters=stats["total_clusters"],
+                stats_skill_levels=", ".join(f"{k}: {v}" for k, v in stats["skill_distribution"].items()),
+                areas_text=areas_text,
+                knowledge_summary=knowledge_summary
+            )
+
             response = await self._call_openai(
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert project advisor and mentor. Analyze knowledge depth and suggest COMPREHENSIVE, DETAILED, REALISTIC projects with learning paths, code examples, and resources. Return only valid JSON."
+                        "content": "You are an expert project advisor and mentor. Analyze knowledge depth and suggest COMPREHENSIVE, DETAILED, REALISTIC projects with learning paths, code examples, and resources. CRITICAL: Generate PRODUCTION-READY starter code that includes: proper imports and dependencies, error handling, configuration management (env vars), authentication/authorization where relevant, database models with proper constraints, NOT trivial 'Hello World' examples - provide WORKING, DEPLOYABLE code that demonstrates real functionality. Return only valid JSON."
                     },
                     {"role": "user", "content": prompt}
                 ],

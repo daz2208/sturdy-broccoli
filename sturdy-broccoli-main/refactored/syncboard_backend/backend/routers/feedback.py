@@ -222,19 +222,11 @@ async def get_pending_validations(
         limit=limit
     )
 
-    # Convert to dict for response
+    # Add validation flag (decisions are already dictionaries)
     pending = []
     for decision in decisions:
-        pending.append({
-            "id": decision.id,
-            "decision_type": decision.decision_type,
-            "confidence_score": decision.confidence_score,
-            "output_data": decision.output_data,
-            "document_id": decision.document_id,
-            "cluster_id": decision.cluster_id,
-            "created_at": decision.created_at.isoformat(),
-            "needs_validation": feedback_service.should_ask_for_validation(decision.confidence_score)
-        })
+        decision["needs_validation"] = feedback_service.should_ask_for_validation(decision["confidence_score"])
+        pending.append(decision)
 
     logger.info(f"Retrieved {len(pending)} pending validations for {current_user.username}")
 
@@ -279,20 +271,20 @@ async def get_validation_prompts(
         limit=limit
     )
 
-    # Generate user-friendly prompts
+    # Generate user-friendly prompts (decisions are now dictionaries)
     prompts = []
     for decision in decisions:
         prompt = generate_validation_prompt(
-            decision_type=decision.decision_type,
-            output_data=decision.output_data,
-            confidence_score=decision.confidence_score
+            decision_type=decision["decision_type"],
+            output_data=decision["output_data"],
+            confidence_score=decision["confidence_score"]
         )
 
         # Add decision metadata
-        prompt["decision_id"] = decision.id
-        prompt["document_id"] = decision.document_id
-        prompt["cluster_id"] = decision.cluster_id
-        prompt["created_at"] = decision.created_at.isoformat()
+        prompt["decision_id"] = decision["id"]
+        prompt["document_id"] = decision["document_id"]
+        prompt["cluster_id"] = decision["cluster_id"]
+        prompt["created_at"] = decision["created_at"]
 
         prompts.append(prompt)
 

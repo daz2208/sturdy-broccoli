@@ -93,16 +93,20 @@ Respond in JSON format:
             user_prompt = f"Context: {context}\n\n{user_prompt}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            # Build params based on model (prefer max_completion_tokens to satisfy new API requirements)
+            params = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,
-                max_tokens=300,
-                response_format={"type": "json_object"}
-            )
+                "response_format": {"type": "json_object"}
+            }
+
+            params["max_completion_tokens"] = 300
+            params["temperature"] = 0.3
+
+            response = self.client.chat.completions.create(**params)
 
             result = json.loads(response.choices[0].message.content)
 
@@ -171,16 +175,20 @@ Respond in JSON format:
         user_prompt = f"Synthesize these chunk summaries into a coherent section summary:\n\n{summaries_text}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            # Build params based on model (prefer max_completion_tokens to satisfy new API requirements)
+            params = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,
-                max_tokens=500,
-                response_format={"type": "json_object"}
-            )
+                "response_format": {"type": "json_object"}
+            }
+
+            params["max_completion_tokens"] = 500
+            params["temperature"] = 0.3
+
+            response = self.client.chat.completions.create(**params)
 
             result = json.loads(response.choices[0].message.content)
 
@@ -265,16 +273,20 @@ Respond in JSON format:
         user_prompt = f"{context}\nSynthesize these section summaries into a complete document summary:\n\n{sections_text}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            # Build params based on model (prefer max_completion_tokens to satisfy new API requirements)
+            params = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,
-                max_tokens=700,
-                response_format={"type": "json_object"}
-            )
+                "response_format": {"type": "json_object"}
+            }
+
+            params["max_completion_tokens"] = 700
+            params["temperature"] = 0.3
+
+            response = self.client.chat.completions.create(**params)
 
             result = json.loads(response.choices[0].message.content)
 
