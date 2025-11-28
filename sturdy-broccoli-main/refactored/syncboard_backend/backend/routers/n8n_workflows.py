@@ -13,7 +13,8 @@ from typing import List, Optional
 from datetime import datetime
 
 from ..models import User, N8nGenerationRequest, N8nWorkflowResponse, N8nWorkflowUpdate
-from ..dependencies import get_current_user, get_kb_metadata, get_kb_documents
+from ..dependencies import get_current_user, get_repository, get_kb_metadata, get_kb_documents
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db_context
 from ..db_models import DBN8nWorkflow, DBDocument
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/n8n-workflows", tags=["n8n"])
 @router.post("/generate")
 async def generate_workflow(
     req: N8nGenerationRequest,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -53,8 +55,8 @@ async def generate_workflow(
             knowledge_summary = ""
             try:
                 kb_id = get_user_default_kb_id(current_user.username, db)
-                kb_metadata = get_kb_metadata(kb_id)
-                kb_documents = get_kb_documents(kb_id)
+                kb_metadata = await repo.get_metadata_by_kb(kb_id)
+                kb_documents = await repo.get_documents_by_kb(kb_id)
 
                 user_docs = [
                     (did, doc) for did, doc in kb_documents.items()
