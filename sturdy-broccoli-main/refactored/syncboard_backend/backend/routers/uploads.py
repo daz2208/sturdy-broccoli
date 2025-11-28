@@ -31,11 +31,11 @@ from ..models import (
 )
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_documents,
     get_metadata,
     get_clusters,
     get_users,
-    get_vector_store,
     get_storage_lock,
     get_concept_extractor,
     get_clustering_engine,
@@ -46,6 +46,7 @@ from ..dependencies import (
     get_user_default_kb_id,
     ensure_kb_exists,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from sqlalchemy.orm import Session
 from ..redis_client import (
@@ -136,6 +137,7 @@ async def find_or_create_cluster(
 async def upload_text_content(
     req: TextUpload,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -160,15 +162,17 @@ async def upload_text_content(
     kb_id = get_user_default_kb_id(current_user.username, db)
     ensure_kb_exists(kb_id)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository (reads)
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
+
+    # DEPRECATED: Global state still used for writes (until repository has write methods)
     documents = get_documents()
     metadata = get_metadata()
     clusters = get_clusters()
     users = get_users()
-    vector_store = get_vector_store()
+    vector_store = repo.vector_store
     storage_lock = get_storage_lock()
     concept_extractor = get_concept_extractor()
 
