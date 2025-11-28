@@ -16,16 +16,16 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from ..models import User
 from ..dependencies import (
     get_current_user,
+    get_repository,
+    get_user_default_kb_id,
+    # Legacy imports - to be removed after full migration
     get_documents,
     get_metadata,
     get_clusters,
     get_users,
     get_storage_lock,
-    get_kb_documents,
-    get_kb_metadata,
-    get_kb_clusters,
-    get_user_default_kb_id,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from sqlalchemy.orm import Session
 from ..constants import SKILL_LEVELS
@@ -54,6 +54,7 @@ router = APIRouter(
 
 @router.get("")
 async def list_documents(
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -61,6 +62,7 @@ async def list_documents(
     List all user documents with basic information.
 
     Args:
+        repo: Repository instance (injected)
         user: Authenticated user
         db: Database session
 
@@ -70,8 +72,8 @@ async def list_documents(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_metadata = get_kb_metadata(kb_id)
+    # Get KB-scoped storage using repository
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
 
     # Filter documents by user ownership with null coalescing for all optional fields
     # BUG FIX: Handle case where meta.owner might be None
@@ -110,6 +112,7 @@ async def list_documents(
 @router.get("/{doc_id}")
 async def get_document(
     doc_id: int,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -118,6 +121,7 @@ async def get_document(
 
     Args:
         doc_id: Document ID
+        repo: Repository instance (injected)
         user: Authenticated user
         db: Database session
 
@@ -130,10 +134,10 @@ async def get_document(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage using repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     if doc_id not in kb_documents:
         raise HTTPException(404, f"Document {doc_id} not found")
@@ -164,6 +168,7 @@ async def get_document(
 @router.get("/{doc_id}/download")
 async def download_document(
     doc_id: int,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -172,6 +177,7 @@ async def download_document(
 
     Args:
         doc_id: Document ID
+        repo: Repository instance (injected)
         user: Authenticated user
         db: Database session
 
@@ -186,9 +192,9 @@ async def download_document(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
+    # Get KB-scoped storage using repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
 
     if doc_id not in kb_documents:
         raise HTTPException(404, f"Document {doc_id} not found")
@@ -223,6 +229,7 @@ async def download_document(
 async def delete_document(
     doc_id: int,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -232,6 +239,7 @@ async def delete_document(
     Args:
         doc_id: Document ID
         request: FastAPI request (for logging)
+        repo: Repository instance (injected)
         user: Authenticated user
         db: Database session
 
@@ -244,10 +252,10 @@ async def delete_document(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage using repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     # Get global storage for save
     documents = get_documents()
@@ -317,6 +325,7 @@ async def delete_document(
 async def update_document_metadata(
     doc_id: int,
     updates: dict,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -326,6 +335,7 @@ async def update_document_metadata(
     Args:
         doc_id: Document ID
         updates: Dictionary of fields to update
+        repo: Repository instance (injected)
         user: Authenticated user
         db: Database session
 
@@ -338,10 +348,10 @@ async def update_document_metadata(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage using repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     # Get global storage for save
     documents = get_documents()
