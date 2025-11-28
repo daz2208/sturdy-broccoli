@@ -36,7 +36,8 @@ from .dependencies import (
     ensure_kb_exists,
 )
 from .sanitization import sanitize_filename, sanitize_text_content, validate_url
-from .constants import MAX_UPLOAD_SIZE_BYTES, ENABLE_CONCEPT_CACHING
+from .constants import MAX_UPLOAD_SIZE_BYTES
+from .config import settings
 from . import ingest
 from .db_storage_adapter import save_storage_to_db, load_storage_from_db
 from .redis_client import notify_data_changed
@@ -580,7 +581,7 @@ def process_file_upload(
 
         # Stage 3: AI analysis
         content_length = len(document_text)
-        cache_status = "checking cache" if ENABLE_CONCEPT_CACHING else "analyzing"
+        cache_status = "checking cache" if settings.enable_concept_caching else "analyzing"
         analysis_sample_len = min(content_length, CONCEPT_SAMPLE_CHARS)
         if content_length > analysis_sample_len:
             logger.info(
@@ -952,7 +953,7 @@ def process_url_upload(
         is_youtube = "YOUTUBE VIDEO TRANSCRIPT" in document_text
 
         # Stage 2: AI analysis
-        cache_status = "checking cache" if ENABLE_CONCEPT_CACHING else "analyzing"
+        cache_status = "checking cache" if settings.enable_concept_caching else "analyzing"
         content_type = "YouTube video" if is_youtube else "web page"
         self.update_state(
             state="PROCESSING",
@@ -1372,7 +1373,7 @@ def process_image_upload(
         content_length = len(combined_text)
 
         # Stage 3: AI analysis
-        cache_status = "checking cache" if ENABLE_CONCEPT_CACHING else "analyzing"
+        cache_status = "checking cache" if settings.enable_concept_caching else "analyzing"
         ocr_length = len(ocr_text)
         self.update_state(
             state="PROCESSING",

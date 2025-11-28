@@ -204,15 +204,15 @@ class OpenAIProvider(LLMProvider):
         source_type: str
     ) -> Dict:
         """Extract concepts using OpenAI."""
-        from .constants import CONCEPT_EXTRACTION_SAMPLE_SIZE, CONCEPT_EXTRACTION_METHOD
+        from .config import settings
 
         # Smart sampling: extract from beginning, middle, and end
-        if CONCEPT_EXTRACTION_METHOD == "smart":
-            sample = get_representative_sample(content, max_chars=CONCEPT_EXTRACTION_SAMPLE_SIZE)
+        if settings.concept_sample_method == "smart":
+            sample = get_representative_sample(content, max_chars=settings.concept_sample_size)
             sampling_note = "\nNOTE: For long documents, this is a representative sample from beginning, middle, and end."
         else:
             # Fallback to simple truncation
-            sample = content[:CONCEPT_EXTRACTION_SAMPLE_SIZE] if len(content) > CONCEPT_EXTRACTION_SAMPLE_SIZE else content
+            sample = content[:settings.concept_sample_size] if len(content) > settings.concept_sample_size else content
             sampling_note = ""
 
         # Detect YouTube transcripts
@@ -1121,13 +1121,13 @@ class OllamaProvider(LLMProvider):
         source_type: str
     ) -> Dict:
         """Extract concepts using Ollama."""
-        from .constants import CONCEPT_EXTRACTION_SAMPLE_SIZE, CONCEPT_EXTRACTION_METHOD
+        from .config import settings
 
         # Smart sampling
-        if CONCEPT_EXTRACTION_METHOD == "smart":
-            sample = get_representative_sample(content, max_chars=CONCEPT_EXTRACTION_SAMPLE_SIZE)
+        if settings.concept_sample_method == "smart":
+            sample = get_representative_sample(content, max_chars=settings.concept_sample_size)
         else:
-            sample = content[:CONCEPT_EXTRACTION_SAMPLE_SIZE] if len(content) > CONCEPT_EXTRACTION_SAMPLE_SIZE else content
+            sample = content[:settings.concept_sample_size] if len(content) > settings.concept_sample_size else content
 
         prompt = f"""Analyze this {source_type} content and extract structured information.
 
