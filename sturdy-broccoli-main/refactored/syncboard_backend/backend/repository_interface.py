@@ -31,6 +31,49 @@ class KnowledgeBankRepository(ABC):
         pass
 
     # =============================================================================
+    # KNOWLEDGE BASE SCOPED OPERATIONS (Primary Pattern)
+    # =============================================================================
+
+    @abstractmethod
+    async def get_documents_by_kb(self, kb_id: str) -> Dict[int, str]:
+        """
+        Get all documents for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping doc_id to content
+        """
+        pass
+
+    @abstractmethod
+    async def get_metadata_by_kb(self, kb_id: str) -> Dict[int, DocumentMetadata]:
+        """
+        Get all document metadata for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping doc_id to metadata
+        """
+        pass
+
+    @abstractmethod
+    async def get_clusters_by_kb(self, kb_id: str) -> Dict[int, Cluster]:
+        """
+        Get all clusters for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping cluster_id to Cluster
+        """
+        pass
+
+    # =============================================================================
     # DOCUMENT OPERATIONS
     # =============================================================================
 

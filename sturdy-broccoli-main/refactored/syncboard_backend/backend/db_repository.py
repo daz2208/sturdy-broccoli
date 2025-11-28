@@ -60,6 +60,64 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             logger.error(f"Failed to load vector store: {e}")
 
     # =============================================================================
+    # KNOWLEDGE BASE SCOPED OPERATIONS (Primary Pattern)
+    # =============================================================================
+
+    async def get_documents_by_kb(self, kb_id: str) -> Dict[int, str]:
+        """
+        Get all documents for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping doc_id to content
+        """
+        # Query documents filtered by knowledge_base_id
+        db_docs = self.db.query(DBDocument).filter_by(knowledge_base_id=kb_id).all()
+        doc_ids = [doc.doc_id for doc in db_docs]
+
+        # Get content from vector documents
+        vdocs = self.db.query(DBVectorDocument).filter(DBVectorDocument.doc_id.in_(doc_ids)).all()
+        return {vdoc.doc_id: vdoc.content for vdoc in vdocs}
+
+    async def get_metadata_by_kb(self, kb_id: str) -> Dict[int, DocumentMetadata]:
+        """
+        Get all document metadata for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping doc_id to metadata
+        """
+        db_docs = self.db.query(DBDocument).filter_by(knowledge_base_id=kb_id).all()
+        result = {}
+        for db_doc in db_docs:
+            meta = await self.get_document_metadata(db_doc.doc_id)
+            if meta:
+                result[db_doc.doc_id] = meta
+        return result
+
+    async def get_clusters_by_kb(self, kb_id: str) -> Dict[int, Cluster]:
+        """
+        Get all clusters for a specific knowledge base.
+
+        Args:
+            kb_id: Knowledge base ID
+
+        Returns:
+            Dictionary mapping cluster_id to Cluster
+        """
+        db_clusters = self.db.query(DBCluster).filter_by(knowledge_base_id=kb_id).all()
+        result = {}
+        for db_cluster in db_clusters:
+            cluster = await self.get_cluster(db_cluster.id)
+            if cluster:
+                result[db_cluster.id] = cluster
+        return result
+
+    # =============================================================================
     # DOCUMENT OPERATIONS
     # =============================================================================
 
