@@ -10,12 +10,13 @@ Provides caching utilities for:
 Uses Redis for fast in-memory caching with TTL (time-to-live) expiration.
 """
 
-import os
 import json
 import logging
 from typing import Optional, Any
 import redis
 from redis.exceptions import RedisError, ConnectionError
+
+from .config import settings
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -24,8 +25,8 @@ logger = logging.getLogger(__name__)
 # Redis Connection
 # =============================================================================
 
-# Redis connection URL from environment
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+# Redis connection URL from centralized configuration
+REDIS_URL = settings.redis_url
 
 # Initialize Redis client
 try:

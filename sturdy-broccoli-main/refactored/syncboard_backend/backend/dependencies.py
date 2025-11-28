@@ -8,7 +8,6 @@ Provides:
 - Service instances
 """
 
-import os
 import asyncio
 import logging
 from typing import Dict
@@ -24,7 +23,7 @@ from .build_suggester_improved import ImprovedBuildSuggester
 from .semantic_dictionary import SemanticDictionaryManager
 from .llm_providers import OpenAIProvider
 from .auth import decode_access_token
-from .constants import DEFAULT_VECTOR_DIM
+from .config import settings
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # =============================================================================
 
 # Vector store for semantic search (shared across all KBs, filtered by allowed_doc_ids)
-vector_store = VectorStore(dim=int(os.environ.get('SYNCBOARD_VECTOR_DIM', str(DEFAULT_VECTOR_DIM))))
+vector_store = VectorStore(dim=settings.vector_dim)
 
 # Document storage (in-memory) - nested by knowledge_base_id
 # Structure: {kb_id: {doc_id: content/metadata/cluster}}
@@ -59,7 +58,7 @@ storage_lock = asyncio.Lock()
 # LLM Provider (optional - only for semantic learning)
 llm_provider = None
 try:
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = settings.openai_api_key
     if api_key and api_key != "sk-replace-with-your-actual-openai-key":
         llm_provider = OpenAIProvider(api_key=api_key)
         logger.info("OpenAI LLM provider initialized successfully")

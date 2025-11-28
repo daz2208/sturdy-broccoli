@@ -5,7 +5,6 @@ Provides SQLAlchemy engine, session factory, and dependency injection
 for FastAPI endpoints.
 """
 
-import os
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -13,20 +12,13 @@ from contextlib import contextmanager
 import logging
 
 from .db_models import Base
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
-# Database URL from environment
-# Format: postgresql://user:password@host:port/database
-# Fallback to SQLite for development if PostgreSQL not available
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./syncboard.db"  # Fallback for local development
-)
-
-# Convert postgres:// to postgresql:// (Heroku compatibility)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Database URL from centralized configuration
+# The settings object already handles postgres:// to postgresql:// conversion
+DATABASE_URL = settings.database_url
 
 logger.info(f"Database URL: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
 

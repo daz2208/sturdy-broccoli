@@ -2,9 +2,10 @@
 Application Constants for SyncBoard 3.0 Knowledge Bank.
 
 Centralizes configuration values, limits, and magic numbers.
-"""
 
-import os
+Note: Dynamic configuration (from environment variables) has been moved to config.py.
+This file now only contains true constants that don't change between environments.
+"""
 
 # =============================================================================
 # File Upload Limits
@@ -71,45 +72,18 @@ SKILL_LEVELS = ["beginner", "intermediate", "advanced", "unknown"]
 # =============================================================================
 # AI Concept Extraction Configuration
 # =============================================================================
-
-# Maximum characters to analyze for concept extraction
-CONCEPT_EXTRACTION_SAMPLE_SIZE = int(os.getenv("CONCEPT_SAMPLE_SIZE", "6000"))
-
-# Sampling method: "smart" (beginning/middle/end) or "truncate" (first N chars)
-CONCEPT_EXTRACTION_METHOD = os.getenv("CONCEPT_SAMPLE_METHOD", "smart")
-
-# =============================================================================
-# Redis Caching Configuration (Improvement #5)
-# =============================================================================
-
-# Enable/disable caching for concept extraction
-ENABLE_CONCEPT_CACHING = os.getenv("ENABLE_CONCEPT_CACHING", "true").lower() == "true"
-
-# Cache TTL in days for concept extraction results
-CONCEPT_CACHE_TTL_DAYS = int(os.getenv("CONCEPT_CACHE_TTL_DAYS", "7"))
-
-# Cache TTL in days for similarity computations
-SIMILARITY_CACHE_TTL_DAYS = int(os.getenv("SIMILARITY_CACHE_TTL_DAYS", "30"))
-
-# =============================================================================
-# Agentic AI - Dual-Pass Extraction (Phase C)
-# =============================================================================
-
-# Enable dual-pass extraction with self-critique for low-confidence extractions
-# When enabled, AI will critique its own work and refine the extraction
-ENABLE_DUAL_PASS_EXTRACTION = os.getenv("ENABLE_DUAL_PASS", "true").lower() == "true"
-
-# Confidence threshold below which dual-pass will be triggered
-# If initial confidence < this value, run critique pass
-DUAL_PASS_CONFIDENCE_THRESHOLD = float(os.getenv("DUAL_PASS_THRESHOLD", "0.75"))
-
-# =============================================================================
-# Concept Quality Filtering (Improvement #6)
-# =============================================================================
-
-# Minimum confidence threshold for concept extraction (0.0-1.0)
-# Only concepts with confidence >= this value will be kept
-MIN_CONCEPT_CONFIDENCE = float(os.getenv("MIN_CONCEPT_CONFIDENCE", "0.7"))
+# Note: These values have been moved to config.py and are now loaded from
+# environment variables through the centralized settings object.
+# Access them via: from backend.config import settings
+#
+# - settings.concept_sample_size (CONCEPT_SAMPLE_SIZE)
+# - settings.concept_sample_method (CONCEPT_SAMPLE_METHOD)
+# - settings.enable_concept_caching (ENABLE_CONCEPT_CACHING)
+# - settings.concept_cache_ttl_days (CONCEPT_CACHE_TTL_DAYS)
+# - settings.similarity_cache_ttl_days (SIMILARITY_CACHE_TTL_DAYS)
+# - settings.enable_dual_pass (ENABLE_DUAL_PASS)
+# - settings.dual_pass_threshold (DUAL_PASS_THRESHOLD)
+# - settings.min_concept_confidence (MIN_CONCEPT_CONFIDENCE)
 
 # Valid concept categories (expanded from 5 to 11)
 VALID_CONCEPT_CATEGORIES = [

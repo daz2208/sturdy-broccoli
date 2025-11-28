@@ -7,12 +7,12 @@ Provides:
 - Secure authentication helpers
 """
 
-import os
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
-from .constants import JWT_ALGORITHM, DEFAULT_TOKEN_EXPIRE_MINUTES
+from .constants import JWT_ALGORITHM
+from .config import settings
 
 # Export ALGORITHM as an alias for JWT_ALGORITHM (for backwards compatibility)
 ALGORITHM = JWT_ALGORITHM
@@ -21,14 +21,10 @@ ALGORITHM = JWT_ALGORITHM
 # Configuration
 # =============================================================================
 
-SECRET_KEY = os.environ.get('SYNCBOARD_SECRET_KEY')
-if not SECRET_KEY:
-    raise RuntimeError(
-        "SYNCBOARD_SECRET_KEY environment variable must be set. "
-        "Generate one with: openssl rand -hex 32"
-    )
-
-TOKEN_EXPIRE_MINUTES = int(os.environ.get('SYNCBOARD_TOKEN_EXPIRE_MINUTES', str(DEFAULT_TOKEN_EXPIRE_MINUTES)))
+# Configuration is now loaded from centralized settings
+# The settings object validates that SECRET_KEY is present at startup
+SECRET_KEY = settings.secret_key
+TOKEN_EXPIRE_MINUTES = settings.token_expire_minutes
 
 # Password hashing configuration (bcrypt)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
