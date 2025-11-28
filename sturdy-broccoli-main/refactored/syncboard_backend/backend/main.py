@@ -62,21 +62,22 @@ from .database import init_db, check_database_health
 from .db_storage_adapter import load_storage_from_db, save_storage_to_db
 from .storage import load_storage
 from .auth import hash_password
-from .constants import DEFAULT_STORAGE_PATH
-from .security_middleware import SecurityHeadersMiddleware, HTTPSRedirectMiddleware, get_environment
+from .security_middleware import SecurityHeadersMiddleware, HTTPSRedirectMiddleware
 from .redis_client import redis_client
+from .config import settings
 import threading
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-STORAGE_PATH = os.environ.get('SYNCBOARD_STORAGE_PATH', DEFAULT_STORAGE_PATH)
-ALLOWED_ORIGINS = os.environ.get('SYNCBOARD_ALLOWED_ORIGINS', '*')
-TESTING = os.environ.get('TESTING') == 'true'
+# Configuration now loaded from centralized settings
+STORAGE_PATH = settings.storage_path
+ALLOWED_ORIGINS = settings.allowed_origins
+TESTING = settings.testing
 
 # Logging setup (configurable via environment variable)
-LOG_LEVEL = os.environ.get('SYNCBOARD_LOG_LEVEL', 'INFO').upper()
+LOG_LEVEL = settings.log_level
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger(__name__)
 
@@ -290,7 +291,7 @@ app.add_middleware(
 )
 
 # Security headers middleware (Phase 2)
-environment = get_environment()
+environment = settings.environment
 logger.info(f"🔒 Running in {environment} environment")
 
 # Add security headers to all responses
@@ -466,7 +467,7 @@ async def health_check():
 
     # Check OpenAI API
     try:
-        openai_key = os.environ.get('OPENAI_API_KEY')
+        openai_key = settings.openai_api_key
         health_data["dependencies"]["openai_configured"] = bool(openai_key and openai_key.startswith('sk-'))
     except Exception:
         health_data["dependencies"]["openai_configured"] = False

@@ -7,11 +7,12 @@ Implements security best practices:
 - Additional security hardening
 """
 
-import os
 import logging
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -143,21 +144,21 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
 
 def get_environment() -> str:
     """
-    Get current environment from environment variable.
-    
+    Get current environment from centralized configuration.
+
     Returns:
         "production", "staging", or "development"
+
+    Note:
+        This function is deprecated. Use settings.environment directly.
     """
-    env = os.environ.get("SYNCBOARD_ENVIRONMENT", "development").lower()
-    
-    # Validate environment
-    valid_envs = ["production", "staging", "development"]
-    if env not in valid_envs:
-        logger.warning(f"Invalid environment '{env}', defaulting to 'development'")
-        env = "development"
-    
-    return env
+    return settings.environment
 
 def is_production() -> bool:
-    """Check if running in production environment."""
-    return get_environment() == "production"
+    """
+    Check if running in production environment.
+
+    Note:
+        This function is deprecated. Use settings.is_production instead.
+    """
+    return settings.is_production

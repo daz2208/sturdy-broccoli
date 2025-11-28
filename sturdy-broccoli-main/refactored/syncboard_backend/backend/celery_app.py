@@ -21,20 +21,20 @@ Usage:
     # Monitor tasks at: http://localhost:5555
 """
 
-import os
 from celery import Celery
 from celery.schedules import crontab
+from backend.config import settings
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-# Redis connection URL
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+# Configuration loaded from centralized settings
+REDIS_URL = settings.redis_url
 
 # Celery broker and result backend (both use Redis)
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", REDIS_URL)
+CELERY_BROKER_URL = settings.effective_celery_broker_url
+CELERY_RESULT_BACKEND = settings.effective_celery_result_backend
 
 # =============================================================================
 # Celery App Instance
