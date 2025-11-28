@@ -17,14 +17,6 @@ from ..models import User, ClusterUpdate, ExportFormat
 from ..dependencies import (
     get_current_user,
     get_repository,
-    get_documents,
-    get_metadata,
-    get_clusters,
-    get_users,
-    get_storage_lock,
-    get_kb_documents,
-    get_kb_metadata,
-    get_kb_clusters,
     get_user_default_kb_id,
 )
 from ..repository_interface import KnowledgeBankRepository
@@ -32,7 +24,6 @@ from ..database import get_db
 from sqlalchemy.orm import Session
 from ..sanitization import sanitize_cluster_name
 from ..constants import SKILL_LEVELS
-from ..db_storage_adapter import save_storage_to_db
 from ..websocket_manager import broadcast_cluster_updated, broadcast_cluster_deleted
 
 # Initialize logger
@@ -125,33 +116,30 @@ async def update_cluster(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage from repository
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-
-    # DEPRECATED: Global storage still used for writes (until repository has write methods)
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    storage_lock = get_storage_lock()
-
-    if cluster_id not in kb_clusters:
+    # Get cluster from repository
+    cluster = await repo.get_cluster(cluster_id)
+    if not cluster:
         raise HTTPException(404, f"Cluster {cluster_id} not found")
 
-    # CRITICAL: Use lock for thread-safe modifications to shared state
-    async with storage_lock:
-        cluster = kb_clusters[cluster_id]
+    # Verify cluster belongs to user's KB (check via any document in the cluster)
+    if cluster.doc_ids:
+        # Check first document's KB
+        first_doc_meta = await repo.get_document_metadata(cluster.doc_ids[0])
+        if first_doc_meta and first_doc_meta.knowledge_base_id != kb_id:
+            raise HTTPException(404, f"Cluster {cluster_id} not found")
 
-        # Update fields if provided (Pydantic already validated)
-        if updates.name is not None:
-            # Additional sanitization for safety
-            cluster.name = sanitize_cluster_name(updates.name)
+    # Update fields if provided (Pydantic already validated)
+    if updates.name is not None:
+        # Additional sanitization for safety
+        cluster.name = sanitize_cluster_name(updates.name)
 
-        if updates.skill_level is not None:
-            cluster.skill_level = updates.skill_level.value
+    if updates.skill_level is not None:
+        cluster.skill_level = updates.skill_level.value
 
-        # Save to database
-        save_storage_to_db(documents, metadata, clusters, users)
+    # Update cluster using repository
+    success = await repo.update_cluster(cluster)
+    if not success:
+        raise HTTPException(500, "Failed to update cluster")
 
     logger.info(f"Updated cluster {cluster_id} in KB {kb_id}: {cluster.name}")
 
@@ -203,15 +191,13 @@ async def delete_cluster(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage from repository
-    kb_documents = await repo.get_documents_by_kb(kb_id)
-    kb_metadata = await repo.get_metadata_by_kb(kb_id)
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-
-    if cluster_id not in kb_clusters:
+    # Get cluster from repository
+    cluster = await repo.get_cluster(cluster_id)
+    if not cluster:
         raise HTTPException(404, f"Cluster {cluster_id} not found")
 
-    cluster = kb_clusters[cluster_id]
+    # Get metadata for documents in cluster
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
 
     # Check if user owns any documents in this cluster
     has_user_docs = any(
@@ -222,123 +208,66 @@ async def delete_cluster(
     if not has_user_docs:
         raise HTTPException(403, "You don't have permission to delete this cluster")
 
-    # DEPRECATED: Global storage still used for writes (until repository has write methods)
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    storage_lock = get_storage_lock()
-
     cluster_name = cluster.name
     doc_count = len(cluster.doc_ids)
     doc_ids_to_process = list(cluster.doc_ids)  # Make a copy
 
-    # CRITICAL: Use lock for thread-safe modifications
-    async with storage_lock:
-        # STEP 1: DELETE FROM DATABASE FIRST (so it doesn't come back on restart!)
-        from ..db_models import DBCluster, DBDocument, DBVectorDocument
-
-        # Delete cluster from database
-        db_cluster = db.query(DBCluster).filter_by(id=cluster_id).first()
-        if db_cluster:
-            db.delete(db_cluster)
-            db.commit()
-            logger.info(f"Deleted cluster {cluster_id} from DATABASE")
-
-        if delete_documents:
-            # DELETE DOCUMENTS PERMANENTLY FROM DATABASE
-            deleted_count = 0
-            for doc_id in doc_ids_to_process:
-                # Only delete documents owned by this user
-                if doc_id in kb_metadata and kb_metadata[doc_id].owner == user.username:
-                    # Delete from DATABASE first
-                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
-                    if db_doc:
-                        db.delete(db_doc)
-                        logger.info(f"Deleted document {doc_id} from DATABASE")
-
-                    db_vdoc = db.query(DBVectorDocument).filter_by(doc_id=doc_id).first()
-                    if db_vdoc:
-                        db.delete(db_vdoc)
-                        logger.info(f"Deleted vector document {doc_id} from DATABASE")
-
-                    # Now remove from in-memory storage (KB-scoped dicts)
-                    # Note: kb_documents and kb_metadata are references to documents[kb_id] and metadata[kb_id]
-                    # so we only need to delete from kb_documents/kb_metadata
-                    if doc_id in kb_documents:
-                        del kb_documents[doc_id]
-                    if doc_id in kb_metadata:
-                        del kb_metadata[doc_id]
-
+    if delete_documents:
+        # DELETE DOCUMENTS PERMANENTLY
+        deleted_count = 0
+        for doc_id in doc_ids_to_process:
+            # Only delete documents owned by this user
+            if doc_id in kb_metadata and kb_metadata[doc_id].owner == user.username:
+                success = await repo.delete_document(doc_id)
+                if success:
                     deleted_count += 1
+                    logger.info(f"Deleted document {doc_id}")
 
-            # Commit database deletions
-            db.commit()
+        # Delete cluster using repository
+        success = await repo.delete_cluster(cluster_id)
+        if not success:
+            logger.warning(f"Failed to delete cluster {cluster_id} from repository")
 
-            # Remove cluster from in-memory storage
-            if cluster_id in clusters:
-                del clusters[cluster_id]
-            if cluster_id in kb_clusters:
-                del kb_clusters[cluster_id]
+        logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} and DELETED {deleted_count} documents permanently")
 
-            logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} and DELETED {deleted_count} documents permanently")
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_cluster_deleted(
+                knowledge_base_id=kb_id,
+                cluster_id=cluster_id
+            )
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
-            # Broadcast WebSocket event for real-time updates
-            try:
-                await broadcast_cluster_deleted(
-                    knowledge_base_id=kb_id,
-                    cluster_id=cluster_id
-                )
-            except Exception as ws_err:
-                logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
+        return {
+            "message": f"Cluster '{cluster_name}' and {deleted_count} documents deleted permanently",
+            "cluster_id": cluster_id,
+            "cluster_name": cluster_name,
+            "documents_deleted": deleted_count
+        }
+    else:
+        # KEEP DOCUMENTS - delete cluster (documents automatically unclustered via CASCADE)
+        success = await repo.delete_cluster(cluster_id)
+        if not success:
+            raise HTTPException(500, "Failed to delete cluster")
 
-            return {
-                "message": f"Cluster '{cluster_name}' and {deleted_count} documents deleted permanently",
-                "cluster_id": cluster_id,
-                "cluster_name": cluster_name,
-                "documents_deleted": deleted_count
-            }
-        else:
-            # KEEP DOCUMENTS - just uncluster them in DATABASE
-            for doc_id in doc_ids_to_process:
-                # Update in DATABASE first
-                db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
-                if db_doc:
-                    db_doc.cluster_id = None
-                    logger.info(f"Unclustered document {doc_id} in DATABASE")
+        logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} ({doc_count} documents now unclustered)")
 
-                # Update in-memory storage
-                if doc_id in metadata:
-                    metadata[doc_id].cluster_id = None
-                if doc_id in kb_metadata:
-                    kb_metadata[doc_id].cluster_id = None
+        # Broadcast WebSocket event for real-time updates
+        try:
+            await broadcast_cluster_deleted(
+                knowledge_base_id=kb_id,
+                cluster_id=cluster_id
+            )
+        except Exception as ws_err:
+            logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
 
-            # Commit database updates
-            db.commit()
-
-            # Remove cluster from in-memory storage
-            if cluster_id in clusters:
-                del clusters[cluster_id]
-            if cluster_id in kb_clusters:
-                del kb_clusters[cluster_id]
-
-            logger.info(f"Deleted cluster {cluster_id} '{cluster_name}' in KB {kb_id} ({doc_count} documents now unclustered)")
-
-            # Broadcast WebSocket event for real-time updates
-            try:
-                await broadcast_cluster_deleted(
-                    knowledge_base_id=kb_id,
-                    cluster_id=cluster_id
-                )
-            except Exception as ws_err:
-                logger.warning(f"WebSocket broadcast failed (non-critical): {ws_err}")
-
-            return {
-                "message": f"Cluster '{cluster_name}' deleted successfully",
-                "cluster_id": cluster_id,
-                "cluster_name": cluster_name,
-                "documents_unclustered": doc_count
-            }
+        return {
+            "message": f"Cluster '{cluster_name}' deleted successfully",
+            "cluster_id": cluster_id,
+            "cluster_name": cluster_name,
+            "documents_unclustered": doc_count
+        }
 
 # =============================================================================
 # Export Cluster Endpoint

@@ -32,15 +32,9 @@ from ..models import (
 from ..dependencies import (
     get_current_user,
     get_repository,
-    get_documents,
-    get_metadata,
-    get_clusters,
-    get_users,
-    get_storage_lock,
     get_concept_extractor,
     get_clustering_engine,
     get_image_processor,
-    get_kb_documents,
     get_kb_metadata,
     get_kb_clusters,
     get_user_default_kb_id,
@@ -64,7 +58,6 @@ from ..sanitization import (
 )
 from ..constants import MAX_UPLOAD_SIZE_BYTES
 from .. import ingest
-from ..db_storage_adapter import save_storage_to_db
 from ..redis_client import increment_user_job_count, get_user_job_count
 from ..tasks import process_file_upload, process_url_upload, process_image_upload
 from ..chunking_pipeline import chunk_document_on_upload
@@ -162,113 +155,100 @@ async def upload_text_content(
     kb_id = get_user_default_kb_id(current_user.username, db)
     ensure_kb_exists(kb_id)
 
-    # Get KB-scoped storage from repository (reads)
-    kb_documents = await repo.get_documents_by_kb(kb_id)
-    kb_metadata = await repo.get_metadata_by_kb(kb_id)
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-
-    # DEPRECATED: Global state still used for writes (until repository has write methods)
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    vector_store = repo.vector_store
-    storage_lock = get_storage_lock()
+    # Get concept extractor
     concept_extractor = get_concept_extractor()
 
-    async with storage_lock:
-        # AGENTIC LEARNING: Use learning-aware extraction that applies past corrections
-        # This closes the feedback loop - the system actually learns from user corrections
-        extraction = await concept_extractor.extract_with_learning(
-            content=content,
-            source_type="text",
+    # AGENTIC LEARNING: Use learning-aware extraction that applies past corrections
+    # This closes the feedback loop - the system actually learns from user corrections
+    extraction = await concept_extractor.extract_with_learning(
+        content=content,
+        source_type="text",
+        username=current_user.username,
+        knowledge_base_id=kb_id
+    )
+
+    # Log learning metadata if applied
+    learning_applied = extraction.get("learning_applied", {})
+    if learning_applied.get("corrections_used", 0) > 0:
+        logger.info(
+            f"Agentic learning applied: {learning_applied['corrections_used']} corrections, "
+            f"preferences={learning_applied.get('preferences_applied', [])}, "
+            f"confidence_calibrated={learning_applied.get('confidence_calibrated', False)}"
+        )
+
+    # Record AI decision for concept extraction (agentic learning)
+    concept_decision_id = None
+    try:
+        concept_decision_id = await feedback_service.record_ai_decision(
+            decision_type="concept_extraction",
             username=current_user.username,
-            knowledge_base_id=kb_id
-        )
-
-        # Log learning metadata if applied
-        learning_applied = extraction.get("learning_applied", {})
-        if learning_applied.get("corrections_used", 0) > 0:
-            logger.info(
-                f"Agentic learning applied: {learning_applied['corrections_used']} corrections, "
-                f"preferences={learning_applied.get('preferences_applied', [])}, "
-                f"confidence_calibrated={learning_applied.get('confidence_calibrated', False)}"
-            )
-
-        # Record AI decision for concept extraction (agentic learning)
-        concept_decision_id = None
-        try:
-            concept_decision_id = await feedback_service.record_ai_decision(
-                decision_type="concept_extraction",
-                username=current_user.username,
-                input_data={"content_sample": content[:500], "source_type": "text"},
-                output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
-                confidence_score=extraction.get("confidence_score", 0.5),
-                knowledge_base_id=kb_id,
-                model_name="gpt-4o-mini"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to record concept extraction decision: {e}")
-
-        # Add to vector store
-        doc_id = vector_store.add_document(content)
-
-        # Add to KB-scoped storage
-        kb_documents[doc_id] = content
-
-        # Create metadata
-        meta = DocumentMetadata(
-            doc_id=doc_id,
-            owner=current_user.username,
-            source_type="text",
-            concepts=[Concept(**c) for c in extraction.get("concepts", [])],
-            skill_level=extraction.get("skill_level", "unknown"),
-            cluster_id=None,
+            input_data={"content_sample": content[:500], "source_type": "text"},
+            output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
+            confidence_score=extraction.get("confidence_score", 0.5),
             knowledge_base_id=kb_id,
-            ingested_at=datetime.utcnow().isoformat(),
-            content_length=len(content)
+            model_name="gpt-4o-mini"
         )
-        kb_metadata[doc_id] = meta
+    except Exception as e:
+        logger.warning(f"Failed to record concept extraction decision: {e}")
 
-        # Find or create cluster
-        cluster_id = await find_or_create_cluster(
-            doc_id=doc_id,
-            suggested_cluster=extraction.get("suggested_cluster", "General"),
-            concepts=extraction.get("concepts", []),
-            kb_id=kb_id
+    # Create metadata
+    meta = DocumentMetadata(
+        doc_id=None,  # Will be set by repository
+        owner=current_user.username,
+        source_type="text",
+        concepts=[Concept(**c) for c in extraction.get("concepts", [])],
+        skill_level=extraction.get("skill_level", "unknown"),
+        cluster_id=None,  # Will be set after clustering
+        knowledge_base_id=kb_id,
+        ingested_at=datetime.utcnow().isoformat(),
+        content_length=len(content)
+    )
+
+    # Add document using repository
+    doc_id = await repo.add_document(content, meta)
+
+    # Find or create cluster
+    cluster_id = await find_or_create_cluster(
+        doc_id=doc_id,
+        suggested_cluster=extraction.get("suggested_cluster", "General"),
+        concepts=extraction.get("concepts", []),
+        kb_id=kb_id
+    )
+
+    # Update metadata with cluster_id and save
+    if cluster_id:
+        meta.cluster_id = cluster_id
+        meta.doc_id = doc_id
+        await repo.update_document_metadata(doc_id, meta)
+
+    # Record AI decision for clustering (agentic learning)
+    try:
+        # Calculate clustering confidence (simple heuristic for now)
+        clustering_confidence = 0.75  # Default medium confidence
+        if cluster_id and len(extraction.get("concepts", [])) >= 3:
+            clustering_confidence = 0.85  # Higher confidence with more concepts
+
+        await feedback_service.record_ai_decision(
+            decision_type="clustering",
+            username=current_user.username,
+            input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
+            output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
+            confidence_score=clustering_confidence,
+            knowledge_base_id=kb_id,
+            document_id=doc_id,
+            cluster_id=cluster_id,
+            model_name="heuristic"
         )
-        kb_metadata[doc_id].cluster_id = cluster_id
+    except Exception as e:
+        logger.warning(f"Failed to record clustering decision: {e}")
 
-        # Record AI decision for clustering (agentic learning)
-        try:
-            # Calculate clustering confidence (simple heuristic for now)
-            clustering_confidence = 0.75  # Default medium confidence
-            if cluster_id and len(extraction.get("concepts", [])) >= 3:
-                clustering_confidence = 0.85  # Higher confidence with more concepts
-
-            await feedback_service.record_ai_decision(
-                decision_type="clustering",
-                username=current_user.username,
-                input_data={"concepts": extraction.get("concepts", []), "suggested_cluster": extraction.get("suggested_cluster")},
-                output_data={"cluster_id": cluster_id, "cluster_name": extraction.get("suggested_cluster")},
-                confidence_score=clustering_confidence,
-                knowledge_base_id=kb_id,
-                document_id=doc_id,
-                cluster_id=cluster_id,
-                model_name="heuristic"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to record clustering decision: {e}")
-
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
-
-        # Update document count in KB
-        from ..db_models import DBKnowledgeBase
-        kb = db.query(DBKnowledgeBase).filter_by(id=kb_id).first()
-        if kb:
-            kb.document_count = len(kb_documents)
-            db.commit()
+    # Update document count in KB
+    from ..db_models import DBKnowledgeBase
+    kb = db.query(DBKnowledgeBase).filter_by(id=kb_id).first()
+    if kb:
+        kb_documents = await repo.get_documents_by_kb(kb_id)
+        kb.document_count = len(kb_documents)
+        db.commit()
 
         # Chunk document for RAG (async, runs embeddings)
         chunk_result = None
