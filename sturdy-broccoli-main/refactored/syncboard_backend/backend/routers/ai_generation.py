@@ -20,12 +20,14 @@ from sqlalchemy.orm import Session
 from ..models import User, GenerationRequest, GenerationResponse, CitationInfo
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_kb_documents,
     get_kb_metadata,
     get_kb_doc_ids,
     get_user_default_kb_id,
     get_vector_store,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from ..db_models import DBDocumentChunk
 
@@ -77,6 +79,7 @@ except ImportError as e:
 async def generate_content(
     req: GenerationRequest,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -93,6 +96,7 @@ async def generate_content(
     Args:
         req: Generation request with prompt, model, and use_chunks flag
         request: FastAPI request (for rate limiting)
+        repo: Repository instance
         current_user: Authenticated user
         db: Database session
 
@@ -107,9 +111,9 @@ async def generate_content(
     # Get user's default knowledge base (KB-scoped, no data leakage)
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage (properly isolated)
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
+    # Get KB-scoped storage from repository (properly isolated)
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
 
     # Filter to user's documents within their KB
     user_doc_ids = []

@@ -22,11 +22,13 @@ from pydantic import BaseModel, Field
 from ..models import User
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_kb_documents,
     get_kb_metadata,
     get_kb_clusters,
     get_user_default_kb_id,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from ..industry_profiles import (
     Industry,
@@ -184,6 +186,7 @@ async def generate_content(
     request: Request,
     req: ContentGenerationRequest,
     industry: Optional[str] = None,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -193,6 +196,9 @@ async def generate_content(
     Args:
         req: Generation request with template and options
         industry: Industry to use (optional, uses KB default if not specified)
+        repo: Repository instance
+        current_user: Authenticated user
+        db: Database session
 
     Returns:
         Generated content with sections and citations
@@ -200,10 +206,10 @@ async def generate_content(
     # Get user's KB
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB data
-    documents = get_kb_documents(kb_id)
-    metadata = get_kb_metadata(kb_id)
-    clusters = get_kb_clusters(kb_id)
+    # Get KB data from repository
+    documents = await repo.get_documents_by_kb(kb_id)
+    metadata = await repo.get_metadata_by_kb(kb_id)
+    clusters = await repo.get_clusters_by_kb(kb_id)
 
     if not documents:
         raise HTTPException(400, "No documents in knowledge base. Upload content first.")
