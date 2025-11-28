@@ -23,12 +23,14 @@ from ..models import (
 )
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_kb_documents,
     get_kb_metadata,
     get_kb_clusters,
     get_user_default_kb_id,
     get_build_suggester,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db, get_db_context
 from ..sanitization import validate_positive_integer
 from ..constants import MAX_SUGGESTIONS
@@ -57,6 +59,7 @@ router = APIRouter(
 async def what_can_i_build(
     req: BuildSuggestionRequest,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -68,6 +71,7 @@ async def what_can_i_build(
     Args:
         req: Build suggestion request with max_suggestions parameter
         request: FastAPI request (for rate limiting)
+        repo: Repository instance
         current_user: Authenticated user
         db: Database session
 
@@ -77,10 +81,10 @@ async def what_can_i_build(
     # Get user's default knowledge base ID
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage (properly isolated by KB)
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
     build_suggester = get_build_suggester()
 
     # Validate max_suggestions parameter
@@ -185,6 +189,7 @@ async def what_can_i_build(
 async def what_can_i_build_goal_driven(
     req: GoalDrivenSuggestionsRequest,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -201,6 +206,7 @@ async def what_can_i_build_goal_driven(
     Args:
         req: Request with max_suggestions and quality filter options
         request: FastAPI request (for rate limiting)
+        repo: Repository instance
         current_user: Authenticated user
         db: Database session
 
@@ -212,10 +218,10 @@ async def what_can_i_build_goal_driven(
     # Get user's default knowledge base ID
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
     build_suggester = get_build_suggester()
 
     # Get user's primary goal and constraints
@@ -350,6 +356,7 @@ async def what_can_i_build_goal_driven(
 async def validate_market(
     req: MarketValidationRequest,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -360,6 +367,7 @@ async def validate_market(
 
     Args:
         req: Market validation request with project details
+        repo: Repository instance
         current_user: Authenticated user
         db: Database session
 
@@ -371,8 +379,8 @@ async def validate_market(
 
     # Get user's knowledge for context
     kb_id = get_user_default_kb_id(current_user.username, db)
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
 
     # Build knowledge summary
     user_metadata = {
