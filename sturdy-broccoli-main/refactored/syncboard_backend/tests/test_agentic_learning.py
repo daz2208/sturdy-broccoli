@@ -465,7 +465,6 @@ class TestDatabaseIntegration:
 
         user = DBUser(
             username="testuser",
-            email="test@example.com",
             hashed_password=bcrypt.hashpw("password".encode(), bcrypt.gensalt()).decode()
         )
         db_session.add(user)
@@ -475,7 +474,7 @@ class TestDatabaseIntegration:
         kb = DBKnowledgeBase(
             id="test-kb-id",
             name="Test KB",
-            username="testuser"
+            owner_username="testuser"
         )
         db_session.add(kb)
         db_session.commit()
@@ -509,7 +508,6 @@ class TestDatabaseIntegration:
         # Setup user and KB
         user = DBUser(
             username="testuser2",
-            email="test2@example.com",
             hashed_password=bcrypt.hashpw("password".encode(), bcrypt.gensalt()).decode()
         )
         db_session.add(user)
@@ -517,7 +515,7 @@ class TestDatabaseIntegration:
         kb = DBKnowledgeBase(
             id="test-kb-id-2",
             name="Test KB 2",
-            username="testuser2"
+            owner_username="testuser2"
         )
         db_session.add(kb)
         db_session.commit()
