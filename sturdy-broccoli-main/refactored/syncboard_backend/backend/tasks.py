@@ -39,7 +39,8 @@ from .sanitization import sanitize_filename, sanitize_text_content, validate_url
 from .constants import MAX_UPLOAD_SIZE_BYTES
 from .config import settings
 from . import ingest
-from .db_storage_adapter import save_storage_to_db, load_storage_from_db
+from .db_storage_adapter import load_storage_from_db
+from .db_repository import DatabaseKnowledgeBankRepository
 from .redis_client import notify_data_changed
 from .chunking_pipeline import chunk_document_on_upload
 from .db_models import DBDocument
@@ -363,12 +364,14 @@ def process_multi_document_zip(
             )
             kb_metadata[doc_id].cluster_id = cluster_id
 
-            # Save document metadata to database immediately
+            # Save document to database immediately via repository
             # This ensures doc_id and cluster_id exist before recording AI decisions
-            save_storage_to_db(documents, metadata, clusters, users)
+            with get_db_context() as db:
+                repo = DatabaseKnowledgeBankRepository(db)
+                run_async(repo.add_document(document_text, meta))
 
             # Record AI decision for clustering (agentic learning)
-            # Must happen AFTER save_storage_to_db so cluster exists in DB
+            # Must happen AFTER document save so cluster exists in DB
             try:
                 clustering_confidence = 0.75  # Default medium confidence
                 if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -458,8 +461,8 @@ def process_multi_document_zip(
             logger.error(f"Failed to process ZIP document {doc_filename}: {e}", exc_info=True)
             continue
 
-    # Final save and cache reload
-    save_storage_to_db(documents, metadata, clusters, users)
+    # Reload cache and notify
+    # Documents already saved via repository in the loop above
     reload_cache_from_db()
     notify_data_changed()
 
@@ -680,7 +683,7 @@ def process_file_upload(
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
-        # Stage 5: Save to database
+        # Stage 5: Save to database via repository
         skill_level = extraction.get('skill_level', 'unknown')
         primary_topic = extraction.get('primary_topic', 'uncategorized')
         self.update_state(
@@ -692,10 +695,12 @@ def process_file_upload(
             }
         )
 
-        save_storage_to_db(documents, metadata, clusters, users)
+        with get_db_context() as db:
+            repo = DatabaseRepository(db)
+            run_async(repo.add_document(document_text, meta))
 
         # Record AI decision for clustering (agentic learning)
-        # Must happen AFTER save_storage_to_db so cluster exists in DB
+        # Must happen AFTER document save so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -1097,10 +1102,12 @@ def process_url_upload(
             }
         )
 
-        save_storage_to_db(documents, metadata, clusters, users)
+        with get_db_context() as db:
+            repo = DatabaseRepository(db)
+            run_async(repo.add_document(document_text, meta))
 
         # Record AI decision for clustering (agentic learning)
-        # Must happen AFTER save_storage_to_db so cluster exists in DB
+        # Must happen AFTER document save so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -1478,11 +1485,13 @@ def process_image_upload(
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
-        # Save
-        save_storage_to_db(documents, metadata, clusters, users)
+        # Save to database via repository
+        with get_db_context() as db:
+            repo = DatabaseRepository(db)
+            run_async(repo.add_document(combined_text, meta))
 
         # Record AI decision for clustering (agentic learning)
-        # Must happen AFTER save_storage_to_db so cluster exists in DB
+        # Must happen AFTER document save so cluster exists in DB
         try:
             clustering_confidence = 0.75  # Default medium confidence
             if cluster_id and len(extraction.get("concepts", [])) >= 3:
@@ -2069,6 +2078,11 @@ def import_github_files_task(
                 )
                 kb_metadata[doc_id] = doc_metadata
 
+                # Save document to database via repository
+                with get_db_context() as db:
+                    repo = DatabaseKnowledgeBankRepository(db)
+                    run_async(repo.add_document(file_content, doc_metadata))
+
                 # Track imported doc
                 imported_docs.append({
                     "doc_id": doc_id,
@@ -2092,14 +2106,14 @@ def import_github_files_task(
                     "error": str(e)
                 })
 
-        # Save to database
+        # Reload cache and notify
+        # Documents already saved via repository in the loop above
         try:
-            save_storage_to_db(documents, metadata, clusters, users)
             reload_cache_from_db()
             notify_data_changed()  # Notify backend to reload
-            logger.info(f"GitHub import: Saved {files_processed} files to database")
+            logger.info(f"GitHub import: Processed {files_processed} files")
         except Exception as e:
-            logger.error(f"Failed to save GitHub import to database: {e}")
+            logger.error(f"Failed to reload cache after GitHub import: {e}")
 
         # Update import record
         with get_db_context() as db:
