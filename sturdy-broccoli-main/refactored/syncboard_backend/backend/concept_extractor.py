@@ -12,13 +12,8 @@ import logging
 from typing import Dict, Optional, Any
 
 from .llm_providers import LLMProvider, OpenAIProvider, get_representative_sample
-from .constants import (
-    ENABLE_CONCEPT_CACHING,
-    CONCEPT_CACHE_TTL_DAYS,
-    CONCEPT_EXTRACTION_SAMPLE_SIZE,
-    MIN_CONCEPT_CONFIDENCE,
-    VALID_CONCEPT_CATEGORIES
-)
+from .config import settings
+from .constants import VALID_CONCEPT_CATEGORIES
 from .cache import get_cached_concepts, cache_concepts
 
 logger = logging.getLogger(__name__)
@@ -120,11 +115,11 @@ class ConceptExtractor:
             }
         """
         # Check cache first (if enabled)
-        if ENABLE_CONCEPT_CACHING:
+        if settings.enable_concept_caching:
             cached_result = get_cached_concepts(
                 content=content,
                 source_type=source_type,
-                sample_size=CONCEPT_EXTRACTION_SAMPLE_SIZE
+                sample_size=settings.concept_sample_size
             )
 
             if cached_result:
@@ -153,7 +148,7 @@ class ConceptExtractor:
             original_count = len(result.get('concepts', []))
             result['concepts'] = filter_concepts_by_confidence(
                 result.get('concepts', []),
-                min_confidence=MIN_CONCEPT_CONFIDENCE
+                min_confidence=settings.min_concept_confidence
             )
             filtered_count = len(result['concepts'])
 
@@ -194,16 +189,16 @@ class ConceptExtractor:
             )
 
             # Store in cache for future use (after filtering)
-            if ENABLE_CONCEPT_CACHING and result.get("concepts"):
+            if settings.enable_concept_caching and result.get("concepts"):
                 cache_success = cache_concepts(
                     content=content,
                     source_type=source_type,
-                    sample_size=CONCEPT_EXTRACTION_SAMPLE_SIZE,
+                    sample_size=settings.concept_sample_size,
                     result=result,
-                    ttl_days=CONCEPT_CACHE_TTL_DAYS
+                    ttl_days=settings.concept_cache_ttl_days
                 )
                 if cache_success:
-                    logger.debug(f"Cached concept extraction result (TTL: {CONCEPT_CACHE_TTL_DAYS} days)")
+                    logger.debug(f"Cached concept extraction result (TTL: {settings.concept_cache_ttl_days} days)")
 
             return result
 
@@ -350,7 +345,7 @@ Be critical but constructive. The goal is ACCURACY."""
         if missing_concepts:
             for concept in missing_concepts:
                 # Filter by confidence threshold
-                if concept.get('confidence', 0.0) >= MIN_CONCEPT_CONFIDENCE:
+                if concept.get('confidence', 0.0) >= settings.min_concept_confidence:
                     concepts.append(concept)
                     changes["concepts_added"].append(concept['name'])
             logger.info(f"Added missing concepts: {changes['concepts_added']}")
@@ -486,9 +481,7 @@ Be critical but constructive. The goal is ACCURACY."""
             )
 
         # Step 5: Optional dual-pass critique for low confidence
-        from .constants import ENABLE_DUAL_PASS_EXTRACTION, DUAL_PASS_CONFIDENCE_THRESHOLD
-
-        if ENABLE_DUAL_PASS_EXTRACTION and calibrated_confidence < DUAL_PASS_CONFIDENCE_THRESHOLD:
+        if settings.enable_dual_pass and calibrated_confidence < settings.dual_pass_threshold:
             logger.info(
                 f"Low confidence ({calibrated_confidence:.2f}), applying dual-pass critique"
             )
@@ -524,14 +517,12 @@ Be critical but constructive. The goal is ACCURACY."""
         Returns:
             Extraction result with concepts and metadata
         """
-        from .constants import CONCEPT_EXTRACTION_METHOD
-
         # Smart sampling: extract from beginning, middle, and end
-        if CONCEPT_EXTRACTION_METHOD == "smart":
-            sample = get_representative_sample(content, max_chars=CONCEPT_EXTRACTION_SAMPLE_SIZE)
+        if settings.concept_sample_method == "smart":
+            sample = get_representative_sample(content, max_chars=settings.concept_sample_size)
             sampling_note = "\nNOTE: For long documents, this is a representative sample from beginning, middle, and end."
         else:
-            sample = content[:CONCEPT_EXTRACTION_SAMPLE_SIZE] if len(content) > CONCEPT_EXTRACTION_SAMPLE_SIZE else content
+            sample = content[:settings.concept_sample_size] if len(content) > settings.concept_sample_size else content
             sampling_note = ""
 
         # Detect YouTube transcripts
@@ -556,7 +547,7 @@ Be critical but constructive. The goal is ACCURACY."""
             original_count = len(result.get('concepts', []))
             result['concepts'] = filter_concepts_by_confidence(
                 result.get('concepts', []),
-                min_confidence=MIN_CONCEPT_CONFIDENCE
+                min_confidence=settings.min_concept_confidence
             )
             filtered_count = len(result['concepts'])
 
