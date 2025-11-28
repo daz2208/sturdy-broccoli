@@ -11,7 +11,8 @@ import uuid
 from datetime import datetime
 
 from ..database import get_db
-from ..dependencies import get_current_user, get_kb_documents, get_kb_metadata, get_kb_clusters, get_build_suggester
+from ..dependencies import get_current_user, get_repository, get_kb_documents, get_kb_metadata, get_kb_clusters, get_build_suggester
+from ..repository_interface import KnowledgeBankRepository
 from ..db_models import DBKnowledgeBase, DBBuildSuggestion, DBDocument, DBCluster
 from ..models import (
     KnowledgeBase,
@@ -258,6 +259,7 @@ async def get_knowledge_base_stats(
 async def generate_build_suggestions(
     kb_id: str,
     gen_request: BuildSuggestionGenerate,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -274,10 +276,10 @@ async def generate_build_suggestions(
             detail="Knowledge base not found"
         )
 
-    # Get documents, metadata, clusters for THIS knowledge base only
-    kb_docs = get_kb_documents(kb_id)
-    kb_meta = get_kb_metadata(kb_id)
-    kb_clusts = get_kb_clusters(kb_id)
+    # Get documents, metadata, clusters for THIS knowledge base only from repository
+    kb_docs = await repo.get_documents_by_kb(kb_id)
+    kb_meta = await repo.get_metadata_by_kb(kb_id)
+    kb_clusts = await repo.get_clusters_by_kb(kb_id)
 
     # Generate suggestions
     suggester = get_build_suggester()
