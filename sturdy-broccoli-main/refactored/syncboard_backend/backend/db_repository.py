@@ -152,6 +152,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
                 doc_id=doc_id,
                 owner_username=metadata.owner,
                 cluster_id=metadata.cluster_id,
+                knowledge_base_id=metadata.knowledge_base_id,
                 source_type=metadata.source_type,
                 source_url=metadata.source_url,
                 filename=metadata.filename,
@@ -259,6 +260,55 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             # Remove from vector store
             # Note: VectorStore doesn't have delete, would need to rebuild
             logger.debug(f"Deleted document {doc_id}")
+            return True
+
+    async def update_document_metadata(
+        self,
+        doc_id: int,
+        metadata: DocumentMetadata
+    ) -> bool:
+        """
+        Update document metadata.
+
+        Args:
+            doc_id: Document ID
+            metadata: Updated metadata
+
+        Returns:
+            True if updated, False if not found
+        """
+        async with self._lock:
+            db_doc = self.db.query(DBDocument).filter_by(doc_id=doc_id).first()
+            if not db_doc:
+                return False
+
+            # Update fields from metadata
+            db_doc.cluster_id = metadata.cluster_id
+            db_doc.skill_level = metadata.skill_level
+            db_doc.source_type = metadata.source_type
+            db_doc.source_url = metadata.source_url
+            db_doc.filename = metadata.filename
+            db_doc.image_path = metadata.image_path
+            db_doc.content_length = metadata.content_length
+            db_doc.knowledge_base_id = metadata.knowledge_base_id
+
+            # Update concepts - delete old ones and add new ones
+            # Delete existing concepts
+            for concept in db_doc.concepts:
+                self.db.delete(concept)
+
+            # Add new concepts
+            for concept in metadata.concepts:
+                db_concept = DBConcept(
+                    document_id=db_doc.id,
+                    name=concept.name,
+                    category=concept.category,
+                    confidence=concept.confidence
+                )
+                self.db.add(db_concept)
+
+            self.db.commit()
+            logger.debug(f"Updated metadata for document {doc_id}")
             return True
 
     # =============================================================================

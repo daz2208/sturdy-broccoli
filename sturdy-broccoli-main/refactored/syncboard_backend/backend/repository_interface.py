@@ -154,6 +154,24 @@ class KnowledgeBankRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    async def update_document_metadata(
+        self,
+        doc_id: int,
+        metadata: DocumentMetadata
+    ) -> bool:
+        """
+        Update document metadata.
+
+        Args:
+            doc_id: Document ID
+            metadata: Updated metadata
+
+        Returns:
+            True if updated, False if not found
+        """
+        pass
+
     # =============================================================================
     # CLUSTER OPERATIONS
     # =============================================================================

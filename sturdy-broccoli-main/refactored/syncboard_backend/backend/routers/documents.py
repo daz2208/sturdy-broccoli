@@ -18,18 +18,11 @@ from ..dependencies import (
     get_current_user,
     get_repository,
     get_user_default_kb_id,
-    # Legacy imports - to be removed after full migration
-    get_documents,
-    get_metadata,
-    get_clusters,
-    get_users,
-    get_storage_lock,
 )
 from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from sqlalchemy.orm import Session
 from ..constants import SKILL_LEVELS
-from ..db_storage_adapter import save_storage_to_db
 from ..redis_client import (
     invalidate_analytics,
     invalidate_build_suggestions,
@@ -252,46 +245,32 @@ async def delete_document(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage using repository
-    kb_documents = await repo.get_documents_by_kb(kb_id)
-    kb_metadata = await repo.get_metadata_by_kb(kb_id)
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-
-    # Get global storage for save
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    storage_lock = get_storage_lock()
-
-    if doc_id not in kb_documents:
+    # Get metadata to check ownership and cluster info
+    meta = await repo.get_document_metadata(doc_id)
+    if not meta:
         raise HTTPException(404, f"Document {doc_id} not found")
 
-    # CRITICAL: Use lock for thread-safe modifications to shared state
-    async with storage_lock:
-        # Remove from KB-scoped documents and metadata
-        del kb_documents[doc_id]
-        meta = kb_metadata.pop(doc_id, None)
+    # Verify document belongs to user's KB
+    if meta.knowledge_base_id != kb_id:
+        raise HTTPException(404, f"Document {doc_id} not found")
 
-        # Remove from vector store (if it has a remove method)
-        # Note: Current VectorStore doesn't have remove, but we'll handle this gracefully
+    # Store cluster_id and source_type for logging before deletion
+    cluster_id = meta.cluster_id
+    source_type = meta.source_type
 
-        # Remove from cluster
-        cluster_id = meta.cluster_id if meta else None
-        if meta and meta.cluster_id is not None:
-            cluster = kb_clusters.get(meta.cluster_id)
-            if cluster and doc_id in cluster.doc_ids:
-                cluster.doc_ids.remove(doc_id)
+    # Delete document using repository
+    success = await repo.delete_document(doc_id)
+    if not success:
+        raise HTTPException(500, "Failed to delete document")
 
-        # Save to database
-        save_storage_to_db(documents, metadata, clusters, users)
-
-        # Update document count in KB
-        from ..db_models import DBKnowledgeBase
-        kb = db.query(DBKnowledgeBase).filter_by(id=kb_id).first()
-        if kb:
-            kb.document_count = len(kb_documents)
-            db.commit()
+    # Update document count in KB
+    from ..db_models import DBKnowledgeBase
+    kb = db.query(DBKnowledgeBase).filter_by(id=kb_id).first()
+    if kb:
+        # Count documents in this KB
+        kb_documents = await repo.get_documents_by_kb(kb_id)
+        kb.document_count = len(kb_documents)
+        db.commit()
 
     # Invalidate caches (knowledge bank content changed)
     invalidate_analytics(user.username)
@@ -302,7 +281,7 @@ async def delete_document(
     # Structured logging with request context
     logger.info(
         f"[{request.state.request_id}] User {user.username} deleted document {doc_id} "
-        f"from KB {kb_id} (cluster: {cluster_id}, source: {meta.source_type if meta else 'unknown'})"
+        f"from KB {kb_id} (cluster: {cluster_id}, source: {source_type})"
     )
 
     # Broadcast WebSocket event for real-time updates
@@ -348,70 +327,50 @@ async def update_document_metadata(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage using repository
-    kb_documents = await repo.get_documents_by_kb(kb_id)
-    kb_metadata = await repo.get_metadata_by_kb(kb_id)
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-
-    # Get global storage for save
-    documents = get_documents()
-    metadata = get_metadata()
-    clusters = get_clusters()
-    users = get_users()
-    storage_lock = get_storage_lock()
-
-    if doc_id not in kb_documents:
+    # Get current metadata
+    meta = await repo.get_document_metadata(doc_id)
+    if not meta:
         raise HTTPException(404, f"Document {doc_id} not found")
 
-    if doc_id not in kb_metadata:
-        raise HTTPException(404, f"Metadata for document {doc_id} not found")
+    # Verify document belongs to user's KB
+    if meta.knowledge_base_id != kb_id:
+        raise HTTPException(404, f"Document {doc_id} not found")
 
-    # CRITICAL: Use lock for thread-safe modifications to shared state
-    async with storage_lock:
-        meta = kb_metadata[doc_id]
+    # Update allowed fields
+    if 'skill_level' in updates:
+        if updates['skill_level'] in SKILL_LEVELS:
+            meta.skill_level = updates['skill_level']
 
-        # Update allowed fields
-        if 'primary_topic' in updates:
-            meta.primary_topic = updates['primary_topic']
+    if 'cluster_id' in updates:
+        new_cluster_id = updates['cluster_id']
+        old_cluster_id = meta.cluster_id
 
-        if 'skill_level' in updates:
-            if updates['skill_level'] in SKILL_LEVELS:
-                meta.skill_level = updates['skill_level']
+        # Record feedback for cluster move (agentic learning)
+        if old_cluster_id != new_cluster_id:
+            try:
+                await feedback_service.record_cluster_move(
+                    username=user.username,
+                    document_id=doc_id,
+                    from_cluster_id=old_cluster_id,
+                    to_cluster_id=new_cluster_id,
+                    knowledge_base_id=kb_id
+                )
+                logger.info(f"Recorded cluster move feedback: doc {doc_id}, {old_cluster_id} → {new_cluster_id}")
+            except Exception as e:
+                logger.warning(f"Failed to record cluster move feedback: {e}")
 
-        if 'cluster_id' in updates:
-            new_cluster_id = updates['cluster_id']
-            old_cluster_id = meta.cluster_id
+        # Validate new cluster exists
+        if new_cluster_id is not None:
+            cluster = await repo.get_cluster(new_cluster_id)
+            if not cluster:
+                raise HTTPException(404, f"Cluster {new_cluster_id} not found")
 
-            # Record feedback for cluster move (agentic learning)
-            if old_cluster_id != new_cluster_id:
-                try:
-                    await feedback_service.record_cluster_move(
-                        username=user.username,
-                        document_id=doc_id,
-                        from_cluster_id=old_cluster_id,
-                        to_cluster_id=new_cluster_id,
-                        knowledge_base_id=kb_id
-                    )
-                    logger.info(f"Recorded cluster move feedback: doc {doc_id}, {old_cluster_id} → {new_cluster_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to record cluster move feedback: {e}")
+        meta.cluster_id = new_cluster_id
 
-            # Remove from old cluster
-            if old_cluster_id is not None and old_cluster_id in kb_clusters:
-                old_cluster = kb_clusters[old_cluster_id]
-                if doc_id in old_cluster.doc_ids:
-                    old_cluster.doc_ids.remove(doc_id)
-
-            # Add to new cluster
-            if new_cluster_id is not None:
-                if new_cluster_id not in kb_clusters:
-                    raise HTTPException(404, f"Cluster {new_cluster_id} not found")
-                kb_clusters[new_cluster_id].doc_ids.append(doc_id)
-
-            meta.cluster_id = new_cluster_id
-
-        # Save to database
-        save_storage_to_db(documents, metadata, clusters, users)
+    # Update metadata using repository
+    success = await repo.update_document_metadata(doc_id, meta)
+    if not success:
+        raise HTTPException(500, "Failed to update metadata")
 
     logger.info(f"Updated metadata for document {doc_id} in KB {kb_id}")
 
