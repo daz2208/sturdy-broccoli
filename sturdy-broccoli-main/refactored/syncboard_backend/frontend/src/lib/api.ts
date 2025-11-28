@@ -171,6 +171,23 @@ class ApiClient {
     return data;
   }
 
+  async downloadDocument(docId: number, filename: string): Promise<void> {
+    const response = await this.client.get(`/documents/${docId}/download`, {
+      responseType: 'blob',
+    });
+
+    // Create download link
+    const blob = new Blob([response.data], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
   async updateDocumentMetadata(docId: number, metadata: Types.DocumentMetadata): Promise<{ message: string; updated_metadata: Types.DocumentMetadata }> {
     const { data } = await this.client.put(`/documents/${docId}/metadata`, metadata);
     return data;
@@ -245,14 +262,12 @@ class ApiClient {
     notes?: string;
     status?: string;
   }): Promise<{ message: string; saved_idea: any }> {
-    const { data } = await this.client.post('/ideas/save', null, {
-      params: {
-        idea_seed_id: idea.idea_seed_id,
-        title: idea.custom_title,
-        description: idea.custom_description,
-        suggestion_data: idea.custom_data ? JSON.stringify(idea.custom_data) : undefined,
-        notes: idea.notes
-      }
+    const { data } = await this.client.post('/ideas/save', {
+      idea_seed_id: idea.idea_seed_id,
+      title: idea.custom_title,
+      description: idea.custom_description,
+      suggestion_data: idea.custom_data,
+      notes: idea.notes
     });
     return data;
   }
@@ -530,6 +545,10 @@ class ApiClient {
     return data;
   }
 
+  async backfillIdeaSeeds(): Promise<{ documents_processed: number; seeds_generated: number; skipped: number }> {
+    const { data } = await this.client.post('/idea-seeds/backfill');
+    return data;
+  }
   // ==========================================================================
   // KNOWLEDGE GRAPH
   // ==========================================================================

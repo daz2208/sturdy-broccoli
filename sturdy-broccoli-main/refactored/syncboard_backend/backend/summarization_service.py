@@ -103,8 +103,11 @@ Respond in JSON format:
                 "response_format": {"type": "json_object"}
             }
 
-            params["max_completion_tokens"] = 300
-            params["temperature"] = 0.3
+            params["max_completion_tokens"] = 5000  # Increased from 300 for comprehensive chunk summaries
+
+            # GPT-5 models only support temperature=1 (default), don't add for GPT-5
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = 0.3
 
             response = self.client.chat.completions.create(**params)
 
@@ -185,8 +188,11 @@ Respond in JSON format:
                 "response_format": {"type": "json_object"}
             }
 
-            params["max_completion_tokens"] = 500
-            params["temperature"] = 0.3
+            params["max_completion_tokens"] = 6000  # Increased from 500 for comprehensive section summaries
+
+            # GPT-5 models only support temperature=1 (default), don't add for GPT-5
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = 0.3
 
             response = self.client.chat.completions.create(**params)
 
@@ -283,8 +289,11 @@ Respond in JSON format:
                 "response_format": {"type": "json_object"}
             }
 
-            params["max_completion_tokens"] = 700
-            params["temperature"] = 0.3
+            params["max_completion_tokens"] = 10000  # Increased from 700 for full document summaries with complete analysis
+
+            # GPT-5 models only support temperature=1 (default), don't add for GPT-5
+            if not self.model.startswith("gpt-5"):
+                params["temperature"] = 0.3
 
             response = self.client.chat.completions.create(**params)
 

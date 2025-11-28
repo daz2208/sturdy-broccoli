@@ -488,7 +488,7 @@ Return ONLY the alternative queries, one per line, no numbering or explanations.
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=200
+                max_completion_tokens=5000  # Use max_completion_tokens (works for both GPT-4 and GPT-5)
             )
 
             expansions = response.choices[0].message.content.strip().split("\n")
@@ -891,7 +891,7 @@ Please provide a comprehensive answer with citations."""
                     {"role": "user", "content": user_message}
                 ],
                 temperature=0.7,
-                max_tokens=4000
+                max_completion_tokens=4000  # Use max_completion_tokens (works for both GPT-4 and GPT-5)
             )
 
             return response.choices[0].message.content

@@ -1,0 +1,770 @@
+time="2025-11-27T21:40:25Z" level=warning msg="C:\\Users\\fuggl\\Desktop\\sturdy-broccoli-main\\sturdy-broccoli-main\\refactored\\syncboard_backend\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+syncboard-db  | 
+syncboard-db  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+syncboard-db  | 
+syncboard-db  | 2025-11-27 21:33:11.784 UTC [1] LOG:  starting PostgreSQL 15.15 (Debian 15.15-1.pgdg12+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+syncboard-db       | 2025-11-27 21:33:11.784 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+syncboard-db       | 2025-11-27 21:33:11.784 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+syncboard-db       | 2025-11-27 21:33:11.793 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+syncboard-db       | 2025-11-27 21:33:11.804 UTC [29] LOG:  database system was shut down at 2025-11-27 21:32:56 UTC
+syncboard-db       | 2025-11-27 21:33:11.814 UTC [1] LOG:  database system is ready to accept connections
+syncboard-db       | 2025-11-27 21:33:34.269 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:34.425 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:34.612 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:34.779 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:34.953 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:35.149 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:35.364 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:35.599 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:35.688 UTC [53] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:35.965 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:36.204 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:36.469 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:36.613 UTC [55] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:36.768 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:37.084 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:37.227 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:37.606 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:37.886 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:38.011 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:38.647 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:39.335 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:39.741 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:40.177 UTC [50] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:40.866 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:41.649 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:42.202 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:42.976 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:43.497 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:45.497 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:46.118 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:33:47.079 UTC [56] WARNING:  there is already a transaction in progress
+syncboard-db       | 2025-11-27 21:37:46.091 UTC [53] WARNING:  there is no transaction in progress
+syncboard-db       | 2025-11-27 21:38:01.016 UTC [55] WARNING:  there is no transaction in progress
+syncboard-db       | 2025-11-27 21:38:24.100 UTC [27] LOG:  checkpoint starting: time
+syncboard-db       | 2025-11-27 21:38:24.434 UTC [27] LOG:  checkpoint complete: wrote 5 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.264 s, sync=0.015 s, total=0.338 s; sync files=4, longest=0.011 s, average=0.004 s; distance=5 kB, estimate=5 kB
+syncboard-backend  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+syncboard-backend  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+syncboard-backend  | INFO:backend.main:🚦 Rate limiting enabled
+syncboard-backend  | INFO:backend.main:🔒 Running in development environment
+syncboard-backend  | INFO:backend.main:ℹ️  HTTPS enforcement disabled (not production)
+syncboard-backend  | INFO:backend.main:📊 Usage tracking middleware enabled
+syncboard-backend  | INFO:     Started server process [8]
+syncboard-backend  | INFO:     Waiting for application startup.
+syncboard-backend  | INFO:backend.database:✅ Database tables created/verified
+syncboard-backend  | INFO:backend.main:✅ Database initialized
+syncboard-backend  | INFO:backend.db_storage_adapter:Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-backend  | INFO:backend.main:Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-backend  | INFO:backend.main:Started data change listener thread
+syncboard-backend  | INFO:     Application startup complete.
+syncboard-backend  | INFO:backend.main:✅ Subscribed to data change notifications
+syncboard-backend  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+syncboard-backend  | INFO:     127.0.0.1:39146 - "GET /health HTTP/1.1" 200 OK
+syncboard-backend  | INFO:     127.0.0.1:35930 - "GET /health HTTP/1.1" 200 OK
+syncboard-backend  | INFO:     127.0.0.1:54776 - "GET /health HTTP/1.1" 200 OK
+syncboard-backend  | INFO:     127.0.0.1:59966 - "GET /health HTTP/1.1" 200 OK
+syncboard-flower   | [I 251127 21:33:27 dependencies:65] OpenAI LLM provider initialized successfully
+syncboard-flower   | [I 251127 21:33:27 semantic_dictionary:199] No learned synonyms file found - starting fresh
+syncboard-flower   | [I 251127 21:33:27 semantic_dictionary:190] Initialized SemanticDictionary: 97 seed concepts, 0 learned concepts
+syncboard-flower   | [I 251127 21:33:27 clustering_improved:54] ClusteringEngine initialized with semantic dictionary: 97 seed + 0 learned concepts
+syncboard-flower   | [I 251127 21:33:27 database:31] Database URL: db:5432/syncboard
+syncboard-flower   | [I 251127 21:33:27 redis_client:41] ✅ Redis connected: redis://redis:6379/0
+syncboard-flower   | [I 251127 21:33:33 document_chunker:25] tiktoken loaded for accurate token counting
+syncboard-flower   | [I 251127 21:33:33 websocket_manager:113] WebSocket ConnectionManager initialized
+syncboard-flower   | [I 251127 21:33:33 learning_agent:94] 🤖 Learning Agent: Loaded state from database (observations=114)
+syncboard-flower   | [I 251127 21:33:33 maverick_agent:273] 🔥 MAVERICK: Loaded state from database (proposed=12, validated=0)
+syncboard-flower   | [I 251127 21:33:33 command:168] Visit me at http://0.0.0.0:5555
+syncboard-flower   | [I 251127 21:33:33 command:176] Broker: redis://redis:6379/0
+syncboard-flower   | [I 251127 21:33:33 command:177] Registered tasks: 
+syncboard-flower   |     ['backend.learning_agent.make_autonomous_decisions',
+syncboard-flower   |      'backend.learning_agent.observe_outcomes',
+syncboard-flower   |      'backend.learning_agent.run_experiments',
+syncboard-flower   |      'backend.learning_agent.self_evaluate',
+syncboard-flower   |      'backend.maverick_agent.apply_improvements',
+syncboard-flower   |      'backend.maverick_agent.challenge_decisions',
+syncboard-flower   |      'backend.maverick_agent.measure_and_learn',
+syncboard-flower   |      'backend.maverick_agent.self_improve',
+syncboard-flower   |      'backend.maverick_agent.test_hypotheses',
+syncboard-flower   |      'backend.tasks.find_duplicates_background',
+syncboard-flower   |      'backend.tasks.generate_build_suggestions',
+syncboard-flower   |      'backend.tasks.import_github_files_task',
+syncboard-flower   |      'backend.tasks.process_file_upload',
+syncboard-flower   |      'backend.tasks.process_image_upload',
+syncboard-flower   |      'backend.tasks.process_url_upload',
+syncboard-flower   |      'celery.accumulate',
+syncboard-flower   |      'celery.backend_cleanup',
+syncboard-flower   |      'celery.chain',
+syncboard-flower   |      'celery.chord',
+syncboard-flower   |      'celery.chord_unlock',
+syncboard-flower   |      'celery.chunks',
+syncboard-flower   |      'celery.group',
+syncboard-flower   |      'celery.map',
+syncboard-flower   |      'celery.starmap']
+syncboard-flower   | [I 251127 21:33:33 mixins:228] Connected to redis://redis:6379/0
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method active failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method registered failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method scheduled failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method conf failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method revoked failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method reserved failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method active_queues failed
+syncboard-flower   | [W 251127 21:33:34 inspector:44] Inspect method stats failed
+syncboard-celery-uploads  | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery-uploads  | absolutely not recommended!
+syncboard-celery-uploads  | 
+syncboard-celery-uploads  | Please specify a different user using the --uid option.
+syncboard-celery-uploads  | 
+syncboard-celery-uploads  | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery-uploads  | 
+syncboard-celery-uploads  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery-uploads  |  
+syncboard-celery-uploads  |  -------------- celery@9dd4211c2a99 v5.5.3 (immunity)
+syncboard-celery-uploads  | --- ***** ----- 
+syncboard-celery-uploads  | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:36
+syncboard-celery-uploads  | - *** --- * --- 
+syncboard-celery-uploads  | - ** ---------- [config]
+syncboard-celery-uploads  | - ** ---------- .> app:         syncboard:0x790cab2f8fd0
+syncboard-celery-uploads  | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery-uploads  | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery-uploads  | - *** --- * --- .> concurrency: 2 (prefork)
+syncboard-celery-uploads  | -- ******* ---- .> task events: ON
+syncboard-celery-uploads  | --- ***** ----- 
+syncboard-celery-uploads  |  -------------- [queues]
+syncboard-celery-uploads  |                 .> uploads          exchange=uploads(direct) key=uploads
+syncboard-celery-uploads  |                 
+syncboard-celery-uploads  | 
+syncboard-celery-uploads  | [tasks]
+syncboard-celery-uploads  |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery-uploads  |   . backend.learning_agent.observe_outcomes
+syncboard-celery-uploads  |   . backend.learning_agent.run_experiments
+syncboard-celery-uploads  |   . backend.learning_agent.self_evaluate
+syncboard-celery-uploads  |   . backend.maverick_agent.apply_improvements
+syncboard-celery-uploads  |   . backend.maverick_agent.challenge_decisions
+syncboard-celery-uploads  |   . backend.maverick_agent.measure_and_learn
+syncboard-celery-uploads  |   . backend.maverick_agent.self_improve
+syncboard-celery-uploads  |   . backend.maverick_agent.test_hypotheses
+syncboard-celery-uploads  |   . backend.tasks.find_duplicates_background
+syncboard-celery-uploads  |   . backend.tasks.generate_build_suggestions
+syncboard-celery-uploads  |   . backend.tasks.import_github_files_task
+syncboard-celery-uploads  |   . backend.tasks.process_file_upload
+syncboard-celery-uploads  |   . backend.tasks.process_image_upload
+syncboard-celery-uploads  |   . backend.tasks.process_url_upload
+syncboard-celery-uploads  | 
+syncboard-celery-uploads  | [2025-11-27 21:33:36,363: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery-uploads  | [2025-11-27 21:33:36,595: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery-uploads  | [2025-11-27 21:33:36,599: INFO/ForkPoolWorker-2] Initializing Celery worker cache from database
+syncboard-celery-uploads  | [2025-11-27 21:33:36,616: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery-uploads  | [2025-11-27 21:33:37,643: INFO/MainProcess] mingle: sync with 1 nodes
+syncboard-celery-uploads  | [2025-11-27 21:33:37,644: INFO/MainProcess] mingle: sync complete
+syncboard-celery-uploads  | [2025-11-27 21:33:37,673: INFO/MainProcess] celery@9dd4211c2a99 ready.
+syncboard-celery-uploads  | [2025-11-27 21:33:39,767: INFO/MainProcess] sync with celery@683e3577c1cc
+syncboard-celery-uploads  | [2025-11-27 21:33:46,990: INFO/MainProcess] sync with celery@ccdea6c56bc2
+syncboard-celery-uploads  | [2025-11-27 21:37:56,243: INFO/ForkPoolWorker-2] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-uploads  | [2025-11-27 21:38:01,081: INFO/ForkPoolWorker-1] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-learning  | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery-learning  | absolutely not recommended!
+syncboard-celery-learning  | 
+syncboard-celery-learning  | Please specify a different user using the --uid option.
+syncboard-celery-learning  | 
+syncboard-celery-learning  | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery-learning  | 
+syncboard-celery-learning  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery-learning  |  
+syncboard-celery-learning  |  -------------- celery@d336a1a0cf27 v5.5.3 (immunity)
+syncboard-celery-learning  | --- ***** ----- 
+syncboard-celery-learning  | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:34
+syncboard-celery-learning  | - *** --- * --- 
+syncboard-celery-learning  | - ** ---------- [config]
+syncboard-celery-learning  | - ** ---------- .> app:         syncboard:0x76d2ad689210
+syncboard-celery-learning  | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery-learning  | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery-learning  | - *** --- * --- .> concurrency: 1 (prefork)
+syncboard-celery-learning  | -- ******* ---- .> task events: ON
+syncboard-celery-learning  | --- ***** ----- 
+syncboard-celery-learning  |  -------------- [queues]
+syncboard-celery-learning  |                 .> learning         exchange=learning(direct) key=learning
+syncboard-celery-learning  |                 
+syncboard-celery-learning  | 
+syncboard-celery-learning  | [tasks]
+syncboard-celery-learning  |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery-learning  |   . backend.learning_agent.observe_outcomes
+syncboard-celery-learning  |   . backend.learning_agent.run_experiments
+syncboard-celery-learning  |   . backend.learning_agent.self_evaluate
+syncboard-celery-learning  |   . backend.maverick_agent.apply_improvements
+syncboard-celery-learning  |   . backend.maverick_agent.challenge_decisions
+syncboard-celery-learning  |   . backend.maverick_agent.measure_and_learn
+syncboard-celery-learning  |   . backend.maverick_agent.self_improve
+syncboard-celery-learning  |   . backend.maverick_agent.test_hypotheses
+syncboard-celery-learning  |   . backend.tasks.find_duplicates_background
+syncboard-celery-learning  |   . backend.tasks.generate_build_suggestions
+syncboard-celery-learning  |   . backend.tasks.import_github_files_task
+syncboard-celery-learning  |   . backend.tasks.process_file_upload
+syncboard-celery-learning  |   . backend.tasks.process_image_upload
+syncboard-celery-learning  |   . backend.tasks.process_url_upload
+syncboard-celery-learning  | 
+syncboard-celery-learning  | [2025-11-27 21:33:34,590: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery-learning  | [2025-11-27 21:33:34,596: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery-learning  | [2025-11-27 21:33:34,616: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery-learning  | [2025-11-27 21:33:35,613: INFO/MainProcess] mingle: all alone
+syncboard-celery-learning  | [2025-11-27 21:33:35,657: INFO/MainProcess] celery@d336a1a0cf27 ready.
+syncboard-celery-learning  | [2025-11-27 21:33:35,672: INFO/MainProcess] sync with celery@654aed3bf759
+syncboard-celery-learning  | [2025-11-27 21:33:35,989: INFO/MainProcess] sync with celery@6e29e34f0d9c
+syncboard-celery-learning  | [2025-11-27 21:33:36,634: INFO/MainProcess] sync with celery@9dd4211c2a99
+syncboard-celery-learning  | [2025-11-27 21:33:39,767: INFO/MainProcess] sync with celery@683e3577c1cc
+syncboard-celery-learning  | [2025-11-27 21:33:46,982: INFO/MainProcess] sync with celery@ccdea6c56bc2
+syncboard-celery-learning  | [2025-11-27 21:35:03,731: INFO/MainProcess] Task backend.learning_agent.observe_outcomes[ab08e953-7a17-433c-a6a2-efb8597d9c42] received
+syncboard-celery-learning  | [2025-11-27 21:37:38,825: INFO/ForkPoolWorker-1] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-learning  | [2025-11-27 21:37:38,871: INFO/ForkPoolWorker-1] 👁️ Autonomous Agent: Observing outcomes...
+syncboard-celery-learning  | [2025-11-27 21:37:42,517: INFO/ForkPoolWorker-1] 👁️ Observations complete: 3 patterns detected
+syncboard-celery-learning  | [2025-11-27 21:37:42,542: INFO/ForkPoolWorker-1] Task backend.learning_agent.observe_outcomes[ab08e953-7a17-433c-a6a2-efb8597d9c42] succeeded in 3.695957100997475s: {'status': 'success', 'observations': [{'type': 'successful_patterns', 'concept_count': 717, 'cluster_count': 58}, {'type': 'confidence_calibration', 'buckets': {...}}, {'type': 'concept_cooccurrence', 'strong_pairs': 485, 'examples': [...]}], 'timestamp': '2025-11-27T21:37:42.517787'}
+syncboard-celery-learning  | [2025-11-27 21:40:12,248: INFO/MainProcess] Task backend.learning_agent.make_autonomous_decisions[cd8c4eda-5f39-45f7-900e-c8a25c042904] received
+syncboard-celery-learning  | [2025-11-27 21:40:12,264: INFO/ForkPoolWorker-1] 🎯 Autonomous Agent: Making decisions...
+syncboard-celery-learning  | [2025-11-27 21:40:13,436: INFO/ForkPoolWorker-1] 🎯 Autonomous decisions complete: 0 actions taken
+syncboard-celery-learning  | [2025-11-27 21:40:13,441: INFO/ForkPoolWorker-1] Task backend.learning_agent.make_autonomous_decisions[cd8c4eda-5f39-45f7-900e-c8a25c042904] succeeded in 1.1870163890016556s: {'status': 'success', 'actions_taken': 0, 'actions': []}
+syncboard-celery-learning  | [2025-11-27 21:40:13,452: INFO/MainProcess] Task backend.learning_agent.observe_outcomes[803cda1c-4943-46f9-825d-b13c74ec935e] received
+syncboard-celery-learning  | [2025-11-27 21:40:13,457: INFO/ForkPoolWorker-1] 👁️ Autonomous Agent: Observing outcomes...
+syncboard-celery-learning  | [2025-11-27 21:40:16,313: INFO/ForkPoolWorker-1] 👁️ Observations complete: 3 patterns detected
+syncboard-celery-learning  | [2025-11-27 21:40:16,339: INFO/ForkPoolWorker-1] Task backend.learning_agent.observe_outcomes[803cda1c-4943-46f9-825d-b13c74ec935e] succeeded in 2.8836801489997015s: {'status': 'success', 'observations': [{'type': 'successful_patterns', 'concept_count': 717, 'cluster_count': 58}, {'type': 'confidence_calibration', 'buckets': {...}}, {'type': 'concept_cooccurrence', 'strong_pairs': 485, 'examples': [...]}], 'timestamp': '2025-11-27T21:40:16.314154'}
+syncboard-celery           | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery           | absolutely not recommended!
+syncboard-celery           | 
+syncboard-celery           | Please specify a different user using the --uid option.
+syncboard-celery           | 
+syncboard-celery           | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery           | 
+syncboard-celery           |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery           | [2025-11-27 21:33:33,688: DEBUG/MainProcess] | Worker: Preparing bootsteps.
+syncboard-celery           | [2025-11-27 21:33:33,690: DEBUG/MainProcess] | Worker: Building graph...
+syncboard-celery           | [2025-11-27 21:33:33,691: DEBUG/MainProcess] | Worker: New boot order: {Beat, StateDB, Timer, Hub, Pool, Autoscaler, Consumer}
+syncboard-celery           | [2025-11-27 21:33:33,696: DEBUG/MainProcess] | Consumer: Preparing bootsteps.
+syncboard-celery           | [2025-11-27 21:33:33,696: DEBUG/MainProcess] | Consumer: Building graph...
+syncboard-celery           | [2025-11-27 21:33:33,711: DEBUG/MainProcess] | Consumer: New boot order: {Connection, Events, Heart, Mingle, Tasks, Control, Agent, DelayedDelivery, Gossip, event loop}
+syncboard-celery           |  
+syncboard-celery           |  -------------- celery@683e3577c1cc v5.5.3 (immunity)
+syncboard-celery           | --- ***** ----- 
+syncboard-celery           | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:33
+syncboard-celery           | - *** --- * --- 
+syncboard-celery           | - ** ---------- [config]
+syncboard-celery           | - ** ---------- .> app:         syncboard:0x74987c081650
+syncboard-celery           | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery           | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery           | - *** --- * --- .> concurrency: 16 (prefork)
+syncboard-celery           | -- ******* ---- .> task events: ON
+syncboard-celery           | --- ***** ----- 
+syncboard-celery           |  -------------- [queues]
+syncboard-celery           |                 .> analysis         exchange=analysis(direct) key=analysis
+syncboard-celery           |                 .> celery           exchange=celery(direct) key=celery
+syncboard-celery           |                 .> low_priority     exchange=low_priority(direct) key=low_priority
+syncboard-celery           |                 .> uploads          exchange=uploads(direct) key=uploads
+syncboard-celery           | 
+syncboard-celery           | [tasks]
+syncboard-celery           |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery           |   . backend.learning_agent.observe_outcomes
+syncboard-celery           |   . backend.learning_agent.run_experiments
+syncboard-celery           |   . backend.learning_agent.self_evaluate
+syncboard-celery           |   . backend.maverick_agent.apply_improvements
+syncboard-celery           |   . backend.maverick_agent.challenge_decisions
+syncboard-celery           |   . backend.maverick_agent.measure_and_learn
+syncboard-celery           |   . backend.maverick_agent.self_improve
+syncboard-celery           |   . backend.maverick_agent.test_hypotheses
+syncboard-celery           |   . backend.tasks.find_duplicates_background
+syncboard-celery           |   . backend.tasks.generate_build_suggestions
+syncboard-celery           |   . backend.tasks.import_github_files_task
+syncboard-celery           |   . backend.tasks.process_file_upload
+syncboard-celery           |   . backend.tasks.process_image_upload
+syncboard-celery           |   . backend.tasks.process_url_upload
+syncboard-celery           |   . celery.accumulate
+syncboard-celery           |   . celery.backend_cleanup
+syncboard-celery           |   . celery.chain
+syncboard-celery           |   . celery.chord
+syncboard-celery           |   . celery.chord_unlock
+syncboard-celery           |   . celery.chunks
+syncboard-celery           |   . celery.group
+syncboard-celery           |   . celery.map
+syncboard-celery           |   . celery.starmap
+syncboard-celery           | 
+syncboard-celery           | [2025-11-27 21:33:33,744: DEBUG/MainProcess] | Worker: Starting Hub
+syncboard-celery           | [2025-11-27 21:33:33,745: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:33,745: DEBUG/MainProcess] | Worker: Starting Pool
+syncboard-celery           | [2025-11-27 21:33:34,023: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:34,260: INFO/ForkPoolWorker-2] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:34,417: INFO/ForkPoolWorker-3] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:34,602: INFO/ForkPoolWorker-4] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:34,771: INFO/ForkPoolWorker-5] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:34,946: INFO/ForkPoolWorker-6] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:35,140: INFO/ForkPoolWorker-7] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:35,352: INFO/ForkPoolWorker-8] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:35,588: INFO/ForkPoolWorker-9] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:35,949: INFO/ForkPoolWorker-10] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:36,183: INFO/ForkPoolWorker-11] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:36,451: INFO/ForkPoolWorker-12] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:36,755: INFO/ForkPoolWorker-13] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:37,059: INFO/ForkPoolWorker-14] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:37,984: INFO/ForkPoolWorker-15] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:39,722: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:39,723: DEBUG/MainProcess] | Worker: Starting Consumer
+syncboard-celery           | [2025-11-27 21:33:39,725: DEBUG/MainProcess] | Consumer: Starting Connection
+syncboard-celery           | [2025-11-27 21:33:39,744: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery           | [2025-11-27 21:33:39,744: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:39,744: DEBUG/MainProcess] | Consumer: Starting Events
+syncboard-celery           | [2025-11-27 21:33:39,747: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:39,748: DEBUG/MainProcess] | Consumer: Starting Heart
+syncboard-celery           | [2025-11-27 21:33:39,753: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:39,754: DEBUG/MainProcess] | Consumer: Starting Mingle
+syncboard-celery           | [2025-11-27 21:33:39,755: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery           | [2025-11-27 21:33:40,127: INFO/ForkPoolWorker-16] Initializing Celery worker cache from database
+syncboard-celery           | [2025-11-27 21:33:40,784: INFO/MainProcess] mingle: sync with 4 nodes
+syncboard-celery           | [2025-11-27 21:33:40,786: DEBUG/MainProcess] mingle: processing reply from celery@9dd4211c2a99
+syncboard-celery           | [2025-11-27 21:33:40,787: DEBUG/MainProcess] mingle: processing reply from celery@6e29e34f0d9c
+syncboard-celery           | [2025-11-27 21:33:40,787: DEBUG/MainProcess] mingle: processing reply from celery@d336a1a0cf27
+syncboard-celery           | [2025-11-27 21:33:40,788: DEBUG/MainProcess] mingle: processing reply from celery@654aed3bf759
+syncboard-celery           | [2025-11-27 21:33:40,788: INFO/MainProcess] mingle: sync complete
+syncboard-celery           | [2025-11-27 21:33:40,788: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:40,789: DEBUG/MainProcess] | Consumer: Starting Tasks
+syncboard-celery           | [2025-11-27 21:33:40,814: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:40,815: DEBUG/MainProcess] | Consumer: Starting Control
+syncboard-celery           | [2025-11-27 21:33:40,821: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:40,822: DEBUG/MainProcess] | Consumer: Starting Gossip
+syncboard-celery           | [2025-11-27 21:33:40,890: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery           | [2025-11-27 21:33:40,890: DEBUG/MainProcess] | Consumer: Starting event loop
+syncboard-celery           | [2025-11-27 21:33:40,890: DEBUG/MainProcess] | Worker: Hub.register Pool...
+syncboard-celery           | [2025-11-27 21:33:40,892: INFO/MainProcess] celery@683e3577c1cc ready.
+syncboard-celery           | [2025-11-27 21:33:40,893: DEBUG/MainProcess] basic.qos: prefetch_count->16
+syncboard-celery           | [2025-11-27 21:33:41,062: DEBUG/MainProcess] celery@6e29e34f0d9c joined the party
+syncboard-celery           | [2025-11-27 21:33:41,663: DEBUG/MainProcess] celery@654aed3bf759 joined the party
+syncboard-celery           | [2025-11-27 21:33:41,666: DEBUG/MainProcess] celery@d336a1a0cf27 joined the party
+syncboard-celery           | [2025-11-27 21:33:42,630: DEBUG/MainProcess] celery@9dd4211c2a99 joined the party
+syncboard-celery           | [2025-11-27 21:33:43,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:33:46,990: DEBUG/MainProcess] pidbox received method hello(from_node='celery@ccdea6c56bc2', revoked={}) [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '226e6e81-3329-3557-a58f-ae6e1e77e4a2'} ticket:a97a689a-1eff-4d22-85ec-c100bfa548f8]
+syncboard-celery           | [2025-11-27 21:33:46,990: INFO/MainProcess] sync with celery@ccdea6c56bc2
+syncboard-celery           | [2025-11-27 21:33:47,310: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '7c2bd48b-d435-39ee-a208-d8e87459ebd2'} ticket:9866c203-5921-4da3-81e1-276d0c610775]
+syncboard-celery           | [2025-11-27 21:33:48,181: DEBUG/MainProcess] celery@ccdea6c56bc2 joined the party
+syncboard-celery           | [2025-11-27 21:33:50,077: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:33:53,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:33:58,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:03,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:08,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:13,853: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:20,036: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:20,376: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '87e44bb8-da77-3d06-ad34-481e4e14fa06'} ticket:312eb689-28c0-46ce-9c5a-356b4ee833dc]
+syncboard-celery           | [2025-11-27 21:34:23,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:28,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:33,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:38,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:43,862: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:50,048: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:53,449: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'fb3d3d32-2826-363d-bf7e-221d87bde608'} ticket:568fc49f-5ba3-4f0a-9c48-8b103e317c29]
+syncboard-celery           | [2025-11-27 21:34:53,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:34:58,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:03,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:08,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:13,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:20,048: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:23,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:28,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:29,456: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '7798997a-64cf-3aad-9859-8d3e7d729000'} ticket:50adf923-56ce-4cd5-bddc-47e096b3d3d8]
+syncboard-celery           | [2025-11-27 21:35:33,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:38,858: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:43,845: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:48,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:55,084: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:35:58,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:03,396: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'f5155001-b445-3882-b2b2-143e48bc306f'} ticket:35af89dd-14ea-4dc8-9aab-f392d94c9d7f]
+syncboard-celery           | [2025-11-27 21:36:03,827: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:08,834: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:13,840: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:18,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:25,110: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:28,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:33,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:38,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:39,482: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'b21fd229-8c0a-34c5-8ffc-5598a6d1ecbf'} ticket:a982f465-7539-4498-9004-df57ef5fade4]
+syncboard-celery           | [2025-11-27 21:36:43,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:48,834: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:55,052: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:36:58,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:03,840: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:08,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:13,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:18,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:18,917: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '33747acf-a8c9-39d8-8c90-3402f4b3bbb5'} ticket:dc287cd8-3d53-4822-9cce-2d881a1a7439]
+syncboard-celery           | [2025-11-27 21:37:25,054: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:28,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:33,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:38,834: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:43,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:48,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:53,609: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '548a18cf-afdf-3dee-bb30-ad0cf4366692'} ticket:4165b321-ae37-4502-9d3a-ae1659280cd9]
+syncboard-celery           | [2025-11-27 21:37:55,076: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:37:59,162: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:03,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:08,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:13,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:18,834: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:23,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:29,523: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '0d016d89-7b27-3090-a6f5-ef6a163f11dc'} ticket:b8822be7-3a27-43db-a2e2-0c18b82fa0e1]
+syncboard-celery           | [2025-11-27 21:38:30,026: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:33,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:38,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:43,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:48,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:38:53,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:00,045: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:03,655: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '8afb4f50-083c-30e0-9a87-fb895f85728d'} ticket:6beddd16-9f79-4a08-accb-55e7e74387ca]
+syncboard-celery           | [2025-11-27 21:39:03,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:08,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:13,824: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:18,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:23,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:30,049: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-redis            | 1:C 27 Nov 2025 21:33:11.653 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+syncboard-redis            | 1:C 27 Nov 2025 21:33:11.653 * Redis version=7.4.7, bits=64, commit=00000000, modified=0, pid=1, just started
+syncboard-redis            | 1:C 27 Nov 2025 21:33:11.653 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.653 * monotonic clock: POSIX clock_gettime
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.656 * Running mode=standalone, port=6379.
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * Server initialized
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * Loading RDB produced by version 7.4.7
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * RDB age 15 seconds
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * RDB memory usage when created 1.52 Mb
+syncboard-celery           | [2025-11-27 21:39:33,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:37,063: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'bac5f4b8-c1af-3e7f-bfc8-af3d154c542d'} ticket:eaef3810-887c-4c98-95b4-68f0fb051d9c]
+syncboard-celery           | [2025-11-27 21:39:38,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:43,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:48,841: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:39:53,849: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:00,063: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:03,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:08,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:11,082: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'ff316305-1450-35d5-9099-671f567def39'} ticket:3b11fe66-0994-4f86-a235-9db4dbd3b495]
+syncboard-celery           | [2025-11-27 21:40:13,827: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:18,840: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery           | [2025-11-27 21:40:23,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * Done loading RDB, keys loaded: 39, keys expired: 0.
+syncboard-celery-2         | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery-2         | absolutely not recommended!
+syncboard-celery-2         | 
+syncboard-celery-2         | Please specify a different user using the --uid option.
+syncboard-celery-2         | 
+syncboard-celery-2         | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery-2         | 
+syncboard-celery-2         |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery-2         | [2025-11-27 21:33:36,579: DEBUG/MainProcess] | Worker: Preparing bootsteps.
+syncboard-celery-2         | [2025-11-27 21:33:36,586: DEBUG/MainProcess] | Worker: Building graph...
+syncboard-celery-2         | [2025-11-27 21:33:36,587: DEBUG/MainProcess] | Worker: New boot order: {Timer, Hub, Pool, Autoscaler, StateDB, Beat, Consumer}
+syncboard-celery-2         | [2025-11-27 21:33:36,592: DEBUG/MainProcess] | Consumer: Preparing bootsteps.
+syncboard-celery-2         | [2025-11-27 21:33:36,593: DEBUG/MainProcess] | Consumer: Building graph...
+syncboard-celery-2         | [2025-11-27 21:33:36,609: DEBUG/MainProcess] | Consumer: New boot order: {Connection, Events, Mingle, Tasks, DelayedDelivery, Gossip, Control, Agent, Heart, event loop}
+syncboard-celery-2         |  
+syncboard-celery-2         |  -------------- celery@ccdea6c56bc2 v5.5.3 (immunity)
+syncboard-celery-2         | --- ***** ----- 
+syncboard-celery-2         | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:36
+syncboard-celery-2         | - *** --- * --- 
+syncboard-celery-2         | - ** ---------- [config]
+syncboard-celery-2         | - ** ---------- .> app:         syncboard:0x71a668919410
+syncboard-celery-2         | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery-2         | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery-2         | - *** --- * --- .> concurrency: 16 (prefork)
+syncboard-celery-2         | -- ******* ---- .> task events: ON
+syncboard-celery-2         | --- ***** ----- 
+syncboard-celery-2         |  -------------- [queues]
+syncboard-celery-2         |                 .> analysis         exchange=analysis(direct) key=analysis
+syncboard-celery-2         |                 .> celery           exchange=celery(direct) key=celery
+syncboard-celery-2         |                 .> low_priority     exchange=low_priority(direct) key=low_priority
+syncboard-celery-2         |                 .> uploads          exchange=uploads(direct) key=uploads
+syncboard-celery-2         | 
+syncboard-celery-2         | [tasks]
+syncboard-celery-2         |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery-2         |   . backend.learning_agent.observe_outcomes
+syncboard-celery-2         |   . backend.learning_agent.run_experiments
+syncboard-celery-2         |   . backend.learning_agent.self_evaluate
+syncboard-celery-2         |   . backend.maverick_agent.apply_improvements
+syncboard-celery-2         |   . backend.maverick_agent.challenge_decisions
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * DB loaded from disk: 0.001 seconds
+syncboard-redis            | 1:M 27 Nov 2025 21:33:11.657 * Ready to accept connections tcp
+syncboard-redis            | 1:M 27 Nov 2025 21:38:12.095 * 100 changes in 300 seconds. Saving...
+syncboard-redis            | 1:M 27 Nov 2025 21:38:12.128 * Background saving started by pid 188
+syncboard-redis            | 188:C 27 Nov 2025 21:38:12.164 * DB saved on disk
+syncboard-redis            | 188:C 27 Nov 2025 21:38:12.164 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+syncboard-redis            | 1:M 27 Nov 2025 21:38:12.228 * Background saving terminated with success
+syncboard-celery-2         |   . backend.maverick_agent.measure_and_learn
+syncboard-celery-2         |   . backend.maverick_agent.self_improve
+syncboard-celery-2         |   . backend.maverick_agent.test_hypotheses
+syncboard-celery-2         |   . backend.tasks.find_duplicates_background
+syncboard-celery-2         |   . backend.tasks.generate_build_suggestions
+syncboard-celery-2         |   . backend.tasks.import_github_files_task
+syncboard-celery-2         |   . backend.tasks.process_file_upload
+syncboard-celery-2         |   . backend.tasks.process_image_upload
+syncboard-celery-2         |   . backend.tasks.process_url_upload
+syncboard-celery-2         |   . celery.accumulate
+syncboard-celery-2         |   . celery.backend_cleanup
+syncboard-celery-2         |   . celery.chain
+syncboard-celery-2         |   . celery.chord
+syncboard-celery-2         |   . celery.chord_unlock
+syncboard-celery-2         |   . celery.chunks
+syncboard-celery-2         |   . celery.group
+syncboard-celery-2         |   . celery.map
+syncboard-celery-2         |   . celery.starmap
+syncboard-celery-2         | 
+syncboard-celery-2         | [2025-11-27 21:33:36,636: DEBUG/MainProcess] | Worker: Starting Hub
+syncboard-celery-2         | [2025-11-27 21:33:36,637: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:36,637: DEBUG/MainProcess] | Worker: Starting Pool
+syncboard-celery-2         | [2025-11-27 21:33:36,902: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:37,212: INFO/ForkPoolWorker-2] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:37,574: INFO/ForkPoolWorker-3] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:37,869: INFO/ForkPoolWorker-4] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:38,613: INFO/ForkPoolWorker-5] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:39,298: INFO/ForkPoolWorker-6] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:39,711: INFO/ForkPoolWorker-7] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:40,823: INFO/ForkPoolWorker-8] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:41,590: INFO/ForkPoolWorker-9] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:42,157: INFO/ForkPoolWorker-10] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:42,931: INFO/ForkPoolWorker-11] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:43,466: INFO/ForkPoolWorker-13] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:45,250: INFO/ForkPoolWorker-12] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:45,586: INFO/ForkPoolWorker-14] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:45,719: WARNING/ForkPoolWorker-12] Database load failed: (psycopg2.OperationalError) insufficient data in "D" message
+syncboard-celery-2         | lost synchronization with server: got message type "o", length 1970037792
+syncboard-celery-2         | 
+syncboard-celery-2         | [SQL: SELECT vector_documents.id AS vector_documents_id, vector_documents.doc_id AS vector_documents_doc_id, vector_documents.content AS vector_documents_content, vector_documents.tfidf_vector AS vector_documents_tfidf_vector, vector_documents.created_at AS vector_documents_created_at 
+syncboard-celery-2         | FROM vector_documents ORDER BY vector_documents.doc_id]
+syncboard-celery-2         | (Background on this error at: https://sqlalche.me/e/20/e3q8). Starting with empty state.
+syncboard-celery-2         | [2025-11-27 21:33:45,741: DEBUG/ForkPoolWorker-12] Cache reloaded: 0 documents in 0 KBs, 0 clusters, next_id=0
+syncboard-celery-2         | [2025-11-27 21:33:46,029: INFO/ForkPoolWorker-15] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:46,891: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:46,892: DEBUG/MainProcess] | Worker: Starting Consumer
+syncboard-celery-2         | [2025-11-27 21:33:46,903: DEBUG/MainProcess] | Consumer: Starting Connection
+syncboard-celery-2         | [2025-11-27 21:33:46,932: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery-2         | [2025-11-27 21:33:46,932: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:46,932: DEBUG/MainProcess] | Consumer: Starting Events
+syncboard-celery-2         | [2025-11-27 21:33:46,944: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:46,945: DEBUG/MainProcess] | Consumer: Starting Mingle
+syncboard-celery-2         | [2025-11-27 21:33:46,946: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery-2         | [2025-11-27 21:33:47,038: INFO/ForkPoolWorker-16] Initializing Celery worker cache from database
+syncboard-celery-2         | [2025-11-27 21:33:48,034: INFO/MainProcess] mingle: sync with 5 nodes
+syncboard-celery-2         | [2025-11-27 21:33:48,035: DEBUG/MainProcess] mingle: processing reply from celery@d336a1a0cf27
+syncboard-celery-2         | [2025-11-27 21:33:48,035: DEBUG/MainProcess] mingle: processing reply from celery@654aed3bf759
+syncboard-celery-2         | [2025-11-27 21:33:48,035: DEBUG/MainProcess] mingle: processing reply from celery@6e29e34f0d9c
+syncboard-celery-2         | [2025-11-27 21:33:48,036: DEBUG/MainProcess] mingle: processing reply from celery@9dd4211c2a99
+syncboard-celery-2         | [2025-11-27 21:33:48,036: DEBUG/MainProcess] mingle: processing reply from celery@683e3577c1cc
+syncboard-celery-2         | [2025-11-27 21:33:48,036: INFO/MainProcess] mingle: sync complete
+syncboard-celery-2         | [2025-11-27 21:33:48,036: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:48,036: DEBUG/MainProcess] | Consumer: Starting Tasks
+syncboard-celery-2         | [2025-11-27 21:33:48,114: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:48,114: DEBUG/MainProcess] | Consumer: Starting Gossip
+syncboard-celery-2         | [2025-11-27 21:33:48,139: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:48,140: DEBUG/MainProcess] | Consumer: Starting Control
+syncboard-celery-2         | [2025-11-27 21:33:48,165: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:48,165: DEBUG/MainProcess] | Consumer: Starting Heart
+syncboard-celery-2         | [2025-11-27 21:33:48,175: DEBUG/MainProcess] ^-- substep ok
+syncboard-celery-2         | [2025-11-27 21:33:48,175: DEBUG/MainProcess] | Consumer: Starting event loop
+syncboard-celery-2         | [2025-11-27 21:33:48,175: DEBUG/MainProcess] | Worker: Hub.register Pool...
+syncboard-celery-2         | [2025-11-27 21:33:48,176: INFO/MainProcess] celery@ccdea6c56bc2 ready.
+syncboard-celery-2         | [2025-11-27 21:33:48,176: DEBUG/MainProcess] basic.qos: prefetch_count->16
+syncboard-celery-2         | [2025-11-27 21:33:48,313: DEBUG/MainProcess] celery@6e29e34f0d9c joined the party
+syncboard-celery-2         | [2025-11-27 21:33:48,917: DEBUG/MainProcess] celery@654aed3bf759 joined the party
+syncboard-celery-2         | [2025-11-27 21:33:48,923: DEBUG/MainProcess] celery@d336a1a0cf27 joined the party
+syncboard-celery-2         | [2025-11-27 21:33:49,033: DEBUG/MainProcess] celery@683e3577c1cc joined the party
+syncboard-celery-2         | [2025-11-27 21:33:49,039: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '1cdaf68e-d0b7-33de-9fba-6d6d4cdf2327'} ticket:77303b2f-5255-485d-b543-6c7d1142d40c]
+syncboard-celery-maverick  | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery-maverick  | absolutely not recommended!
+syncboard-celery-maverick  | 
+syncboard-celery-maverick  | Please specify a different user using the --uid option.
+syncboard-celery-maverick  | 
+syncboard-celery-maverick  | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery-maverick  | 
+syncboard-celery-maverick  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery-maverick  |  
+syncboard-celery-maverick  |  -------------- celery@6e29e34f0d9c v5.5.3 (immunity)
+syncboard-celery-2         | [2025-11-27 21:33:49,888: DEBUG/MainProcess] celery@9dd4211c2a99 joined the party
+syncboard-celery-2         | [2025-11-27 21:33:50,077: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:33:53,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:33:58,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:03,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:08,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:13,869: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:20,044: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:23,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:23,837: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '3bf2f590-e85b-39ac-ad60-76b22f6ce559'} ticket:326bd72c-d37d-44a4-a378-7301213d02a6]
+syncboard-celery-2         | [2025-11-27 21:34:28,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:33,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:38,827: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:43,840: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:50,045: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:53,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:34:58,341: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'a5f88750-18c6-3c88-af00-25d8120c91a0'} ticket:a99c203a-2426-4577-a488-a42dd786befb]
+syncboard-celery-2         | [2025-11-27 21:34:58,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:03,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:08,845: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:13,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:20,046: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:23,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:28,844: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:31,924: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '26e18017-7e68-3386-acb5-c9a26b4c4f6d'} ticket:d6773537-c365-4176-a362-10162b8197ca]
+syncboard-celery-2         | [2025-11-27 21:35:33,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:38,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:43,840: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:48,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:55,069: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:35:58,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:03,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:05,500: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '67f2fe22-454d-3ee9-8190-230f79475e55'} ticket:4658ea36-df66-448d-9365-7b1aa2eda4d9]
+syncboard-celery-2         | [2025-11-27 21:36:08,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:13,832: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:18,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:25,065: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:28,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:33,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:38,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:41,198: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '545b7308-98f7-3731-a172-dbb81dd0d2a4'} ticket:1f4a41cb-c260-499b-9739-8ab61d87ff16]
+syncboard-celery-2         | [2025-11-27 21:36:43,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:48,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:55,046: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:36:58,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:03,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:08,827: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:13,848: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:18,567: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': 'df51355f-d678-30f3-b350-2f2e39cb1f66'} ticket:0cf0f2d1-5cf2-4e42-ab31-6d74f6a32676]
+syncboard-celery-maverick  | --- ***** ----- 
+syncboard-celery-maverick  | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:35
+syncboard-celery-maverick  | - *** --- * --- 
+syncboard-celery-maverick  | - ** ---------- [config]
+syncboard-celery-maverick  | - ** ---------- .> app:         syncboard:0x77b1c9b55610
+syncboard-celery-maverick  | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery-maverick  | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery-maverick  | - *** --- * --- .> concurrency: 1 (prefork)
+syncboard-celery-maverick  | -- ******* ---- .> task events: ON
+syncboard-celery-maverick  | --- ***** ----- 
+syncboard-celery-maverick  |  -------------- [queues]
+syncboard-celery-maverick  |                 .> maverick         exchange=maverick(direct) key=maverick
+syncboard-celery-maverick  |                 
+syncboard-celery-maverick  | 
+syncboard-celery-maverick  | [tasks]
+syncboard-celery-maverick  |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery-maverick  |   . backend.learning_agent.observe_outcomes
+syncboard-celery-maverick  |   . backend.learning_agent.run_experiments
+syncboard-celery-maverick  |   . backend.learning_agent.self_evaluate
+syncboard-celery-maverick  |   . backend.maverick_agent.apply_improvements
+syncboard-celery-maverick  |   . backend.maverick_agent.challenge_decisions
+syncboard-celery-maverick  |   . backend.maverick_agent.measure_and_learn
+syncboard-celery-maverick  |   . backend.maverick_agent.self_improve
+syncboard-celery-maverick  |   . backend.maverick_agent.test_hypotheses
+syncboard-celery-maverick  |   . backend.tasks.find_duplicates_background
+syncboard-celery-maverick  |   . backend.tasks.generate_build_suggestions
+syncboard-celery-maverick  |   . backend.tasks.import_github_files_task
+syncboard-celery-maverick  |   . backend.tasks.process_file_upload
+syncboard-celery-maverick  |   . backend.tasks.process_image_upload
+syncboard-celery-maverick  |   . backend.tasks.process_url_upload
+syncboard-celery-maverick  | 
+syncboard-celery-maverick  | [2025-11-27 21:33:35,963: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery-maverick  | [2025-11-27 21:33:35,970: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery-maverick  | [2025-11-27 21:33:36,012: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery-maverick  | [2025-11-27 21:33:37,006: INFO/MainProcess] mingle: sync with 1 nodes
+syncboard-celery-maverick  | [2025-11-27 21:33:37,007: INFO/MainProcess] mingle: sync complete
+syncboard-celery-maverick  | [2025-11-27 21:33:37,028: INFO/MainProcess] celery@6e29e34f0d9c ready.
+syncboard-celery-maverick  | [2025-11-27 21:33:39,767: INFO/MainProcess] sync with celery@683e3577c1cc
+syncboard-celery-maverick  | [2025-11-27 21:33:46,983: INFO/MainProcess] sync with celery@ccdea6c56bc2
+syncboard-celery-maverick  | [2025-11-27 21:37:45,339: INFO/ForkPoolWorker-1] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-maverick  | [2025-11-27 21:40:12,264: INFO/MainProcess] Task backend.maverick_agent.measure_and_learn[8843e716-ce9f-4d41-9d1e-0a0d608498ca] received
+syncboard-celery-maverick  | [2025-11-27 21:40:12,462: INFO/ForkPoolWorker-1] 📊 MAVERICK [learning]: Measuring test outcomes...
+syncboard-celery-maverick  | [2025-11-27 21:40:12,494: INFO/ForkPoolWorker-1] 📊 MAVERICK: Measured 0 tests. 0 validated.
+syncboard-celery-2         | [2025-11-27 21:37:18,884: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:25,048: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:28,842: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:33,834: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:38,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:43,838: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:48,842: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:55,084: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:37:55,272: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '316c7941-f2b1-3cc4-b971-afdc443376a5'} ticket:59b291f1-7775-41eb-95d9-3c73abb639b5]
+syncboard-celery-2         | [2025-11-27 21:37:59,168: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:03,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:08,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:13,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:18,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:23,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:29,548: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '7227ac09-6fca-3323-8d25-c4b0dc21d68e'} ticket:b9bcbf28-2568-4980-9ec3-9a9ab0f238c4]
+syncboard-celery-2         | [2025-11-27 21:38:30,029: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:33,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:38,831: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:43,827: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:48,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:38:53,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:00,046: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:03,546: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '9b1340aa-89f9-35fc-a50d-dd7198ad626c'} ticket:2a32e35c-ecc7-42e5-a25f-d0015234feb4]
+syncboard-celery-2         | [2025-11-27 21:39:03,828: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:08,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:13,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:18,825: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:23,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:30,053: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:33,833: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:37,017: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '3fc931a6-1afa-3719-9a8d-f5063abfc06d'} ticket:8e29005a-b662-4f4b-b594-d8026e215845]
+syncboard-celery-2         | [2025-11-27 21:39:38,845: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:43,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:48,830: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:39:53,837: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:00,065: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:03,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:08,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:11,081: DEBUG/MainProcess] pidbox received method ping() [reply_to:{'exchange': 'reply.celery.pidbox', 'routing_key': '1c45be3b-d053-3942-baaf-e565cfe481d0'} ticket:66f626b5-b7fc-44a4-bac0-153145f53623]
+syncboard-celery-2         | [2025-11-27 21:40:13,826: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:18,829: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-2         | [2025-11-27 21:40:23,836: DEBUG/MainProcess] pidbox received method enable_events() [reply_to:None ticket:None]
+syncboard-celery-maverick  | [2025-11-27 21:40:12,511: INFO/ForkPoolWorker-1] Task backend.maverick_agent.measure_and_learn[8843e716-ce9f-4d41-9d1e-0a0d608498ca] succeeded in 0.22089517600034014s: {'status': 'measurement_complete', 'results': [], 'validated': 0, 'current_expertise': {'threshold_optimization': 0.44999999999999996, 'rule_refinement': 0.5, 'pattern_discovery': 0.5, 'user_adaptation': 0.5}, 'mood': 'learning'}
+syncboard-celery-analysis  | /root/.local/lib/python3.11/site-packages/celery/platforms.py:841: SecurityWarning: You're running the worker with superuser privileges: this is
+syncboard-celery-analysis  | absolutely not recommended!
+syncboard-celery-analysis  | 
+syncboard-celery-analysis  | Please specify a different user using the --uid option.
+syncboard-celery-analysis  | 
+syncboard-celery-analysis  | User information: uid=0 euid=0 gid=0 egid=0
+syncboard-celery-analysis  | 
+syncboard-celery-analysis  |   warnings.warn(SecurityWarning(ROOT_DISCOURAGED.format(
+syncboard-celery-analysis  |  
+syncboard-celery-analysis  |  -------------- celery@654aed3bf759 v5.5.3 (immunity)
+syncboard-celery-analysis  | --- ***** ----- 
+syncboard-celery-analysis  | -- ******* ---- Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41 2025-11-27 21:33:35
+syncboard-celery-analysis  | - *** --- * --- 
+syncboard-celery-analysis  | - ** ---------- [config]
+syncboard-celery-analysis  | - ** ---------- .> app:         syncboard:0x7944566951d0
+syncboard-celery-analysis  | - ** ---------- .> transport:   redis://redis:6379/0
+syncboard-celery-analysis  | - ** ---------- .> results:     redis://redis:6379/0
+syncboard-celery-analysis  | - *** --- * --- .> concurrency: 2 (prefork)
+syncboard-celery-analysis  | -- ******* ---- .> task events: ON
+syncboard-celery-analysis  | --- ***** ----- 
+syncboard-celery-analysis  |  -------------- [queues]
+syncboard-celery-analysis  |                 .> analysis         exchange=analysis(direct) key=analysis
+syncboard-celery-analysis  |                 
+syncboard-celery-analysis  | 
+syncboard-celery-analysis  | [tasks]
+syncboard-celery-analysis  |   . backend.learning_agent.make_autonomous_decisions
+syncboard-celery-analysis  |   . backend.learning_agent.observe_outcomes
+syncboard-celery-analysis  |   . backend.learning_agent.run_experiments
+syncboard-celery-analysis  |   . backend.learning_agent.self_evaluate
+syncboard-celery-analysis  |   . backend.maverick_agent.apply_improvements
+syncboard-celery-analysis  |   . backend.maverick_agent.challenge_decisions
+syncboard-celery-analysis  |   . backend.maverick_agent.measure_and_learn
+syncboard-celery-analysis  |   . backend.maverick_agent.self_improve
+syncboard-celery-analysis  |   . backend.maverick_agent.test_hypotheses
+syncboard-celery-analysis  |   . backend.tasks.find_duplicates_background
+syncboard-celery-analysis  |   . backend.tasks.generate_build_suggestions
+syncboard-celery-analysis  |   . backend.tasks.import_github_files_task
+syncboard-celery-analysis  |   . backend.tasks.process_file_upload
+syncboard-celery-analysis  |   . backend.tasks.process_image_upload
+syncboard-celery-analysis  |   . backend.tasks.process_url_upload
+syncboard-celery-analysis  | 
+syncboard-celery-analysis  | [2025-11-27 21:33:35,458: INFO/ForkPoolWorker-1] Initializing Celery worker cache from database
+syncboard-celery-analysis  | [2025-11-27 21:33:35,630: INFO/MainProcess] Connected to redis://redis:6379/0
+syncboard-celery-analysis  | [2025-11-27 21:33:35,642: INFO/MainProcess] mingle: searching for neighbors
+syncboard-celery-analysis  | [2025-11-27 21:33:35,669: INFO/ForkPoolWorker-2] Initializing Celery worker cache from database
+syncboard-celery-analysis  | [2025-11-27 21:33:36,680: INFO/MainProcess] mingle: sync with 1 nodes
+syncboard-celery-analysis  | [2025-11-27 21:33:36,681: INFO/MainProcess] mingle: sync complete
+syncboard-celery-analysis  | [2025-11-27 21:33:36,699: INFO/MainProcess] celery@654aed3bf759 ready.
+syncboard-celery-analysis  | [2025-11-27 21:33:39,770: INFO/MainProcess] sync with celery@683e3577c1cc
+syncboard-celery-analysis  | [2025-11-27 21:33:46,982: INFO/MainProcess] sync with celery@ccdea6c56bc2
+syncboard-celery-analysis  | [2025-11-27 21:37:43,785: INFO/ForkPoolWorker-2] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-analysis  | [2025-11-27 21:37:46,139: INFO/ForkPoolWorker-1] Loaded from database: 429 documents in 1 KBs, 68 clusters, 2 users
+syncboard-celery-beat      | [2025-11-27 21:33:37,131: INFO/MainProcess] beat: Starting...
+syncboard-celery-beat      | [2025-11-27 21:35:03,703: INFO/MainProcess] Scheduler: Sending due task observe-outcomes (backend.learning_agent.observe_outcomes)
+syncboard-celery-beat      | [2025-11-27 21:40:12,234: INFO/MainProcess] Scheduler: Sending due task make-autonomous-decisions (backend.learning_agent.make_autonomous_decisions)
+syncboard-celery-beat      | [2025-11-27 21:40:12,248: INFO/MainProcess] Scheduler: Sending due task maverick-measure-and-learn (backend.maverick_agent.measure_and_learn)
+syncboard-celery-beat      | [2025-11-27 21:40:12,258: INFO/MainProcess] Scheduler: Sending due task observe-outcomes (backend.learning_agent.observe_outcomes)

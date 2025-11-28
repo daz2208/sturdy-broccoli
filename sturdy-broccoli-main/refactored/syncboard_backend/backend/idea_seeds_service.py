@@ -122,16 +122,22 @@ SKILL LEVEL: {skill_str}
 Generate 2-4 project ideas that apply the knowledge from this document."""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            # Build API parameters
+            api_params = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.8,  # Higher creativity
-                max_tokens=1000,
-                response_format={"type": "json_object"}
-            )
+                "max_completion_tokens": 5000,  # GPT-5 requires max_completion_tokens not max_tokens
+                "response_format": {"type": "json_object"}
+            }
+
+            # GPT-5 models only support temperature=1 (default), don't add for GPT-5
+            if not self.model.startswith("gpt-5"):
+                api_params["temperature"] = 0.8  # Higher creativity
+
+            response = self.client.chat.completions.create(**api_params)
 
             result = json.loads(response.choices[0].message.content)
             ideas = result.get("ideas", [])
@@ -150,7 +156,7 @@ Generate 2-4 project ideas that apply the knowledge from this document."""
             ]
 
         except Exception as e:
-            logger.error(f"Idea generation failed: {e}")
+            logger.error(f"Idea generation failed for model {self.model}: {e}", exc_info=True)
             return []
 
     async def generate_combined_ideas(
@@ -218,16 +224,22 @@ AVAILABLE TECHNOLOGIES: {', '.join(list(all_tech)[:15])}
 Generate ideas that synthesize knowledge across these documents."""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            # Build API parameters
+            api_params = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.9,  # Even higher creativity for combinations
-                max_tokens=1500,
-                response_format={"type": "json_object"}
-            )
+                "max_completion_tokens": 8000,  # GPT-5 requires max_completion_tokens not max_tokens
+                "response_format": {"type": "json_object"}
+            }
+
+            # GPT-5 models only support temperature=1 (default), don't add for GPT-5
+            if not self.model.startswith("gpt-5"):
+                api_params["temperature"] = 0.9  # Even higher creativity for combinations
+
+            response = self.client.chat.completions.create(**api_params)
 
             result = json.loads(response.choices[0].message.content)
             ideas = result.get("ideas", [])
@@ -246,12 +258,11 @@ Generate ideas that synthesize knowledge across these documents."""
             ]
 
         except Exception as e:
-            logger.error(f"Combined idea generation failed: {e}")
+            logger.error(f"Combined idea generation failed for model {self.model}: {e}", exc_info=True)
             return []
 
 
 async def generate_document_idea_seeds(
-    db: Session,
     document_id: int,
     knowledge_base_id: str
 ) -> Dict[str, Any]:
@@ -259,7 +270,6 @@ async def generate_document_idea_seeds(
     Generate and store idea seeds for a document.
 
     Args:
-        db: Database session
         document_id: Document ID (internal)
         knowledge_base_id: Knowledge base ID
 
@@ -267,53 +277,64 @@ async def generate_document_idea_seeds(
         Dict with generation results
     """
     from .db_models import DBDocumentSummary, DBBuildIdeaSeed
+    from .database import get_db_context
 
     service = IdeaSeedsService()
 
     if not service.is_available():
         return {"status": "skipped", "reason": "API key not configured"}
 
-    # Get document summary (level 3 = document level)
-    doc_summary = db.query(DBDocumentSummary).filter(
-        DBDocumentSummary.document_id == document_id,
-        DBDocumentSummary.summary_level == 3
-    ).first()
+    # Manage our own database session to avoid transaction warnings
+    with get_db_context() as db:
+        # Get document summary (level 3 = document level)
+        doc_summary = db.query(DBDocumentSummary).filter(
+            DBDocumentSummary.document_id == document_id,
+            DBDocumentSummary.summary_level == 3
+        ).first()
 
-    if not doc_summary:
-        return {"status": "skipped", "reason": "No document summary found"}
+        if not doc_summary:
+            return {"status": "skipped", "reason": "No document summary found"}
 
-    # Generate ideas
+        # Extract data we need before exiting context
+        summary_text = doc_summary.long_summary or doc_summary.short_summary
+        key_concepts = doc_summary.key_concepts or []
+        tech_stack = doc_summary.tech_stack or []
+        skill_profile = doc_summary.skill_profile
+
+    # Generate ideas (outside of db session context)
     ideas = await service.generate_ideas_from_summary(
-        document_summary=doc_summary.long_summary or doc_summary.short_summary,
-        key_concepts=doc_summary.key_concepts or [],
-        tech_stack=doc_summary.tech_stack or [],
-        skill_profile=doc_summary.skill_profile
+        document_summary=summary_text,
+        key_concepts=key_concepts,
+        tech_stack=tech_stack,
+        skill_profile=skill_profile
     )
 
     if not ideas:
         return {"status": "skipped", "reason": "No ideas generated"}
 
-    # Delete existing ideas for this document
-    db.query(DBBuildIdeaSeed).filter(
-        DBBuildIdeaSeed.document_id == document_id
-    ).delete()
+    # Store ideas in a new database session
+    with get_db_context() as db:
+        # Delete existing ideas for this document
+        db.query(DBBuildIdeaSeed).filter(
+            DBBuildIdeaSeed.document_id == document_id
+        ).delete()
 
-    # Store new ideas
-    for idea in ideas:
-        db_idea = DBBuildIdeaSeed(
-            document_id=document_id,
-            knowledge_base_id=knowledge_base_id,
-            title=idea.title,
-            description=idea.description,
-            difficulty=idea.difficulty,
-            dependencies=idea.dependencies,
-            feasibility=idea.feasibility,
-            effort_estimate=idea.effort_estimate,
-            referenced_sections=idea.referenced_sections
-        )
-        db.add(db_idea)
+        # Store new ideas
+        for idea in ideas:
+            db_idea = DBBuildIdeaSeed(
+                document_id=document_id,
+                knowledge_base_id=knowledge_base_id,
+                title=idea.title,
+                description=idea.description,
+                difficulty=idea.difficulty,
+                dependencies=idea.dependencies,
+                feasibility=idea.feasibility,
+                effort_estimate=idea.effort_estimate,
+                referenced_sections=idea.referenced_sections
+            )
+            db.add(db_idea)
 
-    db.commit()
+        db.commit()
 
     logger.info(f"Generated {len(ideas)} idea seeds for document {document_id}")
 

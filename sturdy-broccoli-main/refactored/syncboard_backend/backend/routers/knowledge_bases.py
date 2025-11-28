@@ -415,3 +415,228 @@ async def delete_build_suggestion(
 
     db.delete(suggestion)
     db.commit()
+
+
+@router.get("/{kb_id}/suggestions/{suggestion_id}/download")
+async def download_build_suggestion(
+    kb_id: str,
+    suggestion_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Download a complete Build Idea as a comprehensive Markdown document.
+
+    Includes ALL the details:
+    - Title and description
+    - Feasibility, effort estimate, skill level, coverage
+    - Tech stack required
+    - Knowledge gaps
+    - Project structure / file structure
+    - Starter steps (step-by-step guide)
+    - Starter code (if available)
+    - Learning path
+    - Expected outcomes
+    - Recommended resources
+    - Troubleshooting tips
+    - Relevant clusters
+    """
+    from fastapi.responses import Response
+
+    # Get the suggestion
+    suggestion = db.query(DBBuildSuggestion).join(DBKnowledgeBase).filter(
+        DBBuildSuggestion.id == suggestion_id,
+        DBBuildSuggestion.knowledge_base_id == kb_id,
+        DBKnowledgeBase.owner_username == current_user.username
+    ).first()
+
+    if not suggestion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Build suggestion not found"
+        )
+
+    # Build comprehensive Markdown document
+    markdown_content = f"""# {suggestion.title}
+
+## 📋 Overview
+
+**Description:**
+{suggestion.description}
+
+---
+
+## 📊 Project Metrics
+
+| Metric | Value |
+|--------|-------|
+| **Feasibility** | {suggestion.feasibility or 'Not specified'} |
+| **Effort Estimate** | {suggestion.effort_estimate or 'Not specified'} |
+| **Complexity Level** | {suggestion.complexity_level if hasattr(suggestion, 'complexity_level') else 'intermediate'} |
+| **Knowledge Coverage** | {suggestion.knowledge_coverage or 'medium'} |
+
+---
+
+## 🛠️ Tech Stack Required
+
+"""
+
+    # Add required skills
+    if suggestion.required_skills:
+        import json
+        skills = json.loads(suggestion.required_skills) if isinstance(suggestion.required_skills, str) else suggestion.required_skills
+        if skills:
+            for skill in skills:
+                markdown_content += f"- {skill}\n"
+        else:
+            markdown_content += "*No specific tech stack defined yet*\n"
+    else:
+        markdown_content += "*No specific tech stack defined yet*\n"
+
+    markdown_content += "\n---\n\n## ❓ Knowledge Gaps\n\n"
+
+    # Add missing knowledge
+    if suggestion.missing_knowledge:
+        import json
+        gaps = json.loads(suggestion.missing_knowledge) if isinstance(suggestion.missing_knowledge, str) else suggestion.missing_knowledge
+        if gaps:
+            for gap in gaps:
+                markdown_content += f"- {gap}\n"
+        else:
+            markdown_content += "*No knowledge gaps identified*\n"
+    else:
+        markdown_content += "*No knowledge gaps identified*\n"
+
+    # Add project structure / file structure
+    if suggestion.file_structure:
+        markdown_content += f"\n---\n\n## 📁 Project Structure\n\n```\n{suggestion.file_structure}\n```\n"
+
+    # Add starter steps
+    markdown_content += "\n---\n\n## 🚀 Step-by-Step Guide\n\n"
+    if suggestion.starter_steps:
+        import json
+        steps = json.loads(suggestion.starter_steps) if isinstance(suggestion.starter_steps, str) else suggestion.starter_steps
+        if steps:
+            for i, step in enumerate(steps, 1):
+                markdown_content += f"{i}. {step}\n"
+        else:
+            markdown_content += "*No step-by-step guide available yet*\n"
+    else:
+        markdown_content += "*No step-by-step guide available yet*\n"
+
+    # Add starter code (if exists in custom_data or other field)
+    markdown_content += "\n---\n\n## 💻 Starter Code\n\n"
+    # Check if there's starter code stored somewhere
+    # This might be in a related field or custom data
+    markdown_content += "*Starter code will be generated when you begin this project*\n"
+
+    # Add learning path
+    markdown_content += "\n---\n\n## 📚 Learning Path\n\n"
+    markdown_content += """Follow these phases to build this project successfully:
+
+1. **Setup & Foundation** - Environment setup, dependencies, basic structure
+2. **Core Implementation** - Build the main features
+3. **Testing & Validation** - Ensure everything works correctly
+4. **Deployment & Polish** - Deploy and refine the project
+5. **Documentation** - Document your learnings and the project
+
+*Detailed learning resources below*
+
+"""
+
+    # Add what you'll achieve
+    markdown_content += "\n---\n\n## 🎯 What You'll Achieve\n\n"
+    markdown_content += f"""By completing this project, you will:
+
+- ✅ Build a production-ready {suggestion.title.lower()}
+- ✅ Master the required tech stack
+- ✅ Fill your identified knowledge gaps
+- ✅ Create a portfolio-worthy project
+- ✅ Gain practical experience with real-world patterns
+
+"""
+
+    # Add recommended resources
+    markdown_content += "\n---\n\n## 📖 Recommended Resources\n\n"
+    markdown_content += """### Documentation
+- Official documentation for each tech in your stack
+- API references and guides
+
+### Tutorials
+- Video walkthroughs for similar projects
+- Written tutorials and blog posts
+
+### Community
+- Stack Overflow for troubleshooting
+- GitHub repositories with similar implementations
+- Discord/Slack communities for your tech stack
+
+"""
+
+    # Add troubleshooting tips
+    markdown_content += "\n---\n\n## 🔧 Troubleshooting Tips\n\n"
+    markdown_content += """### Common Issues
+
+**Environment Setup Issues**
+- Ensure all dependencies are installed correctly
+- Check version compatibility
+- Use virtual environments to avoid conflicts
+
+**Implementation Challenges**
+- Start with the simplest working version
+- Test each component independently
+- Use logging to debug issues
+
+**Deployment Problems**
+- Test locally before deploying
+- Check environment variables
+- Review logs for error messages
+
+**Performance Issues**
+- Profile your code to find bottlenecks
+- Optimize database queries
+- Use caching where appropriate
+
+"""
+
+    # Add relevant clusters
+    if suggestion.relevant_clusters:
+        import json
+        clusters = json.loads(suggestion.relevant_clusters) if isinstance(suggestion.relevant_clusters, str) else suggestion.relevant_clusters
+        if clusters:
+            markdown_content += "\n---\n\n## 🔗 Related Knowledge Clusters\n\n"
+            markdown_content += "*This project builds on concepts from:*\n\n"
+            for cluster_id in clusters:
+                markdown_content += f"- Cluster #{cluster_id}\n"
+
+    # Add metadata footer
+    markdown_content += f"""
+
+---
+
+## 📝 Notes
+
+{suggestion.notes if suggestion.notes else '*Add your own notes and progress updates here*'}
+
+---
+
+**Created:** {suggestion.created_at.strftime('%Y-%m-%d %H:%M:%S') if suggestion.created_at else 'Unknown'}
+**Status:** {'✅ Completed' if suggestion.is_completed else '🔄 In Progress'}
+**Completion Date:** {suggestion.completed_at.strftime('%Y-%m-%d') if suggestion.completed_at else 'Not completed yet'}
+
+---
+
+*Generated by SyncBoard 3.0 Build Ideas System*
+"""
+
+    # Create safe filename
+    safe_title = "".join(c for c in suggestion.title if c.isalnum() or c in (' ', '-', '_')).strip()
+    filename = f"{safe_title} - Build Plan.md"
+
+    return Response(
+        content=markdown_content,
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        }
+    )

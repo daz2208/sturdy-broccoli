@@ -428,7 +428,7 @@ def process_multi_document_zip(
                                         document_id=db_doc.id,
                                         knowledge_base_id=kb_id,
                                         chunks=chunks_data,
-                                        generate_ideas=False
+                                        generate_ideas=True
                                     )
                                 )
 
@@ -781,7 +781,7 @@ def process_file_upload(
                                     document_id=db_doc.id,
                                     knowledge_base_id=kb_id,
                                     chunks=chunks_data,
-                                    generate_ideas=False
+                                    generate_ideas=True
                                 )
                             )
 
@@ -817,15 +817,21 @@ def process_file_upload(
         if summarization_result.get('status') == 'success':
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
                 with get_db_context() as db:
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
-                        idea_result = run_async(generate_document_idea_seeds(
-                            db=db,
-                            document_id=db_doc.id,
-                            knowledge_base_id=kb_id
-                        ))
-                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
                 logger.warning(f"Idea seed generation failed (non-critical): {e}")
 
@@ -1180,7 +1186,7 @@ def process_url_upload(
                                     document_id=db_doc.id,
                                     knowledge_base_id=kb_id,
                                     chunks=chunks_data,
-                                    generate_ideas=False
+                                    generate_ideas=True
                                 )
                             )
 
@@ -1216,15 +1222,21 @@ def process_url_upload(
         if summarization_result.get('status') == 'success':
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
                 with get_db_context() as db:
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
-                        idea_result = run_async(generate_document_idea_seeds(
-                            db=db,
-                            document_id=db_doc.id,
-                            knowledge_base_id=kb_id
-                        ))
-                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
                 logger.warning(f"Idea seed generation failed (non-critical): {e}")
 
@@ -1556,7 +1568,7 @@ def process_image_upload(
                                     document_id=db_doc.id,
                                     knowledge_base_id=kb_id,
                                     chunks=chunks_data,
-                                    generate_ideas=False
+                                    generate_ideas=True
                                 )
                             )
 
@@ -1592,15 +1604,21 @@ def process_image_upload(
         if summarization_result.get('status') == 'success':
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
                 with get_db_context() as db:
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
-                        idea_result = run_async(generate_document_idea_seeds(
-                            db=db,
-                            document_id=db_doc.id,
-                            knowledge_base_id=kb_id
-                        ))
-                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
                 logger.warning(f"Idea seed generation failed (non-critical): {e}")
 

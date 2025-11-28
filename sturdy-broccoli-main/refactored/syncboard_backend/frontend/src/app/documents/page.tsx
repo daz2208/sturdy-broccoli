@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import type { Document } from '@/types/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -318,6 +318,20 @@ export default function DocumentsPage() {
     }
   };
 
+  const downloadDocument = async (docId: number, title: string) => {
+    console.log('Download button clicked:', { docId, title });
+    try {
+      console.log('Calling api.downloadDocument...');
+      await api.downloadDocument(docId, title);
+      console.log('Download completed successfully');
+      toast.success('Download started');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      console.error('Error details:', err?.response?.data || err?.message);
+      toast.error(`Download failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
+    }
+  };
+
   const filteredDocs = documents.filter(doc => {
     if (filter.source_type && doc.source_type !== filter.source_type) return false;
     if (filter.skill_level && doc.skill_level !== filter.skill_level) return false;
@@ -549,12 +563,21 @@ export default function DocumentsPage() {
                   <button
                     onClick={() => window.open(`/documents/${doc.id}`, '_blank')}
                     className="p-2 text-gray-400 hover:text-primary"
+                    title="View document"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </button>
                   <button
+                    onClick={() => downloadDocument(doc.id, doc.title || `document_${doc.id}`)}
+                    className="p-2 text-gray-400 hover:text-green-500"
+                    title="Download document"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => deleteDocument(doc.id)}
                     className="p-2 text-gray-400 hover:text-accent-red"
+                    title="Delete document"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

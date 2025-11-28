@@ -73,6 +73,10 @@ services:
       # OpenAI API
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
 
       # CORS
       SYNCBOARD_ALLOWED_ORIGINS: ${SYNCBOARD_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
@@ -129,6 +133,10 @@ services:
       # OpenAI API
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       # Mount storage directories
       - ./storage:/app/storage
@@ -175,6 +183,10 @@ services:
       # OpenAI API
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       # Mount storage directories
       - ./storage:/app/storage
@@ -214,6 +226,10 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       - ./storage:/app/storage
       - ./images:/app/images
@@ -243,6 +259,10 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       - ./storage:/app/storage
       - ./images:/app/images
@@ -271,6 +291,11 @@ services:
       SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       - ./backend:/app/backend
     networks:
@@ -297,6 +322,11 @@ services:
       SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       - ./storage:/app/storage
       - ./backend:/app/backend
@@ -324,6 +354,11 @@ services:
       SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
     volumes:
       - ./storage:/app/storage
       - ./backend:/app/backend
@@ -357,6 +392,10 @@ services:
       # OpenAI API (needed for module imports)
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
       TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
 
       # Flower authentication
       FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { Settings, Database, RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Settings, Database, RefreshCw, CheckCircle, AlertCircle, Loader2, Lightbulb } from 'lucide-react';
 
 interface ChunkStatus {
   total_documents: number;
@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [chunkStatus, setChunkStatus] = useState<ChunkStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [backfilling, setBackfilling] = useState(false);
+  const [seedsLoading, setSeedsLoading] = useState(false);
 
   useEffect(() => { loadChunkStatus(); }, []);
 
@@ -29,6 +30,18 @@ export default function AdminPage() {
       toast.error('Failed to load chunk status');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runSeedBackfill = async () => {
+    setSeedsLoading(true);
+    try {
+      const result = await api.backfillIdeaSeeds();
+      toast.success(`Seeds generated: ${result.seeds_generated}, skipped: ${result.skipped}`);
+    } catch {
+      toast.error('Idea seed backfill failed');
+    } finally {
+      setSeedsLoading(false);
     }
   };
 
@@ -114,6 +127,25 @@ export default function AdminPage() {
             Backfill with Embeddings
           </button>
         </div>
+      </div>
+
+      {/* Idea Seeds */}
+      <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Lightbulb className="w-6 h-6 text-primary" />
+          <div>
+            <h2 className="text-xl font-semibold text-gray-200">Idea Seeds</h2>
+            <p className="text-gray-500 text-sm">Generate precomputed build ideas for documents with summaries.</p>
+          </div>
+        </div>
+        <button
+          onClick={runSeedBackfill}
+          disabled={seedsLoading}
+          className="btn btn-primary flex items-center gap-2"
+        >
+          {seedsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          Backfill Idea Seeds
+        </button>
       </div>
 
       {/* System Health */}

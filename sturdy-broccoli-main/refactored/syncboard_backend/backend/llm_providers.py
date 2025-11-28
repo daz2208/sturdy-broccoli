@@ -183,6 +183,10 @@ class OpenAIProvider(LLMProvider):
                 "gpt-4o-mini-transcribe": (0.00015, 0.00060),
                 "gpt-4-turbo": (0.01000, 0.03000),
                 "gpt-3.5-turbo": (0.00050, 0.00150),
+                # GPT-5 models (released August 2025)
+                "gpt-5": (0.00125, 0.01000),  # $1.25/$10 per 1M tokens
+                "gpt-5-mini": (0.00025, 0.00200),  # $0.25/$2 per 1M tokens
+                "gpt-5-nano": (0.00005, 0.00040),  # $0.05/$0.40 per 1M tokens
             }
             input_price, output_price = PRICING.get(model, PRICING["gpt-4o-mini"])
             cost_usd = (prompt_tokens / 1000 * input_price) + (completion_tokens / 1000 * output_price)

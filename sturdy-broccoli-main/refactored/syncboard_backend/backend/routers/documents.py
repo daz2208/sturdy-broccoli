@@ -78,7 +78,7 @@ async def list_documents(
     user_docs = [
         {
             "id": doc_id,
-            "title": getattr(meta, 'title', None) or f"Document {doc_id}",
+            "title": getattr(meta, 'filename', None) or f"Document {doc_id}",
             "source_type": meta.source_type or "unknown",
             "ingested_at": meta.ingested_at,
             "chunking_status": getattr(meta, 'chunking_status', None) or "unknown",
@@ -156,6 +156,64 @@ async def get_document(
         "cluster": cluster_info,
         "knowledge_base_id": kb_id
     }
+
+# =============================================================================
+# Download Document Endpoint
+# =============================================================================
+
+@router.get("/{doc_id}/download")
+async def download_document(
+    doc_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Download a document as a text file.
+
+    Args:
+        doc_id: Document ID
+        user: Authenticated user
+        db: Database session
+
+    Returns:
+        Plain text file download
+
+    Raises:
+        HTTPException 404: If document not found
+    """
+    from fastapi.responses import Response
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(user.username, db)
+
+    # Get KB-scoped storage
+    kb_documents = get_kb_documents(kb_id)
+    kb_metadata = get_kb_metadata(kb_id)
+
+    if doc_id not in kb_documents:
+        raise HTTPException(404, f"Document {doc_id} not found")
+
+    meta = kb_metadata.get(doc_id)
+    content = kb_documents[doc_id]
+
+    # Create filename
+    if meta and meta.filename:
+        # Use existing filename without extension, add .txt
+        safe_filename = "".join(c for c in meta.filename if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+        # Remove extension if present and add .txt
+        if '.' in safe_filename:
+            safe_filename = safe_filename.rsplit('.', 1)[0]
+        filename = f"{safe_filename}.txt"
+    else:
+        filename = f"document_{doc_id}.txt"
+
+    return Response(
+        content=content,
+        media_type="text/plain",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        }
+    )
 
 # =============================================================================
 # Delete Document Endpoint

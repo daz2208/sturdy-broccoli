@@ -11,7 +11,7 @@ Endpoints:
 
 import logging
 import os
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Body
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
@@ -723,11 +723,7 @@ async def backfill_idea_seeds(
 @limiter.limit("30/minute")
 async def save_idea(
     request: Request,
-    idea_seed_id: int = None,
-    title: str = None,
-    description: str = None,
-    suggestion_data: dict = None,
-    notes: str = None,
+    idea_data: dict = Body(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -739,17 +735,20 @@ async def save_idea(
     - A custom suggestion from /what_can_i_build (by title, description, suggestion_data)
 
     Args:
-        idea_seed_id: ID of an existing idea seed to save
-        title: Custom title (for non-seed ideas)
-        description: Custom description (for non-seed ideas)
-        suggestion_data: Full suggestion JSON (for non-seed ideas)
-        notes: Optional user notes
+        idea_data: Dict containing idea_seed_id OR (title, description, suggestion_data)
         current_user: Authenticated user
         db: Database session
 
     Returns:
         Saved idea details
     """
+    # Extract fields from request body
+    idea_seed_id = idea_data.get('idea_seed_id')
+    title = idea_data.get('title')
+    description = idea_data.get('description')
+    suggestion_data = idea_data.get('suggestion_data')
+    notes = idea_data.get('notes', '')
+
     # Validate input - need either idea_seed_id or title
     if not idea_seed_id and not title:
         raise HTTPException(400, "Must provide either idea_seed_id or title")
