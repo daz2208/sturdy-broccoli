@@ -18,9 +18,11 @@ from pydantic import BaseModel, Field
 from ..models import User
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_kb_documents,
     get_user_default_kb_id,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from ..db_models import DBDocument, DBDocumentChunk, DBKnowledgeBase
 from ..chunking_pipeline import chunk_document_on_upload
@@ -127,6 +129,7 @@ async def get_chunk_status(
 async def backfill_chunks(
     req: BackfillRequest,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -140,6 +143,9 @@ async def backfill_chunks(
 
     Args:
         req: Backfill request with max_documents and generate_embeddings options
+        repo: Repository instance
+        current_user: Authenticated user
+        db: Database session
 
     Returns:
         BackfillResponse with processing results
@@ -147,8 +153,8 @@ async def backfill_chunks(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB documents (for content lookup)
-    kb_documents = get_kb_documents(kb_id)
+    # Get KB documents from repository (for content lookup)
+    kb_documents = await repo.get_documents_by_kb(kb_id)
 
     # Find documents needing chunking (pending or failed)
     pending_docs = db.query(DBDocument).filter(
@@ -244,6 +250,7 @@ async def backfill_chunks(
 async def reprocess_document(
     doc_id: int,
     request: Request,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -251,6 +258,13 @@ async def reprocess_document(
     Reprocess a single document through chunking pipeline.
 
     Useful for re-generating chunks/embeddings after content updates.
+
+    Args:
+        doc_id: Document ID to reprocess
+        request: FastAPI request
+        repo: Repository instance
+        current_user: Authenticated user
+        db: Database session
     """
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
@@ -265,8 +279,8 @@ async def reprocess_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Get content
-    kb_documents = get_kb_documents(kb_id)
+    # Get content from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
     content = kb_documents.get(doc_id)
 
     if not content:
