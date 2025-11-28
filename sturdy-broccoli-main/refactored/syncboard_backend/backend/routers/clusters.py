@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from ..models import User, ClusterUpdate, ExportFormat
 from ..dependencies import (
     get_current_user,
+    get_repository,
     get_documents,
     get_metadata,
     get_clusters,
@@ -26,6 +27,7 @@ from ..dependencies import (
     get_kb_clusters,
     get_user_default_kb_id,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from sqlalchemy.orm import Session
 from ..sanitization import sanitize_cluster_name
@@ -49,6 +51,7 @@ router = APIRouter(
 
 @router.get("/clusters")
 async def get_user_clusters(
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -58,6 +61,7 @@ async def get_user_clusters(
     Returns all clusters in the user's default knowledge base.
 
     Args:
+        repo: Repository instance
         current_user: Authenticated user
         db: Database session
 
@@ -67,9 +71,9 @@ async def get_user_clusters(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     user_clusters = []
 
@@ -97,6 +101,7 @@ async def get_user_clusters(
 async def update_cluster(
     cluster_id: int,
     updates: ClusterUpdate,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -106,6 +111,7 @@ async def update_cluster(
     Args:
         cluster_id: ID of cluster to update
         updates: Validated ClusterUpdate model with optional name and skill_level
+        repo: Repository instance
         user: Authenticated user
         db: Database session
 
@@ -119,10 +125,10 @@ async def update_cluster(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
-    # Get global storage for save
+    # DEPRECATED: Global storage still used for writes (until repository has write methods)
     documents = get_documents()
     metadata = get_metadata()
     clusters = get_clusters()
@@ -170,6 +176,7 @@ async def update_cluster(
 async def delete_cluster(
     cluster_id: int,
     delete_documents: bool = False,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -182,6 +189,7 @@ async def delete_cluster(
     Args:
         cluster_id: ID of cluster to delete
         delete_documents: If true, also delete all documents in the cluster (default: false)
+        repo: Repository instance
         user: Authenticated user
         db: Database session
 
@@ -195,10 +203,10 @@ async def delete_cluster(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     if cluster_id not in kb_clusters:
         raise HTTPException(404, f"Cluster {cluster_id} not found")
@@ -214,7 +222,7 @@ async def delete_cluster(
     if not has_user_docs:
         raise HTTPException(403, "You don't have permission to delete this cluster")
 
-    # Get global storage for save
+    # DEPRECATED: Global storage still used for writes (until repository has write methods)
     documents = get_documents()
     metadata = get_metadata()
     clusters = get_clusters()
@@ -340,6 +348,7 @@ async def delete_cluster(
 async def export_cluster(
     cluster_id: int,
     format: ExportFormat = ExportFormat.JSON,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -349,6 +358,7 @@ async def export_cluster(
     Args:
         cluster_id: ID of cluster to export
         format: Export format (json or markdown)
+        repo: Repository instance
         user: Authenticated user
         db: Database session
 
@@ -362,10 +372,10 @@ async def export_cluster(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     if cluster_id not in kb_clusters:
         raise HTTPException(404, f"Cluster {cluster_id} not found")
@@ -423,6 +433,7 @@ async def export_cluster(
 @router.get("/export/all")
 async def export_all(
     format: ExportFormat = ExportFormat.JSON,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -431,6 +442,7 @@ async def export_all(
 
     Args:
         format: Export format (json or markdown)
+        repo: Repository instance
         user: Authenticated user
         db: Database session
 
@@ -443,10 +455,10 @@ async def export_all(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
 
     all_docs = []
     for doc_id in sorted(kb_documents.keys()):

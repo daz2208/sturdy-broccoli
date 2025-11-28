@@ -45,15 +45,10 @@ def validate_iso_date(date_str: Optional[str], param_name: str) -> Optional[date
         )
 from ..dependencies import (
     get_current_user,
-    get_documents,
-    get_metadata,
-    get_clusters,
-    get_vector_store,
-    get_kb_documents,
-    get_kb_metadata,
-    get_kb_clusters,
+    get_repository,
     get_user_default_kb_id,
 )
+from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db
 from sqlalchemy.orm import Session
 from fastapi import Query
@@ -90,6 +85,7 @@ async def search_full_content(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     request: Request = None,
+    repo: KnowledgeBankRepository = Depends(get_repository),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -133,11 +129,11 @@ async def search_full_content(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage
-    kb_documents = get_kb_documents(kb_id)
-    kb_metadata = get_kb_metadata(kb_id)
-    kb_clusters = get_kb_clusters(kb_id)
-    vector_store = get_vector_store()
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
+    vector_store = repo.vector_store
 
     # Validate top_k parameter
     top_k = validate_positive_integer(top_k, "top_k", max_value=MAX_TOP_K)
