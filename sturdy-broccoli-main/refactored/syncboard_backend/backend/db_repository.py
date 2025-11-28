@@ -1,8 +1,9 @@
 """
-Database Repository for Knowledge Bank (Phase 6.5).
+Database Repository for Knowledge Bank (Proposal #1).
 
-SQLAlchemy-based repository replacing file storage.
-Implements same interface as KnowledgeBankRepository for drop-in replacement.
+SQLAlchemy-based repository - THE ONLY repository implementation.
+Inherits from abstract KnowledgeBankRepository interface.
+File-based storage has been removed in favor of database-only persistence.
 """
 
 import asyncio
@@ -15,11 +16,12 @@ from sqlalchemy import and_, or_
 from .models import DocumentMetadata, Cluster, Concept
 from .db_models import DBUser, DBCluster, DBDocument, DBConcept, DBVectorDocument
 from .vector_store import VectorStore
+from .repository_interface import KnowledgeBankRepository
 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseKnowledgeBankRepository:
+class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
     """
     Database-backed repository for managing documents, metadata, clusters, and users.
 
