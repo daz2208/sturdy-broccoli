@@ -13,6 +13,7 @@ import logging
 from typing import Dict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
 
 from .models import User, DocumentMetadata, Cluster
 from .vector_store import VectorStore
@@ -24,6 +25,9 @@ from .semantic_dictionary import SemanticDictionaryManager
 from .llm_providers import OpenAIProvider
 from .auth import decode_access_token
 from .config import settings
+from .repository_interface import KnowledgeBankRepository
+from .db_repository import DatabaseKnowledgeBankRepository
+from .database import get_db
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -112,8 +116,40 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     return User(username=username)
 
 # =============================================================================
-# State Access Functions
+# Repository Dependency (Proposal #1 - New Pattern)
 # =============================================================================
+
+def get_repository(db: Session = Depends(get_db)) -> KnowledgeBankRepository:
+    """
+    Get repository instance for dependency injection.
+
+    This is the NEW pattern for data access (Proposal #1).
+    Routers should inject this instead of using global state.
+
+    Usage:
+        @router.post("/documents")
+        async def create_document(
+            content: str,
+            repo: KnowledgeBankRepository = Depends(get_repository),
+            user: User = Depends(get_current_user)
+        ):
+            doc_id = await repo.add_document(content, metadata)
+            return {"doc_id": doc_id}
+
+    Args:
+        db: SQLAlchemy database session (injected)
+
+    Returns:
+        Repository instance
+    """
+    return DatabaseKnowledgeBankRepository(db_session=db, vector_dim=settings.vector_dim)
+
+# =============================================================================
+# State Access Functions (DEPRECATED - Use get_repository instead)
+# =============================================================================
+# Note: These global dictionaries are deprecated and will be removed after
+# all routers are migrated to use the repository pattern.
+# New code should use get_repository() dependency injection instead.
 
 def get_documents() -> Dict[str, Dict[int, str]]:
     """Get all documents dictionary (nested by kb_id)."""
