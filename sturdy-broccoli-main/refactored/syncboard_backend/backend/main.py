@@ -193,17 +193,28 @@ async def lifespan(app: FastAPI):
 
     # Create default test user if none exist
     if not dependencies.users:
-        dependencies.users['test'] = hash_password('test123')
+        # Use repository to create default test user
+        from .db_repository import DatabaseRepository
+        from .database import SessionLocal
+
+        db_session = SessionLocal()
         try:
-            save_storage_to_db(
-                dependencies.documents,
-                dependencies.metadata,
-                dependencies.clusters,
-                dependencies.users
-            )
-            logger.info("Created default test user in database")
+            repo = DatabaseRepository(db_session)
+            test_user = await repo.get_user('test')
+            if not test_user:
+                await repo.add_user('test', hash_password('test123'))
+                logger.info("Created default test user in database via repository")
+                # Also update global state for backwards compatibility
+                dependencies.users['test'] = hash_password('test123')
+            else:
+                # User exists in DB, sync to global state
+                dependencies.users['test'] = test_user
         except Exception as e:
-            logger.warning(f"Database save failed: {e}")
+            logger.warning(f"Failed to create default test user: {e}")
+            # Fallback to global state only
+            dependencies.users['test'] = hash_password('test123')
+        finally:
+            db_session.close()
 
     # Start background listener for data changes
     listener_thread = threading.Thread(target=listen_for_data_changes, daemon=True)

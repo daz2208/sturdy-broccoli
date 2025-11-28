@@ -13,7 +13,7 @@ import secrets
 import logging
 import httpx
 from urllib.parse import urlencode
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -21,8 +21,8 @@ from slowapi.util import get_remote_address
 from ..models import User, UserCreate, Token, UserLogin
 from ..auth import hash_password, verify_password, create_access_token
 from ..sanitization import sanitize_username
-from ..dependencies import get_users
-from ..db_storage_adapter import save_storage_to_db
+from ..dependencies import get_repository
+from ..repository_interface import KnowledgeBankRepository
 from ..redis_client import redis_client
 
 # Initialize logger
@@ -49,37 +49,40 @@ router = APIRouter(
 
 @router.post("/users", response_model=User)
 @limiter.limit(REGISTER_RATE_LIMIT)
-async def create_user(request: Request, user_create: UserCreate) -> User:
+async def create_user(
+    request: Request,
+    user_create: UserCreate,
+    repo: KnowledgeBankRepository = Depends(get_repository)
+) -> User:
     """
     Register new user.
 
     Rate limited to 3 attempts per minute in production (1000/min in tests) to prevent abuse.
-    
+
     Args:
         request: FastAPI request object (for rate limiting)
         user_create: User creation data (username, password)
-    
+        repo: Repository instance
+
     Returns:
         Created user object
-    
+
     Raises:
         HTTPException 400: If username already exists or is invalid
     """
     # Sanitize username to prevent injection attacks
     username = sanitize_username(user_create.username)
-    
-    users = get_users()
-    
-    if username in users:
+
+    # Check if user already exists
+    existing_user = await repo.get_user(username)
+    if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Import global state for saving
-    from ..dependencies import documents, metadata, clusters
-    
-    users[username] = hash_password(user_create.password)
-    save_storage_to_db(documents, metadata, clusters, users)
+
+    # Add user to database via repository
+    hashed_password = hash_password(user_create.password)
+    await repo.add_user(username, hashed_password)
     logger.info(f"Created user: {username}")
-    
+
     return User(username=username)
 
 # =============================================================================
@@ -88,36 +91,41 @@ async def create_user(request: Request, user_create: UserCreate) -> User:
 
 @router.post("/token", response_model=Token)
 @limiter.limit(LOGIN_RATE_LIMIT)
-async def login(request: Request, user_login: UserLogin) -> Token:
+async def login(
+    request: Request,
+    user_login: UserLogin,
+    repo: KnowledgeBankRepository = Depends(get_repository)
+) -> Token:
     """
     Login and get JWT token.
 
     Rate limited to 5 attempts per minute in production (1000/min in tests) to prevent brute force attacks.
-    
+
     Security: Uses bcrypt password verification (timing-attack resistant).
-    
+
     Args:
         request: FastAPI request object (for rate limiting)
         user_login: Login credentials (username, password)
-    
+        repo: Repository instance
+
     Returns:
         JWT access token
-    
+
     Raises:
         HTTPException 401: If credentials are invalid
     """
     # Sanitize username to prevent injection attacks
     username = sanitize_username(user_login.username)
-    
-    users = get_users()
-    stored_hash = users.get(username)
-    
+
+    # Get user from repository
+    stored_hash = await repo.get_user(username)
+
     if not stored_hash or not verify_password(user_login.password, stored_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
         )
-    
+
     access_token = create_access_token(data={"sub": username})
     return Token(access_token=access_token)
 
@@ -220,7 +228,14 @@ async def oauth_login(provider: str, request: Request):
 
 
 @router.get("/auth/{provider}/callback")
-async def oauth_callback(provider: str, request: Request, code: str = None, state: str = None, error: str = None):
+async def oauth_callback(
+    provider: str,
+    request: Request,
+    code: str = None,
+    state: str = None,
+    error: str = None,
+    repo: KnowledgeBankRepository = Depends(get_repository)
+):
     """
     Handle OAuth callback from provider.
 
@@ -338,36 +353,33 @@ async def oauth_callback(provider: str, request: Request, code: str = None, stat
             username = sanitize_username(email.split("@")[0])
             oauth_id = f"{provider}:{user_info.get('id', email)}"
 
-            # Get or create user
-            users = get_users()
-
-            # Check if OAuth user exists (stored as oauth:provider:id -> username)
-            from ..dependencies import documents, metadata, clusters
-
+            # OAuth mapping key (store as special "user" where password is the actual username)
             oauth_mapping_key = f"oauth:{oauth_id}"
 
-            # Check existing OAuth mapping
-            if oauth_mapping_key in users:
-                # Existing OAuth user - get their username
-                username = users[oauth_mapping_key]
+            # Check if OAuth user exists
+            oauth_mapping = await repo.get_user(oauth_mapping_key)
+
+            if oauth_mapping:
+                # Existing OAuth user - the "password" field stores the actual username
+                username = oauth_mapping
                 logger.info(f"OAuth login for existing user: {username}")
             else:
                 # New OAuth user - create account
                 # Ensure unique username
                 base_username = username
                 counter = 1
-                while username in users:
+                while await repo.get_user(username):
                     username = f"{base_username}{counter}"
                     counter += 1
 
                 # Create user with random password (they'll use OAuth to login)
                 random_password = secrets.token_urlsafe(32)
-                users[username] = hash_password(random_password)
+                hashed_password = hash_password(random_password)
+                await repo.add_user(username, hashed_password)
 
-                # Store OAuth mapping
-                users[oauth_mapping_key] = username
+                # Store OAuth mapping (username stored as "password" for the mapping key)
+                await repo.add_user(oauth_mapping_key, username)
 
-                save_storage_to_db(documents, metadata, clusters, users)
                 logger.info(f"Created OAuth user: {username} ({provider})")
 
             # Generate JWT token
