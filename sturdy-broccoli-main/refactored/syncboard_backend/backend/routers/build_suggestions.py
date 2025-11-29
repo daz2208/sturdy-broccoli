@@ -597,7 +597,6 @@ async def generate_idea_seeds(
 
     # Generate idea seeds
     result = await generate_document_idea_seeds(
-        db=db,
         document_id=doc.id,
         knowledge_base_id=kb_id
     )
@@ -701,7 +700,6 @@ async def backfill_idea_seeds(
     for doc in docs_without_seeds:
         try:
             result = await generate_document_idea_seeds(
-                db=db,
                 document_id=doc.id,
                 knowledge_base_id=kb_id
             )
