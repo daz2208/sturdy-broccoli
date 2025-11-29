@@ -1041,6 +1041,69 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Get low-confidence decisions that need user validation
+   */
+  async getPendingValidations(limit: number = 10): Promise<Types.PendingValidations> {
+    const { data } = await this.client.get('/feedback/pending', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Get comprehensive learning metrics for current user
+   */
+  async getLearningMetrics(): Promise<{ metrics: Types.LearningMetrics; interpretation: Record<string, string> }> {
+    const { data } = await this.client.get('/feedback/metrics');
+    return data;
+  }
+
+  /**
+   * Get user's feedback patterns and preferences
+   */
+  async getFeedbackPatterns(feedbackType?: string, days: number = 90): Promise<{ patterns: Types.FeedbackPatterns; interpretation: Record<string, string> }> {
+    const { data } = await this.client.get('/feedback/patterns', { params: { feedback_type: feedbackType, days } });
+    return data;
+  }
+
+  /**
+   * Record when user moves a document to a different cluster
+   */
+  async recordClusterMove(request: Types.ClusterMoveRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/cluster-move', request);
+    return data;
+  }
+
+  /**
+   * Record when user edits extracted concepts
+   */
+  async recordConceptEdit(request: Types.ConceptEditRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    added_concepts: string[];
+    removed_concepts: string[];
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/concept-edit', request);
+    return data;
+  }
+
+  /**
+   * Explicitly validate or reject an AI decision
+   */
+  async validateAIDecision(request: Types.ValidationRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    accepted: boolean;
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/validate', request);
+    return data;
+  }
+
   // ==========================================================================
   // AUTONOMOUS AGENTS (Learning Agent + Maverick)
   // ==========================================================================

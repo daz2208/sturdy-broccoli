@@ -681,3 +681,56 @@ export interface AccuracyMetrics {
   total_decisions: number;
   validated_decisions: number;
 }
+
+export interface ClusterMoveRequest {
+  document_id: number;
+  from_cluster_id: number | null;
+  to_cluster_id: number;
+  ai_decision_id?: number;
+  user_reasoning?: string;
+}
+
+export interface ConceptEditRequest {
+  document_id: number;
+  original_concepts: string[];
+  new_concepts: string[];
+  ai_decision_id?: number;
+  user_reasoning?: string;
+}
+
+export interface ValidationRequest {
+  ai_decision_id: number;
+  accepted: boolean;
+  user_reasoning?: string;
+}
+
+export interface LearningMetrics {
+  total_ai_decisions: number;
+  acceptance_rate: number;
+  average_confidence: number;
+  total_feedback: number;
+  unprocessed_feedback: number;
+  by_decision_type: Record<string, {
+    total: number;
+    accepted: number;
+    rejected: number;
+    average_confidence: number;
+  }>;
+}
+
+export interface FeedbackPatterns {
+  total_feedback: number;
+  by_type: Record<string, number>;
+  most_common_corrections: Array<{
+    feedback_type: string;
+    count: number;
+  }>;
+  cluster_preferences?: Record<string, unknown>;
+  concept_preferences?: Record<string, unknown>;
+}
+
+export interface PendingValidations {
+  pending_decisions: Array<AIDecision & { needs_validation: boolean }>;
+  count: number;
+  message: string;
+}
