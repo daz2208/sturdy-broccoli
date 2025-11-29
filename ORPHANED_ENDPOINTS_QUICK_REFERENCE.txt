@@ -1,0 +1,198 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                    ORPHANED ENDPOINTS - QUICK REFERENCE TABLE                  ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ COMPLETE USAGE BREAKDOWN (All 29 Routers)                                       │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Router File              | Endpoints | Used | Orphaned | % Used | Status
+─────────────────────────┼───────────┼──────┼──────────┼────────┼──────────────────
+analytics.py            |     1     |  1   |    0     | 100%   | ✓ FULL
+auth.py                 |     4     |  2   |    2     |  50%   | ⚠ HALF
+admin.py                |     5     |  2   |    3     |  40%   | ✗ LOW
+ai_generation.py        |     3     |  2   |    1     |  66%   | ✓ GOOD
+build_suggestions.py    |    13     | 11   |    2     |  84%   | ✓ HIGH
+clusters.py             |     5     |  4   |    1     |  80%   | ✓ HIGH
+content_generation.py   |     8     |  0   |    8     |   0%   | ✗ NONE
+documents.py            |     7     |  7   |    0     | 100%   | ✓ FULL
+duplicates.py           |     3     |  3   |    0     | 100%   | ✓ FULL
+feedback.py             |    13     |  6   |    7     |  46%   | ✗ LOW *NEW
+generated_code.py       |     8     |  4   |    4     |  50%   | ⚠ HALF
+integrations.py         |     8     |  6   |    2     |  75%   | ✓ GOOD
+jobs.py                 |     3     |  3   |    0     | 100%   | ✓ FULL
+knowledge_bases.py      |    11     | 11   |    0     | 100%   | ✓ FULL
+knowledge_graph.py      |     8     |  5   |    3     |  62%   | ✓ GOOD
+knowledge_tools.py      |    12     | 10   |    2     |  83%   | ✓ HIGH
+learning.py             |    19     | 13   |    6     |  68%   | ✓ GOOD *NEW
+n8n_workflows.py        |     7     |  7   |    0     | 100%   | ✓ FULL
+project_goals.py        |     7     |  6   |    1     |  85%   | ✓ HIGH
+project_tracking.py     |    10     | 10   |    0     | 100%   | ✓ FULL
+relationships.py        |     4     |  4   |    0     | 100%   | ✓ FULL
+saved_searches.py       |     4     |  4   |    0     | 100%   | ✓ FULL
+search.py               |     3     |  3   |    0     | 100%   | ✓ FULL
+tags.py                 |     6     |  6   |    0     | 100%   | ✓ FULL
+teams.py                |    16     | 15   |    1     |  93%   | ✓ FULL
+uploads.py              |     6     |  6   |    0     | 100%   | ✓ FULL
+usage.py                |     6     |  5   |    1     |  83%   | ✓ HIGH
+websocket.py            |     2     |  0   |    2     |   0%   | ✗ NONE
+─────────────────────────┼───────────┼──────┼──────────┼────────┼──────────────────
+TOTALS                  |   202     |122   |   80     |  60%   |
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Key:  ✓ FULL = 100% usage (fully integrated)
+      ✓ HIGH = 80-99% usage (well integrated)
+      ✓ GOOD = 60-79% usage (mostly integrated)
+      ⚠ HALF = 40-59% usage (partially integrated)
+      ✗ LOW  = 20-39% usage (barely integrated)
+      ✗ NONE = 0% usage (not integrated)
+      *NEW  = Recently fixed/added routers
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ CRITICAL ISSUES (0% USAGE - COMPLETE ORPHANS)                                   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1. content_generation.py (8 ORPHANED ENDPOINTS)
+   ├─ GET /content/industries
+   ├─ GET /content/kb-industry
+   ├─ GET /content/templates/{industry}
+   ├─ POST /content/detect-industry
+   ├─ POST /content/generate
+   ├─ POST /content/generate/analysis
+   ├─ POST /content/generate/summary
+   └─ PUT /content/kb-industry
+   Status: ✗ NEVER CALLED - Consider deprecating or integrating
+
+2. websocket.py (2 ORPHANED ENDPOINTS)
+   ├─ GET /ws/presence/{doc_id}
+   └─ GET /ws/status
+   Status: ✗ NEVER CALLED - Real-time features not implemented
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ HIGH PRIORITY (NEWLY FIXED ROUTERS - PARTIAL INTEGRATION)                      │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1. feedback.py (13 TOTAL | 6 USED | 7 ORPHANED - 54%)
+   NEW ROUTER - Recently exported and fixed
+   Missing endpoints (7):
+   ├─ GET /feedback/decisions/document/{document_id}
+   ├─ GET /feedback/metrics
+   ├─ GET /feedback/patterns
+   ├─ GET /feedback/pending
+   ├─ POST /feedback/cluster-move
+   ├─ POST /feedback/concept-edit
+   └─ POST /feedback/validate
+   Currently Used (6):
+   ├─ GET /feedback/validation-prompts ✓
+   ├─ GET /feedback/low-confidence-decisions ✓
+   ├─ GET /feedback/accuracy-metrics ✓
+   ├─ GET /feedback/accuracy ✓
+   ├─ POST /feedback/submit ✓
+   └─ GET /feedback/user-feedback ✓
+
+2. learning.py (19 TOTAL | 13 USED | 6 ORPHANED - 32%)
+   NEW ROUTER - Recently exported and fixed
+   Missing endpoints (6):
+   ├─ GET /learning/profile
+   ├─ GET /learning/status
+   ├─ POST /learning/agent/trigger/{task_name}
+   ├─ POST /learning/calibrate
+   ├─ POST /learning/maverick/trigger/{task_name}
+   └─ POST /learning/run
+   Currently Used (13):
+   ├─ GET /learning/rules ✓
+   ├─ DELETE /learning/rules/{rule_id} ✓
+   ├─ PUT /learning/rules/{rule_id}/reactivate ✓
+   ├─ GET /learning/vocabulary ✓
+   ├─ POST /learning/vocabulary ✓
+   ├─ DELETE /learning/vocabulary/{vocab_id} ✓
+   ├─ GET /learning/agent/status ✓
+   ├─ GET /learning/agent/decisions ✓
+   ├─ GET /learning/maverick/status ✓
+   ├─ GET /learning/maverick/hypotheses ✓
+   ├─ GET /learning/maverick/insights ✓
+   ├─ GET /learning/maverick/activity ✓
+   └─ GET /learning/agents/overview ✓
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ OTHER SIGNIFICANT ORPHANS (>40% USAGE)                                          │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+1. admin.py (5 TOTAL | 2 USED | 3 ORPHANED - 60%)
+   ├─ GET /admin/llm-provider ✗
+   ├─ POST /admin/llm-provider/test ✗
+   ├─ POST /admin/reprocess-document/{doc_id} ✗
+   ├─ GET /admin/chunk-status ✓
+   └─ POST /admin/backfill-chunks ✓
+
+2. generated_code.py (8 TOTAL | 4 USED | 4 ORPHANED - 50%)
+   ├─ GET /generated-code/project/{project_id}/files ✗
+   ├─ GET /generated-code/project/{project_id}/zip ✗
+   ├─ POST /generated-code/store ✗
+   ├─ POST /generated-code/store-batch ✗
+   ├─ GET /generated-code ✓
+   ├─ GET /generated-code/{code_id} ✓
+   └─ GET /generated-code/{code_id}/download ✓
+
+3. auth.py (4 TOTAL | 2 USED | 2 ORPHANED - 50%)
+   ├─ GET /auth/{provider}/callback ✗
+   ├─ GET /auth/{provider}/login ✗
+   ├─ POST /token ✓
+   └─ POST /users ✓
+
+4. knowledge_graph.py (8 TOTAL | 5 USED | 3 ORPHANED - 38%)
+   ├─ GET /knowledge-graph/by-concept/{concept} ✗
+   ├─ GET /knowledge-graph/by-tech/{technology} ✗
+   ├─ GET /knowledge-graph/related/{doc_id} ✗
+   ├─ GET /knowledge-graph/stats ✓
+   ├─ POST /knowledge-graph/build ✓
+   ├─ GET /knowledge-graph/concepts ✓
+   ├─ GET /knowledge-graph/technologies ✓
+   └─ GET /knowledge-graph/path ✓
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ FULLY INTEGRATED ROUTERS (100% USAGE - NO ORPHANS)                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+✓ analytics.py           (1/1)
+✓ documents.py           (7/7)
+✓ duplicates.py          (3/3)
+✓ jobs.py                (3/3)
+✓ knowledge_bases.py     (11/11)
+✓ n8n_workflows.py       (7/7)
+✓ project_tracking.py    (10/10)
+✓ relationships.py       (4/4)
+✓ saved_searches.py      (4/4)
+✓ search.py              (3/3)
+✓ tags.py                (6/6)
+✓ uploads.py             (6/6)
+
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ SUMMARY STATISTICS                                                               │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Total Router Files:          29
+Total Endpoints Defined:     202
+Endpoints Called by Frontend: 122
+Orphaned Endpoints:           80
+
+Usage Distribution:
+- 100% Usage:  12 routers (41.4%)   - 60 endpoints
+- 80-99%:      5 routers (17.2%)    - 32 endpoints
+- 60-79%:      3 routers (10.3%)    - 28 endpoints
+- 40-59%:      4 routers (13.8%)    - 15 endpoints
+- 0-39%:       5 routers (17.2%)    - 67 endpoints
+
+Most Problematic Routers:
+1. content_generation.py - 0% (8 endpoints orphaned)
+2. websocket.py - 0% (2 endpoints orphaned)
+3. admin.py - 40% (3 endpoints orphaned)
+4. feedback.py - 46% (7 endpoints orphaned)
+5. auth.py - 50% (2 endpoints orphaned)
+6. generated_code.py - 50% (4 endpoints orphaned)
+
