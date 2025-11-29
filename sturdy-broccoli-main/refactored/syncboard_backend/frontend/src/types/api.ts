@@ -249,9 +249,22 @@ export interface GenerateResponse {
 }
 
 // Duplicates
+export interface DuplicateDoc {
+  doc_id: number;
+  similarity: number;
+  title?: string;
+  source_type?: string;
+  source_url?: string;
+  filename?: string;
+  skill_level?: string;
+  cluster_id?: number;
+  created_at?: string;
+}
+
 export interface DuplicateGroup {
-  doc_ids: number[];
-  similarity_score: number;
+  primary_doc: DuplicateDoc;
+  duplicates: DuplicateDoc[];
+  group_size: number;
 }
 
 // Tags

@@ -236,19 +236,19 @@ export default function TagsPage() {
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-sm text-gray-500">Total Usage</p>
               <p className="text-2xl font-bold text-white">
-                {tags.reduce((sum, tag) => sum + (tag.document_count || 0), 0)}
+                {tags.reduce((sum, tag) => sum + (tag.usage_count || 0), 0)}
               </p>
             </div>
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-sm text-gray-500">Most Used</p>
               <p className="text-sm font-medium text-white truncate">
-                {tags.sort((a, b) => (b.document_count || 0) - (a.document_count || 0))[0]?.name || 'N/A'}
+                {tags.sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0))[0]?.name || 'N/A'}
               </p>
             </div>
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-sm text-gray-500">Avg per Tag</p>
               <p className="text-2xl font-bold text-white">
-                {tags.length > 0 ? Math.round(tags.reduce((sum, tag) => sum + (tag.document_count || 0), 0) / tags.length) : 0}
+                {tags.length > 0 ? Math.round(tags.reduce((sum, tag) => sum + (tag.usage_count || 0), 0) / tags.length) : 0}
               </p>
             </div>
           </div>

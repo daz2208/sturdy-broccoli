@@ -172,14 +172,17 @@ export default function DuplicatesPage() {
           <div className="bg-dark-100 rounded-xl border border-dark-300 p-4">
             <p className="text-sm text-gray-500">Total Documents</p>
             <p className="text-2xl font-bold text-white">
-              {duplicates.reduce((sum, group) => sum + group.documents.length, 0)}
+              {duplicates.reduce((sum, group) => sum + group.group_size, 0)}
             </p>
           </div>
           <div className="bg-dark-100 rounded-xl border border-dark-300 p-4">
             <p className="text-sm text-gray-500">Avg Similarity</p>
             <p className="text-2xl font-bold text-white">
               {(
-                duplicates.reduce((sum, group) => sum + group.avg_similarity, 0) /
+                duplicates.reduce((sum, group) => {
+                  const avgSim = group.duplicates.reduce((s, d) => s + d.similarity, 0) / group.duplicates.length;
+                  return sum + avgSim;
+                }, 0) /
                 duplicates.length *
                 100
               ).toFixed(0)}%
@@ -188,7 +191,7 @@ export default function DuplicatesPage() {
           <div className="bg-dark-100 rounded-xl border border-dark-300 p-4">
             <p className="text-sm text-gray-500">Storage Impact</p>
             <p className="text-2xl font-bold text-white">
-              {duplicates.reduce((sum, group) => sum + group.documents.length - 1, 0)} docs
+              {duplicates.reduce((sum, group) => sum + group.duplicates.length, 0)} docs
             </p>
           </div>
         </div>
@@ -227,78 +230,113 @@ export default function DuplicatesPage() {
                       Duplicate Group #{groupIdx + 1}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {group.documents.length} similar documents
+                      {group.group_size} similar documents
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSimilarityColor(group.avg_similarity)} ${getSimilarityBg(group.avg_similarity)}`}>
-                    {(group.avg_similarity * 100).toFixed(1)}% similar
-                  </span>
-                  {group.avg_similarity >= 0.95 && (
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
-                  )}
+                  {(() => {
+                    const avgSim = group.duplicates.reduce((s, d) => s + d.similarity, 0) / group.duplicates.length;
+                    return (
+                      <>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSimilarityColor(avgSim)} ${getSimilarityBg(avgSim)}`}>
+                          {(avgSim * 100).toFixed(1)}% similar
+                        </span>
+                        {avgSim >= 0.95 && (
+                          <AlertTriangle className="w-5 h-5 text-red-400" />
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </button>
 
               {/* Group Content */}
               {expandedGroups.has(groupIdx) && (
                 <div className="border-t border-dark-300 p-6 space-y-4">
-                  {group.documents.map((doc, docIdx) => (
-                    <div key={doc.id} className="bg-dark-200 rounded-lg p-4">
+                  {/* Primary document */}
+                  <div className="bg-dark-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-accent-blue mt-1" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-gray-200">
+                              {group.primary_doc.title || `Document #${group.primary_doc.doc_id}`}
+                            </h4>
+                            <span className="badge badge-sm bg-green-500/20 text-green-400">Primary</span>
+                          </div>
+                          <div className="flex gap-2 mt-1">
+                            {group.primary_doc.source_type && (
+                              <span className="badge badge-primary">{group.primary_doc.source_type}</span>
+                            )}
+                            {group.primary_doc.skill_level && (
+                              <span className="badge badge-success">{group.primary_doc.skill_level}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {group.duplicates.length > 0 && (
+                          <button
+                            onClick={() =>
+                              mergeDocs(
+                                group.primary_doc.doc_id,
+                                group.duplicates.map(d => d.doc_id)
+                              )
+                            }
+                            disabled={merging}
+                            className="btn btn-sm bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                            title="Keep this, delete others"
+                          >
+                            {merging ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <GitMerge className="w-4 h-4 mr-1" />
+                                Keep This
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Duplicate documents */}
+                  {group.duplicates.map((doc) => (
+                    <div key={doc.doc_id} className="bg-dark-200 rounded-lg p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          <FileText className="w-5 h-5 text-accent-blue mt-1" />
+                          <FileText className="w-5 h-5 text-accent-orange mt-1" />
                           <div>
-                            <h4 className="font-medium text-gray-200">
-                              {doc.title || `Document #${doc.id}`}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium text-gray-200">
+                                {doc.title || `Document #${doc.doc_id}`}
+                              </h4>
+                              <span className="badge badge-sm bg-orange-500/20 text-orange-400">
+                                {(doc.similarity * 100).toFixed(1)}% match
+                              </span>
+                            </div>
                             <div className="flex gap-2 mt-1">
-                              <span className="badge badge-primary">{doc.source_type}</span>
+                              {doc.source_type && (
+                                <span className="badge badge-primary">{doc.source_type}</span>
+                              )}
                               {doc.skill_level && (
                                 <span className="badge badge-success">{doc.skill_level}</span>
                               )}
                             </div>
-                            {doc.content && (
-                              <p className="text-sm text-gray-400 mt-2 line-clamp-2">
-                                {doc.content.substring(0, 150)}...
-                              </p>
-                            )}
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {docIdx === 0 && group.documents.length > 1 && (
-                            <button
-                              onClick={() =>
-                                mergeDocs(
-                                  doc.id,
-                                  group.documents.slice(1).map(d => d.id)
-                                )
-                              }
-                              disabled={merging}
-                              className="btn btn-sm bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                              title="Keep this, delete others"
-                            >
-                              {merging ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <GitMerge className="w-4 h-4 mr-1" />
-                                  Keep This
-                                </>
-                              )}
-                            </button>
-                          )}
-                          {docIdx > 0 && (
-                            <button
-                              onClick={() => compareDocs(group.documents[0].id, doc.id)}
-                              className="btn btn-sm btn-secondary"
-                              title="Compare with first document"
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              Compare
-                            </button>
-                          )}
+                          <button
+                            onClick={() => compareDocs(group.primary_doc.doc_id, doc.doc_id)}
+                            className="btn btn-sm btn-secondary"
+                            title="Compare with primary document"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Compare
+                          </button>
                         </div>
                       </div>
                     </div>
