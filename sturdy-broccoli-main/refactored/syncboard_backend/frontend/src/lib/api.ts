@@ -267,7 +267,7 @@ class ApiClient {
   }
 
   async generateIdeaSeeds(doc_id: number): Promise<{ idea_seeds: Types.BuildSuggestion[] }> {
-    const { data } = await this.client.post('/idea-seeds/generate', { doc_id });
+    const { data } = await this.client.post(`/idea-seeds/generate/${doc_id}`);
     return data;
   }
 
