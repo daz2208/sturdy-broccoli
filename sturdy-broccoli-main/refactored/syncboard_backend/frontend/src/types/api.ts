@@ -87,6 +87,70 @@ export interface SearchResponse {
 }
 
 // Build Suggestions
+// Content Generation
+export interface Industry {
+  id: string;
+  name: string;
+  description: string;
+  style?: string;
+  citation_style?: string;
+}
+
+export interface ContentTemplate {
+  name: string;
+  description: string;
+  type: string;
+}
+
+export interface IndustryProfile {
+  industry: Industry;
+  templates: ContentTemplate[];
+  categories: Array<{ name: string; description: string }>;
+  skill_levels: string[];
+}
+
+export interface IndustryDetectionRequest {
+  text: string;
+}
+
+export interface IndustryDetectionResponse {
+  detected_industry: string;
+  confidence: 'high' | 'medium' | 'low';
+  available_templates: ContentTemplate[];
+}
+
+export interface ContentGenerationRequest {
+  template_name: string;
+  topic?: string;
+  cluster_ids?: number[];
+  target_length?: 'short' | 'medium' | 'long';
+  include_citations?: boolean;
+  skill_level?: string;
+}
+
+export interface ContentSection {
+  title: string;
+  content: string;
+  citations?: string[];
+}
+
+export interface ContentGenerationResponse {
+  status: string;
+  title: string;
+  sections: ContentSection[];
+  metadata: {
+    template_used: string;
+    industry: string;
+    word_count: number;
+    sources_used: number;
+    generated_at: string;
+  };
+}
+
+export interface SetKBIndustryRequest {
+  industry: string;
+}
+
 export interface BuildSuggestion {
   title: string;
   description: string;
@@ -616,4 +680,118 @@ export interface AccuracyMetrics {
   improvement_trend: number;
   total_decisions: number;
   validated_decisions: number;
+}
+
+export interface ClusterMoveRequest {
+  document_id: number;
+  from_cluster_id: number | null;
+  to_cluster_id: number;
+  ai_decision_id?: number;
+  user_reasoning?: string;
+}
+
+export interface ConceptEditRequest {
+  document_id: number;
+  original_concepts: string[];
+  new_concepts: string[];
+  ai_decision_id?: number;
+  user_reasoning?: string;
+}
+
+export interface ValidationRequest {
+  ai_decision_id: number;
+  accepted: boolean;
+  user_reasoning?: string;
+}
+
+export interface LearningMetrics {
+  total_ai_decisions: number;
+  acceptance_rate: number;
+  average_confidence: number;
+  total_feedback: number;
+  unprocessed_feedback: number;
+  by_decision_type: Record<string, {
+    total: number;
+    accepted: number;
+    rejected: number;
+    average_confidence: number;
+  }>;
+}
+
+export interface FeedbackPatterns {
+  total_feedback: number;
+  by_type: Record<string, number>;
+  most_common_corrections: Array<{
+    feedback_type: string;
+    count: number;
+  }>;
+  cluster_preferences?: Record<string, unknown>;
+  concept_preferences?: Record<string, unknown>;
+}
+
+export interface PendingValidations {
+  pending_decisions: Array<AIDecision & { needs_validation: boolean }>;
+  count: number;
+  message: string;
+}
+
+export interface LearningProfile {
+  has_profile: boolean;
+  username?: string;
+  accuracy_rate?: number;
+  confidence_threshold?: number;
+  last_learning_run?: string;
+  total_rules?: number;
+  total_vocabulary?: number;
+  calibrated_thresholds?: Record<string, number>;
+  message?: string;
+}
+
+export interface LearningStatus {
+  username: string;
+  profile: {
+    accuracy_rate: number;
+    confidence_threshold: number;
+    last_learning_run: string | null;
+  };
+  rules: {
+    total: number;
+    by_type: Record<string, number>;
+    top_applied: Array<{
+      rule_type: string;
+      condition: Record<string, unknown>;
+      action: Record<string, unknown>;
+      times_applied: number;
+    }>;
+  };
+  vocabulary: {
+    total: number;
+    top_terms: Array<{
+      canonical_name: string;
+      category: string;
+      times_seen: number;
+    }>;
+  };
+  pending_feedback: {
+    unprocessed: number;
+    oldest_unprocessed: string | null;
+  };
+}
+
+export interface LearningRunResult {
+  message: string;
+  rules_created: number;
+  rules_updated: number;
+  vocabulary_added: number;
+  vocabulary_updated: number;
+  feedback_processed: number;
+}
+
+export interface CalibrationResult {
+  message: string;
+  min_required?: number;
+  old_thresholds?: Record<string, number>;
+  new_thresholds?: Record<string, number>;
+  accuracy_by_threshold?: Record<string, number>;
+  recommended_threshold?: number;
 }

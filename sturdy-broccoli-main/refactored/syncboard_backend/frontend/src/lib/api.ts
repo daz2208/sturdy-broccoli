@@ -791,6 +791,94 @@ class ApiClient {
   }
 
   // ==========================================================================
+  // CONTENT GENERATION
+  // ==========================================================================
+
+  /**
+   * List all available industries with their descriptions
+   */
+  async listIndustries(): Promise<{ industries: Types.Industry[]; total: number }> {
+    const { data } = await this.client.get('/content/industries');
+    return data;
+  }
+
+  /**
+   * Get the current industry setting for user's knowledge base
+   */
+  async getKBIndustry(): Promise<{
+    knowledge_base_id: string;
+    industry: Types.Industry | null;
+    templates?: Types.ContentTemplate[];
+    categories?: string[];
+    message?: string;
+    available_industries?: Types.Industry[];
+  }> {
+    const { data } = await this.client.get('/content/kb-industry');
+    return data;
+  }
+
+  /**
+   * Get available output templates for a specific industry
+   */
+  async getIndustryTemplates(industry: string): Promise<Types.IndustryProfile> {
+    const { data } = await this.client.get(`/content/templates/${industry}`);
+    return data;
+  }
+
+  /**
+   * Auto-detect the most appropriate industry for content
+   */
+  async detectIndustry(text: string): Promise<Types.IndustryDetectionResponse> {
+    const { data } = await this.client.post('/content/detect-industry', { text });
+    return data;
+  }
+
+  /**
+   * Generate content from knowledge base using industry templates
+   */
+  async generateContent(
+    request: Types.ContentGenerationRequest,
+    industry?: string
+  ): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate', request, {
+      params: industry ? { industry } : undefined
+    });
+    return data;
+  }
+
+  /**
+   * Quick endpoint to generate a summary from knowledge base
+   */
+  async generateSummary(topic?: string, cluster_id?: number): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate/summary', null, {
+      params: { topic, cluster_id }
+    });
+    return data;
+  }
+
+  /**
+   * Quick endpoint to generate an analysis from knowledge base
+   */
+  async generateAnalysis(topic?: string, cluster_id?: number): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate/analysis', null, {
+      params: { topic, cluster_id }
+    });
+    return data;
+  }
+
+  /**
+   * Set the default industry for a knowledge base
+   */
+  async setKBIndustry(industry: string): Promise<{
+    message: string;
+    knowledge_base_id: string;
+    industry: Types.Industry;
+  }> {
+    const { data } = await this.client.put('/content/kb-industry', { industry });
+    return data;
+  }
+
+  // ==========================================================================
   // USAGE & BILLING
   // ==========================================================================
   async getUsage(): Promise<Types.UsageResponse> {
@@ -950,6 +1038,69 @@ class ApiClient {
    */
   async getUserFeedback(limit: number = 50): Promise<Types.UserFeedback[]> {
     const { data } = await this.client.get('/feedback/user-feedback', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Get low-confidence decisions that need user validation
+   */
+  async getPendingValidations(limit: number = 10): Promise<Types.PendingValidations> {
+    const { data } = await this.client.get('/feedback/pending', { params: { limit } });
+    return data;
+  }
+
+  /**
+   * Get comprehensive learning metrics for current user
+   */
+  async getLearningMetrics(): Promise<{ metrics: Types.LearningMetrics; interpretation: Record<string, string> }> {
+    const { data } = await this.client.get('/feedback/metrics');
+    return data;
+  }
+
+  /**
+   * Get user's feedback patterns and preferences
+   */
+  async getFeedbackPatterns(feedbackType?: string, days: number = 90): Promise<{ patterns: Types.FeedbackPatterns; interpretation: Record<string, string> }> {
+    const { data } = await this.client.get('/feedback/patterns', { params: { feedback_type: feedbackType, days } });
+    return data;
+  }
+
+  /**
+   * Record when user moves a document to a different cluster
+   */
+  async recordClusterMove(request: Types.ClusterMoveRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/cluster-move', request);
+    return data;
+  }
+
+  /**
+   * Record when user edits extracted concepts
+   */
+  async recordConceptEdit(request: Types.ConceptEditRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    added_concepts: string[];
+    removed_concepts: string[];
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/concept-edit', request);
+    return data;
+  }
+
+  /**
+   * Explicitly validate or reject an AI decision
+   */
+  async validateAIDecision(request: Types.ValidationRequest): Promise<{
+    feedback_id: number;
+    message: string;
+    accepted: boolean;
+    learning_active: boolean;
+  }> {
+    const { data } = await this.client.post('/feedback/validate', request);
     return data;
   }
 
@@ -1181,6 +1332,78 @@ class ApiClient {
     }>;
   }> {
     const { data } = await this.client.get('/learning/vocabulary');
+    return data;
+  }
+
+  /**
+   * Add a vocabulary term manually
+   */
+  async addVocabularyTerm(request: {
+    canonical_name: string;
+    category: string;
+    variants?: string[];
+    always_include?: boolean;
+    never_include?: boolean;
+  }): Promise<{ message: string; vocabulary_id: number }> {
+    const { data } = await this.client.post('/learning/vocabulary', request);
+    return data;
+  }
+
+  /**
+   * Delete a vocabulary term
+   */
+  async deleteVocabularyTerm(vocabId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/learning/vocabulary/${vocabId}`);
+    return data;
+  }
+
+  /**
+   * Deactivate a learned rule
+   */
+  async deactivateLearnedRule(ruleId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/learning/rules/${ruleId}`);
+    return data;
+  }
+
+  /**
+   * Reactivate a previously deactivated rule
+   */
+  async reactivateLearnedRule(ruleId: number): Promise<{ message: string; rule: any }> {
+    const { data } = await this.client.put(`/learning/rules/${ruleId}/reactivate`);
+    return data;
+  }
+
+  /**
+   * Get user's learning profile with calibrated thresholds
+   */
+  async getLearningProfile(): Promise<Types.LearningProfile> {
+    const { data } = await this.client.get('/learning/profile');
+    return data;
+  }
+
+  /**
+   * Get comprehensive learning status for current user
+   */
+  async getLearningSystemStatus(): Promise<Types.LearningStatus> {
+    const { data } = await this.client.get('/learning/status');
+    return data;
+  }
+
+  /**
+   * Trigger learning from unprocessed feedback
+   */
+  async runLearning(days: number = 90, minOccurrences: number = 2): Promise<Types.LearningRunResult> {
+    const { data } = await this.client.post('/learning/run', null, {
+      params: { days, min_occurrences: minOccurrences }
+    });
+    return data;
+  }
+
+  /**
+   * Calibrate confidence thresholds based on historical accuracy
+   */
+  async calibrateThresholds(): Promise<Types.CalibrationResult> {
+    const { data } = await this.client.post('/learning/calibrate');
     return data;
   }
 
