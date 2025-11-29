@@ -9,7 +9,6 @@ Generates multi-level summaries:
 Uses OpenAI GPT models for summarization with structured output.
 """
 
-import os
 import json
 import logging
 from typing import List, Dict, Optional, Any
@@ -19,8 +18,8 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 # Configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-SUMMARY_MODEL = os.getenv("SUMMARY_MODEL", "gpt-5-nano")
+OPENAI_API_KEY = settings.openai_api_key
+SUMMARY_MODEL = settings.summary_model
 CHUNKS_PER_SECTION = 4  # Number of chunks to combine into a section
 
 

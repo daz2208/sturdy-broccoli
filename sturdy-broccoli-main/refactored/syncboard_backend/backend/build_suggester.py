@@ -9,12 +9,12 @@ IMPROVEMENTS:
 5. Feasibility validation
 """
 
-import os
 import json
 import logging
 from typing import List, Dict, Optional
 from collections import Counter
 
+from .config import settings
 from .llm_providers import LLMProvider, OpenAIProvider
 from .models import Cluster, DocumentMetadata, BuildSuggestion
 
@@ -39,7 +39,7 @@ class ImprovedBuildSuggester:
             llm_provider: LLM provider to use (defaults to OpenAIProvider)
         """
         if llm_provider is None:
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key = settings.openai_api_key
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable required")
             self.provider = OpenAIProvider(api_key=api_key)

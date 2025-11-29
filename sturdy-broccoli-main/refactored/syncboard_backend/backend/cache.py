@@ -9,12 +9,13 @@ Provides intelligent caching for expensive operations:
 Improvement #5: Save 20-40% on API costs by caching repeated/similar content.
 """
 
-import os
 import json
 import hashlib
 import logging
 from typing import Optional, Dict, Any
 from datetime import timedelta
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def get_redis_client():
         import redis
         from redis.connection import ConnectionPool
 
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = settings.redis_url
 
         # Create connection pool for efficiency
         pool = ConnectionPool.from_url(

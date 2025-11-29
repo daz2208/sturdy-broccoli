@@ -7,7 +7,6 @@ faster and smarter "What Can I Build" suggestions.
 Ideas are generated at document level and stored for quick retrieval.
 """
 
-import os
 import json
 import logging
 from typing import List, Dict, Optional, Any
@@ -17,8 +16,8 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 # Configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-IDEA_MODEL = os.getenv("IDEA_MODEL", "gpt-5-mini")
+OPENAI_API_KEY = settings.openai_api_key
+IDEA_MODEL = settings.idea_model
 
 
 @dataclass

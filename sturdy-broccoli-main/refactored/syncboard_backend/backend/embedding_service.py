@@ -5,12 +5,13 @@ Generates vector embeddings for document chunks using OpenAI's API.
 Supports batch processing and caching for efficiency.
 """
 
-import os
 import logging
 import asyncio
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 import numpy as np
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class EmbeddingService:
         self.model_name = self.MODELS.get(model, self.MODELS["small"])
         self.dimensions = self.DIMENSIONS[self.model_name]
 
-        api_key = api_key or os.getenv("OPENAI_API_KEY")
+        api_key = api_key or settings.openai_api_key
         if not api_key:
             logger.warning("No OpenAI API key - embeddings will fail")
 

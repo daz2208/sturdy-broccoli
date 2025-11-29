@@ -7,11 +7,11 @@ Supports two retrieval modes:
 2. Chunk-based RAG (embeddings) - More precise, uses document_chunks table
 """
 
-import os
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from openai import AsyncOpenAI
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ MODELS = {
 }
 
 # Initialize OpenAI client
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncOpenAI(api_key=settings.openai_api_key)
 
 
 async def generate_with_rag(
