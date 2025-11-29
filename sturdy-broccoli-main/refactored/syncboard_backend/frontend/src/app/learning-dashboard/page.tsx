@@ -74,7 +74,13 @@ export default function LearningDashboardPage() {
     setCalibrating(true);
     try {
       const result = await api.calibrateThresholds();
-      toast.success(`Calibration complete! Thresholds: ${result.thresholds.high.toFixed(2)}, ${result.thresholds.medium.toFixed(2)}`);
+      if (result.min_required) {
+        toast.error(result.message || 'Not enough data to calibrate');
+      } else if (result.new_thresholds) {
+        toast.success(`Calibration complete! New threshold: ${Object.values(result.new_thresholds)[0]?.toFixed(2) || 'N/A'}`);
+      } else {
+        toast.success(result.message || 'Calibration complete!');
+      }
       loadDashboardData();
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Calibration failed';
@@ -89,7 +95,7 @@ export default function LearningDashboardPage() {
       await api.validateAIDecision({
         ai_decision_id: decisionId,
         accepted,
-        user_notes: accepted ? 'Validated as correct' : 'Rejected by user',
+        user_reasoning: accepted ? 'Validated as correct' : 'Rejected by user',
       });
       toast.success(accepted ? 'Decision validated' : 'Decision rejected');
       loadDashboardData();
@@ -225,7 +231,7 @@ export default function LearningDashboardPage() {
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-gray-500 text-sm mb-1">Active</p>
               <div className="flex items-center gap-2">
-                {learningStatus.learning_active ? (
+                {learningStatus.rules?.total > 0 ? (
                   <>
                     <CheckCircle className="w-5 h-5 text-green-400" />
                     <span className="text-xl font-bold text-green-400">Yes</span>
@@ -241,36 +247,26 @@ export default function LearningDashboardPage() {
 
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-gray-500 text-sm mb-1">Total Rules</p>
-              <p className="text-2xl font-bold text-gray-100">{learningStatus.total_rules}</p>
+              <p className="text-2xl font-bold text-gray-100">{learningStatus.rules?.total || 0}</p>
             </div>
 
             <div className="bg-dark-200 rounded-lg p-4">
-              <p className="text-gray-500 text-sm mb-1">Active Rules</p>
-              <p className="text-2xl font-bold text-green-400">{learningStatus.active_rules}</p>
+              <p className="text-gray-500 text-sm mb-1">Vocabulary</p>
+              <p className="text-2xl font-bold text-green-400">{learningStatus.vocabulary?.total || 0}</p>
             </div>
 
             <div className="bg-dark-200 rounded-lg p-4">
-              <p className="text-gray-500 text-sm mb-1">Vocabulary Terms</p>
-              <p className="text-2xl font-bold text-primary">{learningStatus.vocabulary_count}</p>
+              <p className="text-gray-500 text-sm mb-1">Accuracy Rate</p>
+              <p className="text-2xl font-bold text-primary">{((learningStatus.profile?.accuracy_rate || 0) * 100).toFixed(1)}%</p>
             </div>
           </div>
 
           {/* Thresholds */}
           <div className="bg-dark-200 rounded-lg p-4">
-            <p className="text-gray-400 text-sm font-semibold mb-3">Confidence Thresholds</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-gray-500 text-xs mb-1">High Confidence</p>
-                <p className="text-lg font-bold text-green-400">{learningStatus.thresholds.high.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs mb-1">Medium Confidence</p>
-                <p className="text-lg font-bold text-yellow-400">{learningStatus.thresholds.medium.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs mb-1">Low Confidence</p>
-                <p className="text-lg font-bold text-red-400">{learningStatus.thresholds.low.toFixed(2)}</p>
-              </div>
+            <p className="text-gray-400 text-sm font-semibold mb-3">Confidence Threshold</p>
+            <div className="flex items-center gap-2">
+              <p className="text-gray-500 text-xs">Current:</p>
+              <p className="text-lg font-bold text-green-400">{learningStatus.profile?.confidence_threshold?.toFixed(2) || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -352,20 +348,20 @@ export default function LearningDashboardPage() {
       )}
 
       {/* Pending Validations */}
-      {pendingValidations && pendingValidations.decisions.length > 0 && (
+      {pendingValidations && pendingValidations.pending_decisions.length > 0 && (
         <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-6 h-6 text-yellow-400" />
               <div>
                 <h2 className="text-xl font-semibold text-gray-200">Pending Validations</h2>
-                <p className="text-gray-500 text-sm">Low-confidence decisions needing review ({pendingValidations.total_pending} total)</p>
+                <p className="text-gray-500 text-sm">Low-confidence decisions needing review ({pendingValidations.count} total)</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-3">
-            {pendingValidations.decisions.map((decision) => (
+            {pendingValidations.pending_decisions.map((decision) => (
               <div key={decision.id} className="bg-dark-200 rounded-lg p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -374,26 +370,18 @@ export default function LearningDashboardPage() {
                         {decision.decision_type.replace('_', ' ')}
                       </span>
                       <span className="text-xs text-gray-500">
-                        Confidence: {(decision.confidence * 100).toFixed(1)}%
+                        Confidence: {(decision.confidence_score * 100).toFixed(1)}%
                       </span>
                       <span className="text-xs text-gray-500">
                         {new Date(decision.created_at).toLocaleDateString()}
                       </span>
                     </div>
 
-                    <p className="text-gray-300 text-sm mb-2">{decision.reasoning}</p>
-
-                    {decision.metadata && Object.keys(decision.metadata).length > 0 && (
-                      <div className="mt-2 p-2 bg-dark-100 rounded">
-                        <p className="text-gray-500 text-xs mb-1">Details:</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          {Object.entries(decision.metadata).map(([key, value]) => (
-                            <div key={key}>
-                              <span className="text-gray-500">{key}:</span>{' '}
-                              <span className="text-gray-300">{String(value)}</span>
-                            </div>
-                          ))}
-                        </div>
+                    {decision.output_data && Object.keys(decision.output_data).length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-gray-300 text-sm">
+                          {JSON.stringify(decision.output_data).substring(0, 100)}...
+                        </p>
                       </div>
                     )}
                   </div>
@@ -419,16 +407,16 @@ export default function LearningDashboardPage() {
             ))}
           </div>
 
-          {pendingValidations.total_pending > 5 && (
+          {pendingValidations.count > 5 && (
             <p className="text-center text-gray-500 text-sm mt-4">
-              Showing 5 of {pendingValidations.total_pending} pending validations
+              Showing 5 of {pendingValidations.count} pending validations
             </p>
           )}
         </div>
       )}
 
       {/* No Pending Validations */}
-      {pendingValidations && pendingValidations.decisions.length === 0 && (
+      {pendingValidations && pendingValidations.pending_decisions.length === 0 && (
         <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
           <div className="flex items-center gap-3 mb-4">
             <CheckCircle className="w-6 h-6 text-green-400" />

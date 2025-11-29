@@ -296,15 +296,9 @@ function TagCard({
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <FileText className="w-4 h-4" />
           <span>
-            {tag.document_count || 0} {tag.document_count === 1 ? 'document' : 'documents'}
+            {tag.usage_count || 0} {tag.usage_count === 1 ? 'document' : 'documents'}
           </span>
         </div>
-
-        {tag.created_at && (
-          <div className="text-xs text-gray-500">
-            Created {new Date(tag.created_at).toLocaleDateString()}
-          </div>
-        )}
       </div>
     </div>
   );

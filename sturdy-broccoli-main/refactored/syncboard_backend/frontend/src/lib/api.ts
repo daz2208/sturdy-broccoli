@@ -683,7 +683,14 @@ class ApiClient {
     return data;
   }
 
-  async findLearningPath(source_concept: string, target_concept: string): Promise<{ path: { concept: string; distance: number }[]; total_steps: number }> {
+  async findLearningPath(source_concept: string, target_concept: string): Promise<{
+    found: boolean;
+    message?: string;
+    start_concept?: string;
+    end_concept?: string;
+    steps?: number;
+    path: { concept: string; distance: number }[]
+  }> {
     const { data } = await this.client.get('/knowledge-graph/path', { params: { source_concept, target_concept } });
     return data;
   }
