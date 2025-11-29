@@ -14,7 +14,7 @@ from pathlib import Path
 backend_path = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_path))
 
-from backend.db_storage_adapter import load_storage_from_db, save_storage_to_db
+from backend.db_storage_adapter import load_storage_from_db
 from backend.vector_store import VectorStore
 from backend.models import DocumentMetadata, Cluster, Concept
 from backend.db_models import DBUser, DBCluster, DBDocument, DBConcept, DBVectorDocument, Base
@@ -137,108 +137,9 @@ def test_load_storage_handles_exception(mock_context, mock_vector_store):
 
 
 # =============================================================================
-# SAVE TO DATABASE TESTS
+# NOTE: save_storage_to_db() tests removed - function deleted during
+# repository pattern migration. All writes now go through DatabaseKnowledgeBankRepository.
 # =============================================================================
-
-@patch('backend.db_storage_adapter.get_db_context')
-def test_save_storage_to_db_empty(mock_context, test_db):
-    """Test saving empty storage to database."""
-    mock_context.return_value.__enter__ = MagicMock(return_value=test_db)
-    mock_context.return_value.__exit__ = MagicMock(return_value=False)
-
-    save_storage_to_db({}, {}, {}, {})
-
-    # Should complete without error
-    assert True
-
-
-@patch('backend.db_storage_adapter.get_db_context')
-def test_save_storage_to_db_with_data(mock_context, test_db):
-    """Test saving documents, clusters, and users to database."""
-    mock_context.return_value.__enter__ = MagicMock(return_value=test_db)
-    mock_context.return_value.__exit__ = MagicMock(return_value=False)
-
-    # Prepare data with nested structure by kb_id
-    documents = {
-        "default": {
-            0: "Test document content"
-        }
-    }
-
-    metadata = {
-        "default": {
-            0: DocumentMetadata(
-                doc_id=0,
-                owner="testuser",
-                source_type="text",
-                source_url=None,
-                filename=None,
-                image_path=None,
-                concepts=[Concept(name="Test", category="test", confidence=0.9)],
-                skill_level="beginner",
-                cluster_id=0,
-                ingested_at="2024-01-01T00:00:00",
-                content_length=20
-            )
-        }
-    }
-
-    clusters = {
-        "default": {
-            0: Cluster(
-                id=0,
-                name="Test Cluster",
-                doc_ids=[0],
-                primary_concepts=["test"],
-                skill_level="beginner",
-                doc_count=1
-            )
-        }
-    }
-
-    users = {"testuser": "hashed123"}
-
-    save_storage_to_db(documents, metadata, clusters, users)
-
-    # Verify data was saved
-    assert test_db.query(DBUser).filter_by(username="testuser").first() is not None
-    assert test_db.query(DBCluster).filter_by(id=0).first() is not None
-    assert test_db.query(DBVectorDocument).filter_by(doc_id=0).first() is not None
-    assert test_db.query(DBDocument).filter_by(doc_id=0).first() is not None
-
-
-@patch('backend.db_storage_adapter.get_db_context')
-def test_save_storage_updates_existing(mock_context, test_db):
-    """Test save_storage updates existing records instead of creating duplicates."""
-    mock_context.return_value.__enter__ = MagicMock(return_value=test_db)
-    mock_context.return_value.__exit__ = MagicMock(return_value=False)
-
-    # Add initial data
-    user = DBUser(username="testuser", hashed_password="old_hash")
-    test_db.add(user)
-    test_db.commit()
-
-    # Update with new hash
-    users = {"testuser": "new_hash"}
-    save_storage_to_db({}, {}, {}, users)
-
-    # Should update, not create duplicate
-    all_users = test_db.query(DBUser).filter_by(username="testuser").all()
-    assert len(all_users) == 1
-    assert all_users[0].hashed_password == "new_hash"
-
-
-@patch('backend.db_storage_adapter.get_db_context')
-def test_save_storage_handles_errors(mock_context):
-    """Test save_storage raises exception on database errors."""
-    mock_db = MagicMock()
-    mock_db.commit.side_effect = Exception("Database error")
-    mock_context.return_value.__enter__ = MagicMock(return_value=mock_db)
-    mock_context.return_value.__exit__ = MagicMock(return_value=False)
-
-    with pytest.raises(Exception):
-        save_storage_to_db({}, {}, {}, {"user": "hash"})
-
 
 # =============================================================================
 # VECTOR STORE INTEGRATION TESTS
