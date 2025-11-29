@@ -28,6 +28,7 @@ from typing import Optional, Union, List, Dict
 from pathlib import Path
 
 try:
+    from .config import settings
     from .constants import (
         ZIP_MAX_RECURSION_DEPTH,
         ZIP_MAX_FILE_COUNT,
@@ -36,6 +37,10 @@ try:
         ZIP_MAX_COMPRESSION_RATIO,
     )
 except ImportError:
+    # Fallback for standalone execution
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from config import settings
     from constants import (
         ZIP_MAX_RECURSION_DEPTH,
         ZIP_MAX_FILE_COUNT,
@@ -47,13 +52,13 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Check for required API keys
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_API_KEY = settings.openai_api_key
 if not OPENAI_API_KEY:
     logger.warning("OPENAI_API_KEY not set - YouTube transcription will fail")
 
-TRANSCRIPTION_MODEL = os.environ.get("TRANSCRIPTION_MODEL", "gpt-4o-mini-transcribe")
-CHUNK_DURATION_SECONDS = int(os.environ.get("TRANSCRIPTION_CHUNK_DURATION_SECONDS", "300"))
-CHUNK_DURATION_THRESHOLD_SECONDS = int(os.environ.get("TRANSCRIPTION_CHUNK_THRESHOLD_SECONDS", "600"))
+TRANSCRIPTION_MODEL = settings.transcription_model
+CHUNK_DURATION_SECONDS = settings.transcription_chunk_duration_seconds
+CHUNK_DURATION_THRESHOLD_SECONDS = settings.transcription_chunk_threshold_seconds
 
 # Whisper API file size limit
 WHISPER_MAX_SIZE_MB = 25

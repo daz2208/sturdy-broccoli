@@ -8,7 +8,6 @@ Endpoints:
 - GET /auth/{provider}/callback - OAuth callback
 """
 
-import os
 import secrets
 import logging
 import httpx
@@ -18,6 +17,7 @@ from fastapi.responses import RedirectResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from ..config import settings
 from ..models import User, UserCreate, Token, UserLogin
 from ..auth import hash_password, verify_password, create_access_token
 from ..sanitization import sanitize_username
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 # Test mode detection
-TESTING = os.environ.get('TESTING') == 'true'
+TESTING = settings.testing
 REGISTER_RATE_LIMIT = "1000/minute" if TESTING else "3/minute"
 LOGIN_RATE_LIMIT = "1000/minute" if TESTING else "5/minute"
 
@@ -136,28 +136,28 @@ async def login(
 # OAuth providers for user authentication (different from integration OAuth)
 OAUTH_LOGIN_CONFIGS = {
     "google": {
-        "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        "client_id": settings.google_client_id or "",
+        "client_secret": settings.google_client_secret or "",
         "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
         "user_info_url": "https://www.googleapis.com/oauth2/v2/userinfo",
         "scopes": "openid email profile",
-        "redirect_uri": os.getenv("OAUTH_GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback"),
+        "redirect_uri": settings.oauth_google_redirect_uri,
     },
     "github": {
-        "client_id": os.getenv("GITHUB_CLIENT_ID", ""),
-        "client_secret": os.getenv("GITHUB_CLIENT_SECRET", ""),
+        "client_id": settings.github_client_id or "",
+        "client_secret": settings.github_client_secret or "",
         "authorize_url": "https://github.com/login/oauth/authorize",
         "token_url": "https://github.com/login/oauth/access_token",
         "user_info_url": "https://api.github.com/user",
         "emails_url": "https://api.github.com/user/emails",
         "scopes": "read:user user:email",
-        "redirect_uri": os.getenv("OAUTH_GITHUB_REDIRECT_URI", "http://localhost:8000/auth/github/callback"),
+        "redirect_uri": settings.oauth_github_redirect_uri,
     },
 }
 
 # Frontend callback URL for OAuth success/failure
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = settings.frontend_url
 
 
 def get_oauth_config(provider: str) -> dict:

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from pydantic import BaseModel, Field
 
+from ..config import settings
 from ..models import User
 from ..dependencies import (
     get_current_user,
@@ -340,10 +341,9 @@ async def get_llm_provider_status(
 
     Returns the configured provider (openai/ollama/mock) and connection status.
     """
-    import os
     import httpx
 
-    provider = os.environ.get("LLM_PROVIDER", "openai").lower()
+    provider = settings.llm_provider
 
     details = {
         "provider_type": provider,
@@ -351,16 +351,16 @@ async def get_llm_provider_status(
     }
 
     if provider == "openai":
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_key = settings.openai_api_key or ""
         details["configured"] = bool(api_key and api_key != "sk-replace-with-your-actual-openai-key")
-        details["model_concept"] = os.environ.get("OPENAI_CONCEPT_MODEL", "gpt-5-nano")
-        details["model_suggestion"] = os.environ.get("OPENAI_SUGGESTION_MODEL", "gpt-5-mini")
+        details["model_concept"] = settings.openai_concept_model
+        details["model_suggestion"] = settings.openai_suggestion_model
         status = "configured" if details["configured"] else "not_configured"
 
     elif provider == "ollama":
-        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-        concept_model = os.environ.get("OLLAMA_CONCEPT_MODEL", "llama2")
-        suggestion_model = os.environ.get("OLLAMA_SUGGESTION_MODEL", "llama2")
+        base_url = settings.ollama_base_url
+        concept_model = settings.ollama_concept_model
+        suggestion_model = settings.ollama_suggestion_model
 
         details["base_url"] = base_url
         details["model_concept"] = concept_model
