@@ -24,14 +24,16 @@ def upgrade() -> None:
     # Teams table
     op.create_table(
         'teams',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('id', sa.String(36), primary_key=True),  # UUID
+        sa.Column('name', sa.String(255), nullable=False),
         sa.Column('slug', sa.String(100), unique=True, nullable=False, index=True),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('owner_username', sa.String(50), sa.ForeignKey('users.username', ondelete='CASCADE'), nullable=False),
         sa.Column('is_public', sa.Boolean(), default=False, nullable=False),
+        sa.Column('allow_member_invites', sa.Boolean(), default=False, nullable=False),
+        sa.Column('max_members', sa.Integer(), default=10, nullable=False),
         sa.Column('member_count', sa.Integer(), default=1, nullable=False),
-        sa.Column('settings', sa.Text(), nullable=True),
+        sa.Column('kb_count', sa.Integer(), default=0, nullable=False),
         sa.Column('created_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
         sa.Column('updated_at', sa.DateTime(), onupdate=datetime.utcnow, nullable=True),
     )
@@ -41,7 +43,7 @@ def upgrade() -> None:
     op.create_table(
         'team_members',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('team_id', sa.String(36), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
         sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='CASCADE'), nullable=False),
         sa.Column('role', sa.String(20), default='member', nullable=False),
         sa.Column('can_invite', sa.Boolean(), default=False, nullable=False),
@@ -49,6 +51,7 @@ def upgrade() -> None:
         sa.Column('can_delete_docs', sa.Boolean(), default=False, nullable=False),
         sa.Column('can_manage_kb', sa.Boolean(), default=False, nullable=False),
         sa.Column('joined_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
+        sa.Column('last_active_at', sa.DateTime(), nullable=True),
     )
     op.create_index('ix_team_members_team', 'team_members', ['team_id'])
     op.create_index('ix_team_members_user', 'team_members', ['username'])
@@ -57,16 +60,18 @@ def upgrade() -> None:
     # Team invitations table
     op.create_table(
         'team_invitations',
-        sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.String(36), primary_key=True),  # UUID
+        sa.Column('team_id', sa.String(36), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
         sa.Column('email', sa.String(255), nullable=False),
-        sa.Column('token', sa.String(100), unique=True, nullable=False, index=True),
+        sa.Column('invited_username', sa.String(50), nullable=True),
+        sa.Column('token', sa.String(64), unique=True, nullable=False, index=True),
         sa.Column('role', sa.String(20), default='member', nullable=False),
+        sa.Column('message', sa.Text(), nullable=True),
         sa.Column('invited_by', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
         sa.Column('status', sa.String(20), default='pending', nullable=False),
         sa.Column('created_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
         sa.Column('expires_at', sa.DateTime(), nullable=False),
-        sa.Column('accepted_at', sa.DateTime(), nullable=True),
+        sa.Column('responded_at', sa.DateTime(), nullable=True),
     )
     op.create_index('ix_team_invitations_team', 'team_invitations', ['team_id'])
     op.create_index('ix_team_invitations_email', 'team_invitations', ['email'])
@@ -75,9 +80,9 @@ def upgrade() -> None:
     op.create_table(
         'team_knowledge_bases',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('team_id', sa.String(36), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=False),
         sa.Column('knowledge_base_id', sa.String(36), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('permission', sa.String(20), default='read', nullable=False),
+        sa.Column('access_level', sa.String(20), default='read', nullable=False),
         sa.Column('shared_by', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
         sa.Column('shared_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
     )
@@ -88,10 +93,13 @@ def upgrade() -> None:
         'document_comments',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('document_id', sa.Integer(), sa.ForeignKey('documents.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
+        sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='CASCADE'), nullable=False),
         sa.Column('content', sa.Text(), nullable=False),
-        sa.Column('parent_id', sa.Integer(), sa.ForeignKey('document_comments.id', ondelete='CASCADE'), nullable=True),
+        sa.Column('parent_comment_id', sa.Integer(), sa.ForeignKey('document_comments.id', ondelete='CASCADE'), nullable=True),
+        sa.Column('mentions', sa.Text(), nullable=True),
         sa.Column('is_resolved', sa.Boolean(), default=False, nullable=False),
+        sa.Column('resolved_by', sa.String(50), nullable=True),
+        sa.Column('resolved_at', sa.DateTime(), nullable=True),
         sa.Column('created_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
         sa.Column('updated_at', sa.DateTime(), onupdate=datetime.utcnow, nullable=True),
     )
@@ -101,7 +109,7 @@ def upgrade() -> None:
     op.create_table(
         'activity_logs',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column('team_id', sa.Integer(), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=True),
+        sa.Column('team_id', sa.String(36), sa.ForeignKey('teams.id', ondelete='CASCADE'), nullable=True),
         sa.Column('knowledge_base_id', sa.String(36), sa.ForeignKey('knowledge_bases.id', ondelete='CASCADE'), nullable=True),
         sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='SET NULL'), nullable=True),
         sa.Column('action', sa.String(50), nullable=False),
@@ -142,7 +150,7 @@ def upgrade() -> None:
         'usage_records',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('subscription_id', sa.Integer(), sa.ForeignKey('user_subscriptions.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='CASCADE'), nullable=False),
+        sa.Column('username', sa.String(50), nullable=False),
         sa.Column('period_start', sa.DateTime(), nullable=False),
         sa.Column('period_end', sa.DateTime(), nullable=False),
         sa.Column('api_calls', sa.Integer(), default=0, nullable=False),
@@ -151,7 +159,7 @@ def upgrade() -> None:
         sa.Column('storage_bytes', sa.BigInteger(), default=0, nullable=False),
         sa.Column('search_queries', sa.Integer(), default=0, nullable=False),
         sa.Column('build_suggestions', sa.Integer(), default=0, nullable=False),
-        sa.Column('created_at', sa.DateTime(), default=datetime.utcnow, nullable=False),
+        sa.Column('last_updated', sa.DateTime(), default=datetime.utcnow, nullable=False),
     )
     op.create_index('ix_usage_records_user', 'usage_records', ['username'])
     op.create_index('ix_usage_records_period', 'usage_records', ['period_start', 'period_end'])
@@ -161,11 +169,11 @@ def upgrade() -> None:
         'rate_limit_overrides',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column('username', sa.String(50), sa.ForeignKey('users.username', ondelete='CASCADE'), unique=True, nullable=False),
-        sa.Column('api_calls_per_minute', sa.Integer(), nullable=True),
-        sa.Column('api_calls_per_day', sa.Integer(), nullable=True),
-        sa.Column('documents_per_month', sa.Integer(), nullable=True),
-        sa.Column('ai_requests_per_day', sa.Integer(), nullable=True),
-        sa.Column('storage_mb', sa.Integer(), nullable=True),
+        sa.Column('max_api_calls_per_minute', sa.Integer(), nullable=True),
+        sa.Column('max_api_calls_per_day', sa.Integer(), nullable=True),
+        sa.Column('max_documents_per_month', sa.Integer(), nullable=True),
+        sa.Column('max_ai_requests_per_day', sa.Integer(), nullable=True),
+        sa.Column('max_storage_bytes', sa.BigInteger(), nullable=True),
         sa.Column('reason', sa.Text(), nullable=True),
         sa.Column('granted_by', sa.String(50), nullable=True),
         sa.Column('expires_at', sa.DateTime(), nullable=True),
