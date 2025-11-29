@@ -13,6 +13,8 @@ from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
+from .config import settings
+
 logger = logging.getLogger(__name__)
 
 # Configuration

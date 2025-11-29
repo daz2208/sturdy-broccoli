@@ -17,6 +17,7 @@ from ..dependencies import get_current_user, get_repository, get_kb_metadata, ge
 from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db_context
 from ..db_models import DBN8nWorkflow, DBDocument
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
