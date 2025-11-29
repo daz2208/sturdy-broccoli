@@ -20,6 +20,7 @@ export default function GeneratedCodePage() {
   const [codeFiles, setCodeFiles] = useState<GeneratedCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => { loadCode(); }, [filter]);
 
@@ -36,6 +37,20 @@ export default function GeneratedCodePage() {
 
   const downloadCode = (id: number) => {
     window.open(api.getCodeDownloadUrl(id), '_blank');
+  };
+
+  const deleteCode = async (id: number) => {
+    if (!confirm('Delete this code file?')) return;
+    setDeleting(id);
+    try {
+      await api.deleteGeneratedCode(id);
+      toast.success('Code file deleted');
+      loadCode();
+    } catch {
+      toast.error('Failed to delete code file');
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const languages = [...new Set(codeFiles.map(f => f.language))];
@@ -108,13 +123,27 @@ export default function GeneratedCodePage() {
                     </pre>
                   </div>
                 </div>
-                <button
-                  onClick={() => downloadCode(file.id)}
-                  className="btn btn-secondary text-sm"
-                  title="Download"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadCode(file.id)}
+                    className="btn btn-secondary text-sm"
+                    title="Download"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteCode(file.id)}
+                    disabled={deleting === file.id}
+                    className="btn btn-secondary text-sm"
+                    title="Delete"
+                  >
+                    {deleting === file.id ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           );
