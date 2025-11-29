@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 from .models import User, DocumentMetadata, Cluster
 from .vector_store import VectorStore
 from .concept_extractor import ConceptExtractor
-from .clustering_improved import ImprovedClusteringEngine
+from .clustering import ImprovedClusteringEngine
 from .image_processor import ImageProcessor
-from .build_suggester_improved import ImprovedBuildSuggester
+from .build_suggester import ImprovedBuildSuggester
 from .semantic_dictionary import SemanticDictionaryManager
 from .llm_providers import OpenAIProvider
 from .auth import decode_access_token
