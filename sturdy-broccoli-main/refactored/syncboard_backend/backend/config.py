@@ -18,7 +18,7 @@ Usage:
 
 import os
 from typing import Optional, Literal
-from pydantic import Field, validator
+from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -401,17 +401,30 @@ class Settings(BaseSettings):
         return self.celery_result_backend or self.redis_url
 
     # =============================================================================
-    # Validators
+    # Pydantic Model Configuration
     # =============================================================================
 
-    @validator("database_url")
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",  # Allow extra fields for forward compatibility
+    )
+
+    # =============================================================================
+    # Field Validators
+    # =============================================================================
+
+    @field_validator("database_url")
+    @classmethod
     def validate_database_url(cls, v):
         """Convert postgres:// to postgresql:// for SQLAlchemy compatibility."""
         if v.startswith("postgres://"):
             return v.replace("postgres://", "postgresql://", 1)
         return v
 
-    @validator("log_level")
+    @field_validator("log_level")
+    @classmethod
     def validate_log_level(cls, v):
         """Ensure log level is uppercase and valid."""
         v = v.upper()
@@ -420,22 +433,11 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
         return v
 
-    @validator("environment")
+    @field_validator("environment")
+    @classmethod
     def validate_environment(cls, v):
         """Ensure environment is lowercase."""
         return v.lower()
-
-    # =============================================================================
-    # Pydantic Config
-    # =============================================================================
-
-    class Config:
-        """Pydantic configuration."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        # Allow extra fields for forward compatibility
-        extra = "ignore"
 
 
 # =============================================================================
