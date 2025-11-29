@@ -40,8 +40,8 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         self.db = db_session
         self.vector_dim = vector_dim
 
-        # Vector store for semantic search
-        self.vector_store = VectorStore(dim=vector_dim)
+        # Vector store for semantic search (private attribute)
+        self._vector_store = VectorStore(dim=vector_dim)
 
         # Async lock for thread-safe operations
         self._lock = asyncio.Lock()
@@ -49,12 +49,17 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         # Load vector store from database
         self._load_vector_store()
 
+    @property
+    def vector_store(self) -> VectorStore:
+        """Get the vector store instance for semantic search."""
+        return self._vector_store
+
     def _load_vector_store(self) -> None:
         """Load documents into vector store for semantic search."""
         try:
             vector_docs = self.db.query(DBVectorDocument).all()
             for vdoc in vector_docs:
-                self.vector_store.add_document(vdoc.content, doc_id=vdoc.doc_id)
+                self._vector_store.add_document(vdoc.content, doc_id=vdoc.doc_id)
             logger.info(f"Loaded {len(vector_docs)} documents into vector store")
         except Exception as e:
             logger.error(f"Failed to load vector store: {e}")
