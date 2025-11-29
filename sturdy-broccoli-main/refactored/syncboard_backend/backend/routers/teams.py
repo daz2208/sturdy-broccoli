@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from slugify import slugify
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -73,6 +73,8 @@ class TeamUpdate(BaseModel):
 
 
 class TeamResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     slug: str
@@ -83,9 +85,6 @@ class TeamResponse(BaseModel):
     kb_count: int
     created_at: datetime
     user_role: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 
 class MemberAdd(BaseModel):
@@ -101,6 +100,8 @@ class MemberUpdate(BaseModel):
 
 
 class MemberResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     username: str
     role: str
     can_invite: bool
@@ -109,9 +110,6 @@ class MemberResponse(BaseModel):
     can_manage_kb: bool
     joined_at: datetime
     last_active_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class InvitationCreate(BaseModel):
