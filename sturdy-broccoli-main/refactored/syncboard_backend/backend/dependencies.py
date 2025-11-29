@@ -52,9 +52,6 @@ metadata: Dict[str, Dict[int, DocumentMetadata]] = {}
 clusters: Dict[str, Dict[int, Cluster]] = {}
 users: Dict[str, str] = {}  # username -> hashed_password
 
-# Storage lock for thread safety
-storage_lock = asyncio.Lock()
-
 # =============================================================================
 # Service Instances
 # =============================================================================
@@ -163,17 +160,9 @@ def get_clusters() -> Dict[str, Dict[int, Cluster]]:
     """Get all clusters dictionary (nested by kb_id)."""
     return clusters
 
-def get_users() -> Dict[str, str]:
-    """Get users dictionary."""
-    return users
-
 def get_vector_store() -> VectorStore:
     """Get vector store instance."""
     return vector_store
-
-def get_storage_lock() -> asyncio.Lock:
-    """Get storage lock for thread-safe operations."""
-    return storage_lock
 
 def get_concept_extractor() -> ConceptExtractor:
     """Get concept extractor instance."""
