@@ -230,6 +230,14 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Delete a cluster (documents become unclustered unless delete_documents=true)
+   */
+  async deleteCluster(clusterId: number, deleteDocuments: boolean = false): Promise<{ message: string; cluster_id: number; documents_affected: number }> {
+    const { data } = await this.client.delete(`/clusters/${clusterId}`, { params: { delete_documents: deleteDocuments } });
+    return data;
+  }
+
   async exportCluster(clusterId: number, format: 'json' | 'markdown' = 'json'): Promise<Blob> {
     const { data } = await this.client.get(`/export/cluster/${clusterId}`, { params: { format }, responseType: 'blob' });
     return data;
@@ -382,6 +390,19 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Check AI generation service status
+   */
+  async getGenerationStatus(): Promise<{
+    status: string;
+    llm_provider: string;
+    models_available: boolean;
+    message?: string;
+  }> {
+    const { data } = await this.client.get('/generate/status');
+    return data;
+  }
+
   // ==========================================================================
   // DUPLICATES
   // ==========================================================================
@@ -526,6 +547,36 @@ class ApiClient {
 
   async getGithubRepos(org?: string): Promise<{ repos: { name: string; url: string; stars: number; description: string }[] }> {
     const { data } = await this.client.get('/integrations/github/repos', { params: { org } });
+    return data;
+  }
+
+  /**
+   * Browse contents of a GitHub repository
+   */
+  async getGithubRepoContents(owner: string, repo: string, path?: string): Promise<{
+    files: Array<{ name: string; path: string; type: 'file' | 'dir'; size?: number }>;
+    current_path: string;
+  }> {
+    const { data } = await this.client.get(`/integrations/github/repos/${owner}/${repo}/contents`, { params: { path } });
+    return data;
+  }
+
+  /**
+   * Import a file from GitHub repository
+   */
+  async importGithubFile(owner: string, repo: string, filePath: string): Promise<{ message: string; document_id: number }> {
+    const { data } = await this.client.post('/integrations/github/import', { owner, repo, file_path: filePath });
+    return data;
+  }
+
+  /**
+   * Check health status of all integrations
+   */
+  async getIntegrationsHealth(): Promise<{
+    status: string;
+    integrations: Record<string, { status: string; message?: string }>;
+  }> {
+    const { data } = await this.client.get('/integrations/health');
     return data;
   }
 
@@ -677,6 +728,14 @@ class ApiClient {
 
   async deleteProjectGoal(goalId: number): Promise<{ message: string }> {
     const { data } = await this.client.delete(`/project-goals/${goalId}`);
+    return data;
+  }
+
+  /**
+   * Set a goal as the primary/active project goal
+   */
+  async setPrimaryProjectGoal(goalId: number): Promise<Types.ProjectGoal> {
+    const { data } = await this.client.post(`/project-goals/set-primary/${goalId}`);
     return data;
   }
 
