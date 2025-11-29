@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { Search as SearchIcon, FileText, Filter, Save } from 'lucide-react';
-import type { SearchResult } from '@/types/api';
+import { Search as SearchIcon, FileText, Filter, Save, Bookmark, Trash2, Clock, TrendingUp } from 'lucide-react';
+import type { SearchResult, SavedSearch } from '@/types/api';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ source_type: '', skill_level: '', cluster_id: '' });
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [loadingSavedSearches, setLoadingSavedSearches] = useState(true);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -38,16 +40,56 @@ export default function SearchPage() {
     }
   };
 
+  const loadSavedSearches = async () => {
+    setLoadingSavedSearches(true);
+    try {
+      const response = await api.getSavedSearches();
+      setSavedSearches(response.saved_searches);
+    } catch (err) {
+      console.error('Failed to load saved searches:', err);
+    } finally {
+      setLoadingSavedSearches(false);
+    }
+  };
+
   const saveSearch = async () => {
     const name = prompt('Enter a name for this search:');
     if (!name) return;
     try {
       await api.saveSearch(name, query, filters);
       toast.success('Search saved!');
+      loadSavedSearches(); // Reload saved searches
     } catch (err) {
       toast.error('Failed to save search');
     }
   };
+
+  const useSavedSearch = async (searchId: number) => {
+    try {
+      const response = await api.useSavedSearch(searchId);
+      setQuery(response.query);
+      setFilters(response.filters as any || { source_type: '', skill_level: '', cluster_id: '' });
+      toast.success('Search loaded!');
+      loadSavedSearches(); // Reload to update usage stats
+    } catch (err) {
+      toast.error('Failed to load search');
+    }
+  };
+
+  const deleteSavedSearch = async (searchId: number, searchName: string) => {
+    if (!confirm(`Delete saved search "${searchName}"?`)) return;
+    try {
+      await api.deleteSavedSearch(searchId);
+      toast.success('Search deleted');
+      loadSavedSearches();
+    } catch (err) {
+      toast.error('Failed to delete search');
+    }
+  };
+
+  useEffect(() => {
+    loadSavedSearches();
+  }, []);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -106,6 +148,60 @@ export default function SearchPage() {
           </select>
         </div>
       </div>
+
+      {/* Saved Searches */}
+      {savedSearches.length > 0 && (
+        <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Bookmark className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-gray-200">Saved Searches</h2>
+            <span className="badge badge-primary">{savedSearches.length}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {savedSearches.map((search) => (
+              <div
+                key={search.id}
+                className="bg-dark-200 rounded-lg border border-dark-300 p-4 hover:border-primary/50 transition-colors group"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-200 truncate">{search.name}</h3>
+                    <p className="text-sm text-gray-400 truncate mt-1">"{search.query}"</p>
+                    <div className="flex gap-3 mt-2 text-xs text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        <span>{search.usage_count} uses</span>
+                      </div>
+                      {search.last_used && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{new Date(search.last_used).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-2">
+                    <button
+                      onClick={() => useSavedSearch(search.id)}
+                      className="btn btn-sm btn-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Use this search"
+                    >
+                      Use
+                    </button>
+                    <button
+                      onClick={() => deleteSavedSearch(search.id, search.name)}
+                      className="btn btn-sm btn-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete search"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {results.length > 0 && (
