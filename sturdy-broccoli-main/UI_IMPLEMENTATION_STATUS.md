@@ -10,10 +10,10 @@
 This document tracks the UI implementation status for all backend endpoints in SyncBoard 3.0. The system has **120+ API endpoints**, of which approximately **70 endpoints** now have complete UI integration.
 
 ### Quick Stats
-- ✅ **Implemented**: ~74 endpoints with full UI
+- ✅ **Implemented**: ~80 endpoints with full UI
 - 🟡 **Partial**: ~5 endpoints with limited UI
-- ❌ **Missing**: ~46 endpoints without UI
-- 🆕 **New in this session**: Saved Searches UI
+- ❌ **Missing**: ~40 endpoints without UI
+- 🆕 **New in this session**: Saved Searches, Export All, Document Relationships
 
 ---
 
@@ -33,6 +33,7 @@ This document tracks the UI implementation status for all backend endpoints in S
    - Filter by source type and skill level
    - Real-time progress tracking for uploads
    - Job status monitoring
+   - Export all documents (JSON/Markdown) ✅
 
 3. **Document Detail View** (`/documents/[id]`) 🆕
    - View full document metadata
@@ -40,6 +41,9 @@ This document tracks the UI implementation status for all backend endpoints in S
    - Generate and view summaries
    - Download document
    - Delete document
+   - Document relationships (add, view, remove) ✅
+   - Auto-discover similar documents ✅
+   - Relationship types (related, prerequisite, extends, etc.)
 
 4. **Search** (`/search`)
    - Semantic search with filters
@@ -52,7 +56,7 @@ This document tracks the UI implementation status for all backend endpoints in S
    - View all clusters
    - Update cluster name and skill level
    - Delete clusters
-   - Export clusters (JSON/Markdown)
+   - Export clusters (JSON/Markdown) ✅
 
 ### Organization & Discovery
 
@@ -520,11 +524,11 @@ The `/content-generation` page includes:
 1. ✅ **Tags** - DONE
 2. ✅ **Duplicates** - DONE
 3. ✅ **Saved Searches** - DONE
-4. **Knowledge Graph Visualization** - Visual exploration, high user value
-5. **Export Features** - Data portability, 2 simple endpoints
+4. ✅ **Export Features** - DONE
+5. ✅ **Document Relationships** - DONE
+6. **Knowledge Graph Visualization** - Visual exploration, high user value
 
 ### Medium Priority (Enhanced Features)
-6. **Document Relationships** - Advanced organization
 7. **Project Goals** - Better project tracking
 8. **Usage History** - Better insights
 
@@ -615,26 +619,24 @@ The `/content-generation` page includes:
 
 ### What's Missing ❌
 - Knowledge graph visualization
-- Saved searches UI
-- Document relationships UI
 - Team collaboration features
-- Export buttons in UI
 - Some admin tools
 
 ### Recent Additions 🆕
 1. **Saved Searches UI** - Save, load, and delete searches with usage statistics
-2. Tags management page with color picker
-3. Duplicate detection and merging
-4. Document detail view with tags and summaries
-5. Delete functionality for generated code
+2. **Export All** - Export entire knowledge base from documents page (JSON/Markdown)
+3. **Document Relationships** - Link documents, auto-discover similar docs, 6 relationship types
+4. Tags management page with color picker
+5. Duplicate detection and merging
+6. Document detail view with tags and summaries
+7. Delete functionality for generated code
 
 ### Next Steps 🎯
-1. Build Knowledge Graph visualization page
-2. Add export buttons to clusters/documents (may already be there)
-3. Add document relationships visualization
-4. Adapt backend prompts for all 8 industries
-5. Test industry-specific content generation
-6. Implement Project Goals UI
+1. Build Knowledge Graph visualization page (high priority - 8 endpoints ready)
+2. Implement Project Goals UI (medium priority - 7 endpoints ready)
+3. Adapt backend prompts for all 8 industries
+4. Test industry-specific content generation
+5. Add Teams & Collaboration features (low priority - enterprise)
 
 ---
 

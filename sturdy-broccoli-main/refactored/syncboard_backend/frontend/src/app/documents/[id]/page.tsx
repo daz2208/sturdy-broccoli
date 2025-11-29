@@ -16,9 +16,12 @@ import {
   Edit3,
   Save,
   Clock,
-  Sparkles
+  Sparkles,
+  Link2,
+  ExternalLink,
+  Search
 } from 'lucide-react';
-import type { Document, Tag } from '@/types/api';
+import type { Document, Tag, DocumentRelationship } from '@/types/api';
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -33,12 +36,18 @@ export default function DocumentDetailPage() {
   const [addingTag, setAddingTag] = useState(false);
   const [summaries, setSummaries] = useState<any[]>([]);
   const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [relationships, setRelationships] = useState<DocumentRelationship[]>([]);
+  const [discoveredDocs, setDiscoveredDocs] = useState<any[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+  const [showAddRelationship, setShowAddRelationship] = useState(false);
+  const [newRelationship, setNewRelationship] = useState({ targetDocId: '', type: 'related' });
 
   useEffect(() => {
     loadDocument();
     loadAllTags();
     loadDocumentTags();
     loadSummaries();
+    loadRelationships();
   }, [docId]);
 
   const loadDocument = async () => {
@@ -138,6 +147,63 @@ export default function DocumentDetailPage() {
       console.error(err);
     } finally {
       setGeneratingSummary(false);
+    }
+  };
+
+  const loadRelationships = async () => {
+    try {
+      const data = await api.getRelationships(docId);
+      setRelationships(data.relationships || []);
+    } catch (err) {
+      console.error('Failed to load relationships:', err);
+    }
+  };
+
+  const addRelationship = async () => {
+    const targetId = parseInt(newRelationship.targetDocId);
+    if (!targetId || isNaN(targetId)) {
+      toast.error('Please enter a valid document ID');
+      return;
+    }
+    try {
+      await api.createRelationship(docId, targetId, newRelationship.type);
+      toast.success('Relationship added');
+      loadRelationships();
+      setShowAddRelationship(false);
+      setNewRelationship({ targetDocId: '', type: 'related' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Failed to add relationship');
+      console.error(err);
+    }
+  };
+
+  const removeRelationship = async (targetDocId: number) => {
+    if (!confirm('Remove this relationship?')) return;
+    try {
+      await api.deleteRelationship(docId, targetDocId);
+      toast.success('Relationship removed');
+      setRelationships(prev => prev.filter(r => r.target_doc_id !== targetDocId));
+    } catch (err) {
+      toast.error('Failed to remove relationship');
+      console.error(err);
+    }
+  };
+
+  const discoverRelated = async () => {
+    setDiscovering(true);
+    try {
+      const data = await api.discoverRelatedDocuments(docId, 10, 0.3);
+      setDiscoveredDocs(data.related_documents || []);
+      if (data.related_documents?.length === 0) {
+        toast('No similar documents found', { icon: '🔍' });
+      } else {
+        toast.success(`Found ${data.related_documents.length} related documents`);
+      }
+    } catch (err) {
+      toast.error('Failed to discover related documents');
+      console.error(err);
+    } finally {
+      setDiscovering(false);
     }
   };
 
@@ -335,6 +401,175 @@ export default function DocumentDetailPage() {
                 <p className="text-gray-300 text-sm leading-relaxed">{summary.text}</p>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Relationships */}
+      <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
+            <Link2 className="w-5 h-5 text-accent-green" />
+            Related Documents
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={discoverRelated}
+              disabled={discovering}
+              className="btn btn-sm btn-secondary flex items-center gap-2"
+            >
+              {discovering ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Discovering...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Discover Similar
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowAddRelationship(!showAddRelationship)}
+              className="btn btn-sm btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Relationship
+            </button>
+          </div>
+        </div>
+
+        {/* Add Relationship Form */}
+        {showAddRelationship && (
+          <div className="border border-dark-300 rounded-lg p-4 mb-4 bg-dark-200">
+            <p className="text-sm text-gray-400 mb-3">Link this document to another:</p>
+            <div className="flex gap-3">
+              <input
+                type="number"
+                value={newRelationship.targetDocId}
+                onChange={(e) => setNewRelationship(prev => ({ ...prev, targetDocId: e.target.value }))}
+                placeholder="Target Document ID"
+                className="input flex-1"
+              />
+              <select
+                value={newRelationship.type}
+                onChange={(e) => setNewRelationship(prev => ({ ...prev, type: e.target.value }))}
+                className="input w-auto"
+              >
+                <option value="related">Related</option>
+                <option value="prerequisite">Prerequisite</option>
+                <option value="extends">Extends</option>
+                <option value="implements">Implements</option>
+                <option value="references">References</option>
+                <option value="similar">Similar</option>
+              </select>
+              <button onClick={addRelationship} className="btn btn-primary">
+                Add
+              </button>
+              <button
+                onClick={() => setShowAddRelationship(false)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Current Relationships */}
+        {relationships.length === 0 && discoveredDocs.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            No relationships yet. Click "Discover Similar" to find related documents or "Add Relationship" to manually link documents.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {/* Manual Relationships */}
+            {relationships.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">Linked Documents ({relationships.length})</h3>
+                <div className="space-y-2">
+                  {relationships.map((rel) => (
+                    <div
+                      key={rel.target_doc_id}
+                      className="bg-dark-200 rounded-lg p-3 flex items-center justify-between group hover:border-primary/50 border border-transparent transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-accent-blue" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-300">Document #{rel.target_doc_id}</span>
+                            <span className="badge badge-sm" style={{ fontSize: '0.7rem' }}>
+                              {rel.relationship_type}
+                            </span>
+                          </div>
+                          {rel.strength && (
+                            <p className="text-xs text-gray-500">Strength: {(rel.strength * 100).toFixed(0)}%</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => window.open(`/documents/${rel.target_doc_id}`, '_blank')}
+                          className="btn btn-sm btn-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Open document"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => removeRelationship(rel.target_doc_id)}
+                          className="btn btn-sm btn-error opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove relationship"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Discovered Documents */}
+            {discoveredDocs.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-2">
+                  Similar Documents ({discoveredDocs.length})
+                </h3>
+                <div className="space-y-2">
+                  {discoveredDocs.map((doc) => (
+                    <div
+                      key={doc.doc_id}
+                      className="bg-dark-200 rounded-lg p-3 flex items-center justify-between group hover:border-accent-green/50 border border-transparent transition-all"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <FileText className="w-4 h-4 text-accent-green flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-300 truncate">
+                              {doc.filename || `Document #${doc.doc_id}`}
+                            </span>
+                            <span className="badge badge-sm badge-success" style={{ fontSize: '0.7rem' }}>
+                              {(doc.similarity_score * 100).toFixed(0)}% match
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {doc.source_type} • {doc.skill_level || 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => window.open(`/documents/${doc.doc_id}`, '_blank')}
+                        className="btn btn-sm btn-secondary flex-shrink-0"
+                        title="Open document"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
