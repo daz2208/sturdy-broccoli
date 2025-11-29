@@ -305,7 +305,7 @@ export default function LearningDashboardPage() {
           </div>
 
           {/* By Decision Type */}
-          {Object.keys(learningMetrics.metrics.by_decision_type).length > 0 && (
+          {learningMetrics.metrics.by_decision_type && Object.keys(learningMetrics.metrics.by_decision_type).length > 0 && (
             <div className="bg-dark-200 rounded-lg p-4">
               <p className="text-gray-400 text-sm font-semibold mb-3">By Decision Type</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -333,7 +333,7 @@ export default function LearningDashboardPage() {
           )}
 
           {/* Interpretation */}
-          {learningMetrics.interpretation && Object.keys(learningMetrics.interpretation).length > 0 && (
+          {learningMetrics.interpretation && typeof learningMetrics.interpretation === 'object' && Object.keys(learningMetrics.interpretation).length > 0 && (
             <div className="mt-4 p-4 bg-blue-900/20 border border-blue-700/50 rounded-lg">
               <p className="text-blue-300 text-sm font-semibold mb-2">Insights</p>
               <ul className="space-y-1">
@@ -379,7 +379,7 @@ export default function LearningDashboardPage() {
                       </span>
                     </div>
 
-                    {decision.output_data && Object.keys(decision.output_data).length > 0 && (
+                    {decision.output_data && typeof decision.output_data === 'object' && Object.keys(decision.output_data).length > 0 && (
                       <div className="mt-2">
                         <p className="text-gray-300 text-sm">
                           {JSON.stringify(decision.output_data).substring(0, 100)}...
