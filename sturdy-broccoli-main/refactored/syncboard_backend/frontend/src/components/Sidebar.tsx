@@ -6,7 +6,7 @@ import {
   Home, Search, FileText, FolderOpen, BarChart3, Lightbulb,
   Cloud, Database, Brain, Target, Workflow, Code, Settings,
   LogOut, ChevronDown, ChevronRight, CheckCircle, Bookmark, Bot, Sparkles, Network,
-  Tag, Copy
+  Tag, Copy, Flag
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { useState } from 'react';
@@ -54,6 +54,7 @@ const navigation: NavItem[] = [
     ],
   },
   { name: 'Projects', href: '/projects', icon: Target },
+  { name: 'Goals', href: '/goals', icon: Flag },
   { name: 'Workflows', href: '/workflows', icon: Workflow },
   { name: 'Generated Code', href: '/generated-code', icon: Code },
   { name: 'Usage & Billing', href: '/usage', icon: BarChart3 },
