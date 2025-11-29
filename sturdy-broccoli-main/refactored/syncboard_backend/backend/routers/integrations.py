@@ -15,7 +15,6 @@ OAuth Flow:
 5. User can browse files and import
 """
 
-import os
 import secrets
 import json
 import logging
@@ -26,6 +25,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import get_db
 from ..db_models import DBIntegrationToken, DBIntegrationImport
 from ..models import (
@@ -53,40 +53,40 @@ router = APIRouter(
 # Service configurations
 SERVICE_CONFIGS = {
     "github": {
-        "client_id": os.getenv("GITHUB_CLIENT_ID", ""),
-        "client_secret": os.getenv("GITHUB_CLIENT_SECRET", ""),
+        "client_id": settings.github_client_id or "",
+        "client_secret": settings.github_client_secret or "",
         "authorize_url": "https://github.com/login/oauth/authorize",
         "token_url": "https://github.com/login/oauth/access_token",
         "user_info_url": "https://api.github.com/user",
         "scopes": "repo read:user",
-        "redirect_uri": os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8000/integrations/github/callback"),
+        "redirect_uri": settings.github_redirect_uri,
     },
     "google": {
-        "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        "client_id": settings.google_client_id or "",
+        "client_secret": settings.google_client_secret or "",
         "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
         "user_info_url": "https://www.googleapis.com/oauth2/v2/userinfo",
         "scopes": "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email",
-        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/integrations/google/callback"),
+        "redirect_uri": settings.google_redirect_uri,
     },
     "dropbox": {
-        "client_id": os.getenv("DROPBOX_APP_KEY", ""),
-        "client_secret": os.getenv("DROPBOX_APP_SECRET", ""),
+        "client_id": settings.dropbox_app_key or "",
+        "client_secret": settings.dropbox_app_secret or "",
         "authorize_url": "https://www.dropbox.com/oauth2/authorize",
         "token_url": "https://api.dropboxapi.com/oauth2/token",
         "user_info_url": "https://api.dropboxapi.com/2/users/get_current_account",
         "scopes": "",  # Dropbox uses app permissions, not OAuth scopes
-        "redirect_uri": os.getenv("DROPBOX_REDIRECT_URI", "http://localhost:8000/integrations/dropbox/callback"),
+        "redirect_uri": settings.dropbox_redirect_uri,
     },
     "notion": {
-        "client_id": os.getenv("NOTION_CLIENT_ID", ""),
-        "client_secret": os.getenv("NOTION_CLIENT_SECRET", ""),
+        "client_id": settings.notion_client_id or "",
+        "client_secret": settings.notion_client_secret or "",
         "authorize_url": "https://api.notion.com/v1/oauth/authorize",
         "token_url": "https://api.notion.com/v1/oauth/token",
         "user_info_url": "https://api.notion.com/v1/users/me",
         "scopes": "",  # Notion uses capabilities, not OAuth scopes
-        "redirect_uri": os.getenv("NOTION_REDIRECT_URI", "http://localhost:8000/integrations/notion/callback"),
+        "redirect_uri": settings.notion_redirect_uri,
     },
 }
 

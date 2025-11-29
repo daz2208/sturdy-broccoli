@@ -4,7 +4,6 @@ Abstract LLM provider interface for decoupling from specific AI vendors.
 This allows easy switching between OpenAI, Anthropic, local models, etc.
 """
 
-import os
 import json
 import logging
 import string
@@ -13,6 +12,8 @@ from typing import Dict, List
 
 from openai import AsyncOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,11 @@ class OpenAIProvider(LLMProvider):
         Initialize OpenAI provider.
 
         Args:
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            api_key: OpenAI API key (defaults to settings.openai_api_key)
             concept_model: Model for concept extraction
             suggestion_model: Model for build suggestions
         """
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.api_key = api_key or settings.openai_api_key
         if not self.api_key:
             raise ValueError("OpenAI API key required")
 
@@ -1024,14 +1025,14 @@ class OllamaProvider(LLMProvider):
         Initialize Ollama provider.
 
         Args:
-            base_url: Ollama API URL (default: http://localhost:11434)
-            concept_model: Model for concept extraction (default: llama2)
-            suggestion_model: Model for build suggestions (default: llama2)
+            base_url: Ollama API URL (default: settings.ollama_base_url)
+            concept_model: Model for concept extraction (default: settings.ollama_concept_model)
+            suggestion_model: Model for build suggestions (default: settings.ollama_suggestion_model)
             timeout: Request timeout in seconds
         """
-        self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.concept_model = concept_model or os.environ.get("OLLAMA_CONCEPT_MODEL", "llama2")
-        self.suggestion_model = suggestion_model or os.environ.get("OLLAMA_SUGGESTION_MODEL", "llama2")
+        self.base_url = base_url or settings.ollama_base_url
+        self.concept_model = concept_model or settings.ollama_concept_model
+        self.suggestion_model = suggestion_model or settings.ollama_suggestion_model
         self.timeout = timeout
 
         logger.info(f"Initialized OllamaProvider with base_url={self.base_url}, models={self.concept_model}/{self.suggestion_model}")
@@ -1257,7 +1258,7 @@ def get_llm_provider(provider_type: str = None) -> LLMProvider:
 
     Args:
         provider_type: Override provider type ("openai", "ollama", "mock")
-                       If not specified, uses LLM_PROVIDER env var (default: "openai")
+                       If not specified, uses settings.llm_provider (default: "openai")
 
     Returns:
         Configured LLM provider instance
@@ -1265,7 +1266,7 @@ def get_llm_provider(provider_type: str = None) -> LLMProvider:
     Raises:
         ValueError: If provider type is invalid or not configured
     """
-    provider = provider_type or os.environ.get("LLM_PROVIDER", "openai").lower()
+    provider = provider_type or settings.llm_provider
 
     if provider == "openai":
         return OpenAIProvider()
