@@ -1335,6 +1335,78 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Add a vocabulary term manually
+   */
+  async addVocabularyTerm(request: {
+    canonical_name: string;
+    category: string;
+    variants?: string[];
+    always_include?: boolean;
+    never_include?: boolean;
+  }): Promise<{ message: string; vocabulary_id: number }> {
+    const { data } = await this.client.post('/learning/vocabulary', request);
+    return data;
+  }
+
+  /**
+   * Delete a vocabulary term
+   */
+  async deleteVocabularyTerm(vocabId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/learning/vocabulary/${vocabId}`);
+    return data;
+  }
+
+  /**
+   * Deactivate a learned rule
+   */
+  async deactivateLearnedRule(ruleId: number): Promise<{ message: string }> {
+    const { data } = await this.client.delete(`/learning/rules/${ruleId}`);
+    return data;
+  }
+
+  /**
+   * Reactivate a previously deactivated rule
+   */
+  async reactivateLearnedRule(ruleId: number): Promise<{ message: string; rule: any }> {
+    const { data } = await this.client.put(`/learning/rules/${ruleId}/reactivate`);
+    return data;
+  }
+
+  /**
+   * Get user's learning profile with calibrated thresholds
+   */
+  async getLearningProfile(): Promise<Types.LearningProfile> {
+    const { data } = await this.client.get('/learning/profile');
+    return data;
+  }
+
+  /**
+   * Get comprehensive learning status for current user
+   */
+  async getLearningSystemStatus(): Promise<Types.LearningStatus> {
+    const { data } = await this.client.get('/learning/status');
+    return data;
+  }
+
+  /**
+   * Trigger learning from unprocessed feedback
+   */
+  async runLearning(days: number = 90, minOccurrences: number = 2): Promise<Types.LearningRunResult> {
+    const { data } = await this.client.post('/learning/run', null, {
+      params: { days, min_occurrences: minOccurrences }
+    });
+    return data;
+  }
+
+  /**
+   * Calibrate confidence thresholds based on historical accuracy
+   */
+  async calibrateThresholds(): Promise<Types.CalibrationResult> {
+    const { data } = await this.client.post('/learning/calibrate');
+    return data;
+  }
+
   // Generic request methods for flexibility
   async get<T = unknown>(path: string, params?: Record<string, unknown>): Promise<T> {
     const { data } = await this.client.get(path, { params });

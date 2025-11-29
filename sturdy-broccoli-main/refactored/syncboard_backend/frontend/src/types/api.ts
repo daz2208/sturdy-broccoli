@@ -734,3 +734,64 @@ export interface PendingValidations {
   count: number;
   message: string;
 }
+
+export interface LearningProfile {
+  has_profile: boolean;
+  username?: string;
+  accuracy_rate?: number;
+  confidence_threshold?: number;
+  last_learning_run?: string;
+  total_rules?: number;
+  total_vocabulary?: number;
+  calibrated_thresholds?: Record<string, number>;
+  message?: string;
+}
+
+export interface LearningStatus {
+  username: string;
+  profile: {
+    accuracy_rate: number;
+    confidence_threshold: number;
+    last_learning_run: string | null;
+  };
+  rules: {
+    total: number;
+    by_type: Record<string, number>;
+    top_applied: Array<{
+      rule_type: string;
+      condition: Record<string, unknown>;
+      action: Record<string, unknown>;
+      times_applied: number;
+    }>;
+  };
+  vocabulary: {
+    total: number;
+    top_terms: Array<{
+      canonical_name: string;
+      category: string;
+      times_seen: number;
+    }>;
+  };
+  pending_feedback: {
+    unprocessed: number;
+    oldest_unprocessed: string | null;
+  };
+}
+
+export interface LearningRunResult {
+  message: string;
+  rules_created: number;
+  rules_updated: number;
+  vocabulary_added: number;
+  vocabulary_updated: number;
+  feedback_processed: number;
+}
+
+export interface CalibrationResult {
+  message: string;
+  min_required?: number;
+  old_thresholds?: Record<string, number>;
+  new_thresholds?: Record<string, number>;
+  accuracy_by_threshold?: Record<string, number>;
+  recommended_threshold?: number;
+}
