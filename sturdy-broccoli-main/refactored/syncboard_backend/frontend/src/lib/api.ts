@@ -89,6 +89,20 @@ class ApiClient {
     this.clearToken();
   }
 
+  /**
+   * Get OAuth login URL for a provider (initiates OAuth flow)
+   * @param provider - OAuth provider (google, github)
+   * @returns URL to redirect user to for OAuth login
+   */
+  getOAuthLoginUrl(provider: string): string {
+    return `${API_BASE}/auth/${provider}/login`;
+  }
+
+  /**
+   * OAuth callback is handled by backend at /auth/{provider}/callback
+   * Backend will redirect to frontend with token in URL params
+   */
+
   // ==========================================================================
   // UPLOADS
   // ==========================================================================
