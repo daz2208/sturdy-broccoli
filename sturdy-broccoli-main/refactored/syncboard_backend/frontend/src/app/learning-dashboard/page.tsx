@@ -38,18 +38,20 @@ export default function LearningDashboardPage() {
     setLoading(true);
     try {
       const [status, metrics, validations, rulesData, vocabData] = await Promise.all([
-        api.getLearningSystemStatus(),
-        api.getLearningMetrics(),
-        api.getPendingValidations(5),
-        api.getLearnedRules(undefined, false),
-        api.getVocabulary(),
+        api.getLearningSystemStatus().catch(() => null),
+        api.getLearningMetrics().catch(() => null),
+        api.getPendingValidations(5).catch(() => ({ pending_decisions: [], count: 0, message: '' })),
+        api.getLearnedRules(undefined, false).catch(() => ({ rules: [] })),
+        api.getVocabulary().catch(() => ({ vocabulary: [] })),
       ]);
-      setLearningStatus(status);
-      setLearningMetrics(metrics);
-      setPendingValidations(validations);
-      setRules(rulesData.rules || []);
-      setVocabulary(vocabData.vocabulary || []);
+
+      if (status) setLearningStatus(status);
+      if (metrics) setLearningMetrics(metrics);
+      if (validations) setPendingValidations(validations);
+      if (rulesData) setRules(rulesData.rules || []);
+      if (vocabData) setVocabulary(vocabData.vocabulary || []);
     } catch (err) {
+      console.error('Dashboard load error:', err);
       toast.error('Failed to load learning dashboard data');
     } finally {
       setLoading(false);

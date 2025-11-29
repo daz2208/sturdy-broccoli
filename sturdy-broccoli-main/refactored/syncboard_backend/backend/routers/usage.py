@@ -141,47 +141,59 @@ class UpgradeRequest(BaseModel):
 
 def get_or_create_subscription(db: Session, username: str) -> DBUserSubscription:
     """Get or create a subscription for a user."""
-    subscription = db.query(DBUserSubscription).filter(
-        DBUserSubscription.username == username
-    ).first()
+    try:
+        subscription = db.query(DBUserSubscription).filter(
+            DBUserSubscription.username == username
+        ).first()
 
-    if not subscription:
-        subscription = DBUserSubscription(
-            username=username,
-            plan="free",
-            status="active",
-            cancel_at_period_end=False
-        )
-        db.add(subscription)
-        db.commit()
-        db.refresh(subscription)
+        if not subscription:
+            subscription = DBUserSubscription(
+                username=username,
+                plan="free",
+                status="active",
+                cancel_at_period_end=False
+            )
+            db.add(subscription)
+            db.commit()
+            db.refresh(subscription)
+            logger.info(f"Created subscription for {username} with id {subscription.id}")
 
-    return subscription
+        return subscription
+    except Exception as e:
+        logger.error(f"Error in get_or_create_subscription for {username}: {e}")
+        db.rollback()
+        raise
 
 
 def get_current_usage(db: Session, subscription_id: int, username: str) -> DBUsageRecord:
     """Get or create current month's usage record."""
-    now = datetime.utcnow()
-    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    period_end = (period_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+    try:
+        now = datetime.utcnow()
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        period_end = (period_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
 
-    usage = db.query(DBUsageRecord).filter(
-        DBUsageRecord.subscription_id == subscription_id,
-        DBUsageRecord.period_start == period_start
-    ).first()
+        usage = db.query(DBUsageRecord).filter(
+            DBUsageRecord.subscription_id == subscription_id,
+            DBUsageRecord.period_start == period_start
+        ).first()
 
-    if not usage:
-        usage = DBUsageRecord(
-            subscription_id=subscription_id,
-            username=username,
-            period_start=period_start,
-            period_end=period_end
-        )
-        db.add(usage)
-        db.commit()
-        db.refresh(usage)
+        if not usage:
+            usage = DBUsageRecord(
+                subscription_id=subscription_id,
+                username=username,
+                period_start=period_start,
+                period_end=period_end
+            )
+            db.add(usage)
+            db.commit()
+            db.refresh(usage)
+            logger.info(f"Created usage record for {username}")
 
-    return usage
+        return usage
+    except Exception as e:
+        logger.error(f"Error in get_current_usage for {username} (subscription_id={subscription_id}): {e}")
+        db.rollback()
+        raise
 
 
 def get_user_limits(db: Session, username: str, plan: str) -> Dict[str, Any]:
