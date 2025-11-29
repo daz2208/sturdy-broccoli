@@ -20,9 +20,12 @@ import {
 import * as Types from '@/types/api';
 
 export default function LearningDashboardPage() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'rules' | 'vocabulary'>('overview');
   const [learningStatus, setLearningStatus] = useState<Types.LearningStatus | null>(null);
   const [learningMetrics, setLearningMetrics] = useState<{ metrics: Types.LearningMetrics; interpretation: Record<string, string> } | null>(null);
   const [pendingValidations, setPendingValidations] = useState<Types.PendingValidations | null>(null);
+  const [rules, setRules] = useState<any[]>([]);
+  const [vocabulary, setVocabulary] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningLearning, setRunningLearning] = useState(false);
   const [calibrating, setCalibrating] = useState(false);
@@ -34,14 +37,18 @@ export default function LearningDashboardPage() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [status, metrics, validations] = await Promise.all([
+      const [status, metrics, validations, rulesData, vocabData] = await Promise.all([
         api.getLearningSystemStatus(),
         api.getLearningMetrics(),
         api.getPendingValidations(5),
+        api.getLearnedRules(undefined, false),
+        api.getVocabulary(),
       ]);
       setLearningStatus(status);
       setLearningMetrics(metrics);
       setPendingValidations(validations);
+      setRules(rulesData.rules || []);
+      setVocabulary(vocabData.vocabulary || []);
     } catch (err) {
       toast.error('Failed to load learning dashboard data');
     } finally {
@@ -91,6 +98,38 @@ export default function LearningDashboardPage() {
     }
   };
 
+  const handleDeactivateRule = async (ruleId: number) => {
+    if (!confirm('Deactivate this rule?')) return;
+    try {
+      await api.deactivateLearnedRule(ruleId);
+      toast.success('Rule deactivated');
+      loadDashboardData();
+    } catch (err) {
+      toast.error('Failed to deactivate rule');
+    }
+  };
+
+  const handleReactivateRule = async (ruleId: number) => {
+    try {
+      await api.reactivateLearnedRule(ruleId);
+      toast.success('Rule reactivated');
+      loadDashboardData();
+    } catch (err) {
+      toast.error('Failed to reactivate rule');
+    }
+  };
+
+  const handleDeleteVocab = async (vocabId: number) => {
+    if (!confirm('Delete this vocabulary term?')) return;
+    try {
+      await api.deleteVocabularyTerm(vocabId);
+      toast.success('Vocabulary term deleted');
+      loadDashboardData();
+    } catch (err) {
+      toast.error('Failed to delete vocabulary term');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -110,6 +149,43 @@ export default function LearningDashboardPage() {
         <p className="text-gray-500">Monitor AI learning system and provide feedback</p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-dark-300">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'overview'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'rules'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Rules ({rules.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('vocabulary')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'vocabulary'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          Vocabulary ({vocabulary.length})
+        </button>
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <>
       {/* Quick Actions */}
       <div className="flex gap-3">
         <button
@@ -380,6 +456,115 @@ export default function LearningDashboardPage() {
           </p>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Rules Tab */}
+      {activeTab === 'rules' && (
+        <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+          <h2 className="text-xl font-semibold text-gray-200 mb-4">Learned Rules</h2>
+          {rules.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No rules yet. Run learning to create rules from your feedback.</p>
+          ) : (
+            <div className="space-y-3">
+              {rules.map((rule) => (
+                <div key={rule.id} className="bg-dark-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-1 bg-dark-100 rounded text-xs font-medium text-primary capitalize">
+                          {rule.type.replace('_', ' ')}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          Confidence: {(rule.confidence * 100).toFixed(0)}%
+                        </span>
+                        <span className={`text-xs ${rule.active ? 'text-green-400' : 'text-gray-500'}`}>
+                          {rule.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-300 space-y-1">
+                        <p><strong>Condition:</strong> {JSON.stringify(rule.condition)}</p>
+                        <p><strong>Action:</strong> {JSON.stringify(rule.action)}</p>
+                      </div>
+                      <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                        <span>Applied: {rule.times_applied}</span>
+                        <span>Overridden: {rule.times_overridden}</span>
+                        <span>Created: {new Date(rule.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {rule.active ? (
+                        <button
+                          onClick={() => handleDeactivateRule(rule.id)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-white text-sm transition-colors"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleReactivateRule(rule.id)}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-white text-sm transition-colors"
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vocabulary Tab */}
+      {activeTab === 'vocabulary' && (
+        <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+          <h2 className="text-xl font-semibold text-gray-200 mb-4">Concept Vocabulary</h2>
+          {vocabulary.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No vocabulary terms yet. Run learning to build vocabulary from your feedback.</p>
+          ) : (
+            <div className="space-y-3">
+              {vocabulary.map((term) => (
+                <div key={term.id} className="bg-dark-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-200">{term.canonical_name}</h3>
+                        {term.category && (
+                          <span className="px-2 py-1 bg-dark-100 rounded text-xs text-gray-400">{term.category}</span>
+                        )}
+                        {term.always_include && (
+                          <span className="px-2 py-1 bg-green-900/30 text-green-400 rounded text-xs">Always Include</span>
+                        )}
+                        {term.never_include && (
+                          <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs">Never Include</span>
+                        )}
+                      </div>
+                      {term.variants && term.variants.length > 0 && (
+                        <p className="text-sm text-gray-400 mb-2">
+                          <strong>Variants:</strong> {term.variants.join(', ')}
+                        </p>
+                      )}
+                      <div className="flex gap-4 text-xs text-gray-500">
+                        <span>Seen: {term.times_seen}</span>
+                        <span>Kept: {term.times_kept}</span>
+                        <span>Removed: {term.times_removed}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteVocab(term.id)}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-white text-sm transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

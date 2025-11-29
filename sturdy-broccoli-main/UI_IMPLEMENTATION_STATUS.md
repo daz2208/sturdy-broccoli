@@ -10,10 +10,10 @@
 This document tracks the UI implementation status for all backend endpoints in SyncBoard 3.0. The system has **120+ API endpoints**, of which approximately **70 endpoints** now have complete UI integration.
 
 ### Quick Stats
-- ✅ **Implemented**: ~95 endpoints with full UI
-- 🟡 **Partial**: ~5 endpoints with limited UI
-- ❌ **Missing**: ~25 endpoints without UI
-- 🆕 **New in this session**: Saved Searches, Export All, Document Relationships, Knowledge Graph, Project Goals
+- ✅ **Implemented**: ~105 endpoints with full UI
+- 🟡 **Partial**: ~1 endpoint with limited UI
+- ❌ **Missing**: ~14 endpoints without UI (Teams only)
+- 🆕 **New in this session**: Saved Searches, Export All, Document Relationships, Knowledge Graph, Project Goals, Usage History, Learning Rules & Vocabulary, Job Management
 
 ---
 
@@ -116,7 +116,14 @@ This document tracks the UI implementation status for all backend endpoints in S
     - Delete code files 🆕 **(enhanced this session)**
     - Filter by project, language, type
 
-12. **Content Generation** (`/content-generation`)
+12. **Job Management** (`/jobs`) 🆕
+    - View background job status
+    - Monitor document processing jobs
+    - Cancel running jobs
+    - Real-time progress tracking
+    - Job history with error details
+
+13. **Content Generation** (`/content-generation`)
     - Industry-aware templates (8 industries)
     - Generate professional content from KB
     - Copy/download generated content
@@ -132,12 +139,13 @@ This document tracks the UI implementation status for all backend endpoints in S
     - Agent collaboration overview
     - Trigger agent tasks
 
-14. **Learning Dashboard** (`/learning-dashboard`)
-    - Learning system status
-    - Accuracy metrics
-    - Learned rules management
-    - Vocabulary management
-    - Pending validations
+14. **Learning Dashboard** (`/learning-dashboard`) 🆕 Enhanced
+    - **Overview Tab**: Learning system status, accuracy metrics, pending validations
+    - **Rules Tab**: View/deactivate/reactivate learned rules (7 endpoints)
+    - **Vocabulary Tab**: Manage concept vocabulary, delete terms
+    - Run learning from feedback
+    - Calibrate confidence thresholds
+    - Validate low-confidence AI decisions
 
 15. **AI Validation** (`/ai-validation`)
     - Validate low-confidence AI decisions
@@ -251,8 +259,9 @@ This document tracks the UI implementation status for all backend endpoints in S
     - Idea seeds backfill
     - System health checks
 
-33. **Usage & Billing** (`/usage`)
-    - Usage statistics
+33. **Usage & Billing** (`/usage`) 🆕 Enhanced
+    - Current period usage statistics
+    - **Usage History**: Historical usage graphs (3/6/12 months)
     - Subscription management
     - Plan comparison
     - Upgrade/downgrade
@@ -383,51 +392,62 @@ This document tracks the UI implementation status for all backend endpoints in S
 ---
 
 ### 8. **Learned Rules & Vocabulary Management** (7 endpoints)
+**Status:** ✅ **COMPLETED** - Implemented as tabs in Learning Dashboard
+
 **Endpoints:**
-- `GET /learning/rules` - Get learned rules
-- `DELETE /learning/rules/{id}` - Deactivate rule
-- `PUT /learning/rules/{id}/reactivate` - Reactivate rule
-- `GET /learning/vocabulary` - Get vocabulary
-- `POST /learning/vocabulary` - Add term
-- `DELETE /learning/vocabulary/{id}` - Delete term
+- `GET /learning/rules` - Get learned rules ✅
+- `DELETE /learning/rules/{id}` - Deactivate rule ✅
+- `PUT /learning/rules/{id}/reactivate` - Reactivate rule ✅
+- `GET /learning/vocabulary` - Get vocabulary ✅
+- `POST /learning/vocabulary` - Add term ✅
+- `DELETE /learning/vocabulary/{id}` - Delete term ✅
+- `PUT /learning/vocabulary/{id}` - Update term ✅
 
-**Status:** Partially in Learning Dashboard
+**Implementation:**
+- Added "Rules" tab to `/learning-dashboard` with activate/deactivate
+- Added "Vocabulary" tab with term management and deletion
+- Display rule statistics (times applied, overridden)
+- Show vocabulary usage stats (times seen, kept, removed)
 
-**Suggested Enhancement:**
-- Add dedicated "Rules" and "Vocabulary" tabs in `/learning-dashboard`
-- Allow editing rules directly
-- Vocabulary term management UI
-
-**Priority:** Low (Advanced learning feature)
+**Priority:** ✅ Done
 
 ---
 
 ### 9. **Usage History** (1 endpoint)
+**Status:** ✅ **COMPLETED** - Integrated into Usage & Billing page
+
 **Endpoints:**
-- `GET /usage/history` - Get usage history
+- `GET /usage/history` - Get usage history ✅
 
-**Suggested Implementation:**
-- Add historical usage graph to `/usage` page
+**Implementation:**
+- Added usage history section to `/usage` page
+- Historical bar charts for documents and AI requests
+- Time period selector (3/6/12 months)
+- Summary statistics (total documents, AI requests, API calls)
 - Month-over-month comparison
-- Trend analysis
 
-**Priority:** Low (Nice to have)
+**Priority:** ✅ Done
 
 ---
 
 ### 10. **Job Management** (Enhanced) (2 endpoints)
+**Status:** ✅ **COMPLETED** - Implemented dedicated Jobs page
+
 **Endpoints:**
-- `DELETE /jobs/{id}` - Cancel job
-- `GET /jobs` - Get all jobs
+- `DELETE /jobs/{id}` - Cancel job ✅
+- `GET /jobs` - Get all jobs ✅ (gracefully handles 501 Not Implemented)
 
-**Status:** Basic job monitoring exists in Documents page
+**Implementation:**
+- Created `/jobs` page for background job management
+- Real-time job status monitoring
+- Cancel running/pending jobs
+- Progress tracking with percentage and current step
+- Error display for failed jobs
+- Document links for successful jobs
+- Auto-refresh every 5 seconds
+- Graceful handling of unimplemented listing endpoint
 
-**Suggested Enhancement:**
-- Add Jobs page showing all background jobs
-- Cancel running jobs
-- Retry failed jobs
-
-**Priority:** Low (Admin feature)
+**Priority:** ✅ Done
 
 ---
 
@@ -654,18 +674,21 @@ The `/content-generation` page includes:
 3. **Export All** - Export entire knowledge base from documents page (JSON/Markdown)
 4. **Document Relationships** - Link documents, auto-discover similar docs, 6 relationship types
 5. **Project Goals** - Full CRUD with 4 goal types, primary goal, constraints tracking
-6. **Sidebar Navigation** - Added Knowledge Graph, Tags, Duplicates, Goals to navigation
-7. Tags management page with color picker
-8. Duplicate detection and merging
-9. Document detail view with tags and summaries
-10. Delete functionality for generated code
+6. **Usage History** - Historical usage graphs with 3/6/12 month views
+7. **Learning Dashboard Enhanced** - Rules & Vocabulary management tabs
+8. **Job Management** - Background job monitoring and cancellation
+9. **Sidebar Navigation** - Added Knowledge Graph, Tags, Duplicates, Goals, Jobs
+10. Tags management page with color picker
+11. Duplicate detection and merging
+12. Document detail view with tags and summaries
+13. Delete functionality for generated code
 
 ### Next Steps 🎯
-1. Implement Usage History visualization (1 endpoint - historical usage graph)
+1. Add Teams & Collaboration features (low priority - enterprise, 14 endpoints)
 2. Adapt backend prompts for all 8 industries
 3. Test industry-specific content generation
-4. Add Teams & Collaboration features (low priority - enterprise)
-5. Optional: Add D3.js force-directed network visualization
+4. Optional: Add D3.js force-directed network visualization
+5. **System Complete**: All non-enterprise endpoints now have UI! 🎉
 
 ---
 

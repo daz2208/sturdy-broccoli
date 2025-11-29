@@ -45,6 +45,15 @@ interface Plan {
   features: string[];
 }
 
+interface UsageHistoryRecord {
+  period: string;
+  api_calls: number;
+  documents_uploaded: number;
+  ai_requests: number;
+  storage_bytes: number;
+  search_queries: number;
+}
+
 function UsageBar({ label, used, limit, percentage }: {
   label: string;
   used: number;
@@ -130,9 +139,11 @@ export default function UsageDashboard() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [usageHistory, setUsageHistory] = useState<UsageHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [historyMonths, setHistoryMonths] = useState(6);
 
   useEffect(() => {
     loadData();
@@ -141,14 +152,16 @@ export default function UsageDashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [usageRes, subRes, plansRes] = await Promise.all([
+      const [usageRes, subRes, plansRes, historyRes] = await Promise.all([
         api.getUsage(),
         api.getSubscription(),
-        api.getPlans()
+        api.getPlans(),
+        api.getUsageHistory(historyMonths)
       ]);
       setUsage(usageRes as Usage);
       setSubscription(subRes as Subscription);
       setPlans(plansRes as Plan[]);
+      setUsageHistory(historyRes as UsageHistoryRecord[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load usage data');
     } finally {
@@ -279,6 +292,103 @@ export default function UsageDashboard() {
           </div>
         )}
       </div>
+
+      {/* Usage History */}
+      {usageHistory.length > 0 && (
+        <div className="bg-white rounded-lg border p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Usage History</h3>
+            <select
+              value={historyMonths}
+              onChange={(e) => {
+                setHistoryMonths(Number(e.target.value));
+                loadData();
+              }}
+              className="border rounded-lg px-3 py-1 text-sm"
+            >
+              <option value={3}>Last 3 months</option>
+              <option value={6}>Last 6 months</option>
+              <option value={12}>Last 12 months</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Documents Chart */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-600 mb-3">Documents Uploaded</h4>
+              <div className="space-y-2">
+                {usageHistory.map((record, idx) => {
+                  const maxDocs = Math.max(...usageHistory.map(r => r.documents_uploaded), 1);
+                  const percentage = (record.documents_uploaded / maxDocs) * 100;
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-16 text-xs text-gray-500">{record.period}</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                        <div
+                          className="bg-blue-500 h-6 rounded-full flex items-center justify-end pr-2"
+                          style={{ width: `${percentage}%` }}
+                        >
+                          <span className="text-white text-xs font-medium">
+                            {record.documents_uploaded}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* AI Requests Chart */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-600 mb-3">AI Requests</h4>
+              <div className="space-y-2">
+                {usageHistory.map((record, idx) => {
+                  const maxAI = Math.max(...usageHistory.map(r => r.ai_requests), 1);
+                  const percentage = (record.ai_requests / maxAI) * 100;
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-16 text-xs text-gray-500">{record.period}</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                        <div
+                          className="bg-green-500 h-6 rounded-full flex items-center justify-end pr-2"
+                          style={{ width: `${percentage}%` }}
+                        >
+                          <span className="text-white text-xs font-medium">
+                            {record.ai_requests}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-gray-500 text-xs">Total Documents</p>
+              <p className="text-xl font-bold">
+                {usageHistory.reduce((sum, r) => sum + r.documents_uploaded, 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-gray-500 text-xs">Total AI Requests</p>
+              <p className="text-xl font-bold">
+                {usageHistory.reduce((sum, r) => sum + r.ai_requests, 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-gray-500 text-xs">Total API Calls</p>
+              <p className="text-xl font-bold">
+                {usageHistory.reduce((sum, r) => sum + r.api_calls, 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Available Plans */}
       <div>
