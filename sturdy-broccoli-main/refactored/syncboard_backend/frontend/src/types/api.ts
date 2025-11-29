@@ -184,6 +184,40 @@ export interface BuildSuggestionsResponse {
   };
 }
 
+export interface MarketValidationRequest {
+  project_title: string;
+  project_description: string;
+  target_market?: string;
+}
+
+export interface MarketValidationResponse {
+  id: number;
+  user_id: string;
+  market_size_estimate: string;
+  competition_level: string;
+  competitors: string[];
+  unique_advantage: string;
+  potential_revenue_estimate?: string;
+  validation_sources: string[];
+  recommendation: string;
+  reasoning: string;
+  confidence_score: number;
+  created_at: string;
+}
+
+export interface QuickIdea {
+  id: number;
+  document_id: number;
+  idea_type: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  estimated_time: string;
+  required_skills: string[];
+  learning_outcomes: string[];
+  created_at: string;
+}
+
 // Analytics
 export interface AnalyticsOverview {
   total_docs: number;

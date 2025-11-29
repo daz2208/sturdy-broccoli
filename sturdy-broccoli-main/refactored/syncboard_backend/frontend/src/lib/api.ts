@@ -254,6 +254,22 @@ class ApiClient {
     return data;
   }
 
+  /**
+   * Get instant build ideas from pre-computed idea seeds (fast, no AI calls)
+   */
+  async getQuickIdeas(difficulty?: string, limit?: number): Promise<{ ideas: Types.QuickIdea[]; count: number }> {
+    const { data } = await this.client.get('/quick-ideas', { params: { difficulty, limit } });
+    return data;
+  }
+
+  /**
+   * Validate market viability for a project idea using AI analysis
+   */
+  async validateMarket(request: Types.MarketValidationRequest): Promise<Types.MarketValidationResponse> {
+    const { data } = await this.client.post('/validate-market', request);
+    return data;
+  }
+
   async saveIdea(idea: {
     idea_seed_id?: number;
     custom_title?: string;
