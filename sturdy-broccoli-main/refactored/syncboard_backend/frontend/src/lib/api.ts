@@ -791,6 +791,94 @@ class ApiClient {
   }
 
   // ==========================================================================
+  // CONTENT GENERATION
+  // ==========================================================================
+
+  /**
+   * List all available industries with their descriptions
+   */
+  async listIndustries(): Promise<{ industries: Types.Industry[]; total: number }> {
+    const { data } = await this.client.get('/content/industries');
+    return data;
+  }
+
+  /**
+   * Get the current industry setting for user's knowledge base
+   */
+  async getKBIndustry(): Promise<{
+    knowledge_base_id: string;
+    industry: Types.Industry | null;
+    templates?: Types.ContentTemplate[];
+    categories?: string[];
+    message?: string;
+    available_industries?: Types.Industry[];
+  }> {
+    const { data } = await this.client.get('/content/kb-industry');
+    return data;
+  }
+
+  /**
+   * Get available output templates for a specific industry
+   */
+  async getIndustryTemplates(industry: string): Promise<Types.IndustryProfile> {
+    const { data } = await this.client.get(`/content/templates/${industry}`);
+    return data;
+  }
+
+  /**
+   * Auto-detect the most appropriate industry for content
+   */
+  async detectIndustry(text: string): Promise<Types.IndustryDetectionResponse> {
+    const { data } = await this.client.post('/content/detect-industry', { text });
+    return data;
+  }
+
+  /**
+   * Generate content from knowledge base using industry templates
+   */
+  async generateContent(
+    request: Types.ContentGenerationRequest,
+    industry?: string
+  ): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate', request, {
+      params: industry ? { industry } : undefined
+    });
+    return data;
+  }
+
+  /**
+   * Quick endpoint to generate a summary from knowledge base
+   */
+  async generateSummary(topic?: string, cluster_id?: number): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate/summary', null, {
+      params: { topic, cluster_id }
+    });
+    return data;
+  }
+
+  /**
+   * Quick endpoint to generate an analysis from knowledge base
+   */
+  async generateAnalysis(topic?: string, cluster_id?: number): Promise<Types.ContentGenerationResponse> {
+    const { data } = await this.client.post('/content/generate/analysis', null, {
+      params: { topic, cluster_id }
+    });
+    return data;
+  }
+
+  /**
+   * Set the default industry for a knowledge base
+   */
+  async setKBIndustry(industry: string): Promise<{
+    message: string;
+    knowledge_base_id: string;
+    industry: Types.Industry;
+  }> {
+    const { data } = await this.client.put('/content/kb-industry', { industry });
+    return data;
+  }
+
+  // ==========================================================================
   // USAGE & BILLING
   // ==========================================================================
   async getUsage(): Promise<Types.UsageResponse> {

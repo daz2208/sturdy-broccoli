@@ -87,6 +87,70 @@ export interface SearchResponse {
 }
 
 // Build Suggestions
+// Content Generation
+export interface Industry {
+  id: string;
+  name: string;
+  description: string;
+  style?: string;
+  citation_style?: string;
+}
+
+export interface ContentTemplate {
+  name: string;
+  description: string;
+  type: string;
+}
+
+export interface IndustryProfile {
+  industry: Industry;
+  templates: ContentTemplate[];
+  categories: Array<{ name: string; description: string }>;
+  skill_levels: string[];
+}
+
+export interface IndustryDetectionRequest {
+  text: string;
+}
+
+export interface IndustryDetectionResponse {
+  detected_industry: string;
+  confidence: 'high' | 'medium' | 'low';
+  available_templates: ContentTemplate[];
+}
+
+export interface ContentGenerationRequest {
+  template_name: string;
+  topic?: string;
+  cluster_ids?: number[];
+  target_length?: 'short' | 'medium' | 'long';
+  include_citations?: boolean;
+  skill_level?: string;
+}
+
+export interface ContentSection {
+  title: string;
+  content: string;
+  citations?: string[];
+}
+
+export interface ContentGenerationResponse {
+  status: string;
+  title: string;
+  sections: ContentSection[];
+  metadata: {
+    template_used: string;
+    industry: string;
+    word_count: number;
+    sources_used: number;
+    generated_at: string;
+  };
+}
+
+export interface SetKBIndustryRequest {
+  industry: string;
+}
+
 export interface BuildSuggestion {
   title: string;
   description: string;
