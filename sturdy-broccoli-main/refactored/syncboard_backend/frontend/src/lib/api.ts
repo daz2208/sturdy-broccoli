@@ -89,6 +89,20 @@ class ApiClient {
     this.clearToken();
   }
 
+  /**
+   * Get OAuth login URL for a provider (initiates OAuth flow)
+   * @param provider - OAuth provider (google, github)
+   * @returns URL to redirect user to for OAuth login
+   */
+  getOAuthLoginUrl(provider: string): string {
+    return `${API_BASE}/auth/${provider}/login`;
+  }
+
+  /**
+   * OAuth callback is handled by backend at /auth/{provider}/callback
+   * Backend will redirect to frontend with token in URL params
+   */
+
   // ==========================================================================
   // UPLOADS
   // ==========================================================================
@@ -251,6 +265,22 @@ class ApiClient {
 
   async getCombinedIdeaSeeds(doc_ids: number[]): Promise<{ idea_seeds: Types.BuildSuggestion[] }> {
     const { data } = await this.client.get('/idea-seeds/combined', { params: { doc_ids } });
+    return data;
+  }
+
+  /**
+   * Get instant build ideas from pre-computed idea seeds (fast, no AI calls)
+   */
+  async getQuickIdeas(difficulty?: string, limit?: number): Promise<{ ideas: Types.QuickIdea[]; count: number }> {
+    const { data } = await this.client.get('/quick-ideas', { params: { difficulty, limit } });
+    return data;
+  }
+
+  /**
+   * Validate market viability for a project idea using AI analysis
+   */
+  async validateMarket(request: Types.MarketValidationRequest): Promise<Types.MarketValidationResponse> {
+    const { data } = await this.client.post('/validate-market', request);
     return data;
   }
 
@@ -549,6 +579,31 @@ class ApiClient {
     const { data } = await this.client.post('/idea-seeds/backfill');
     return data;
   }
+
+  /**
+   * Get current LLM provider configuration and status
+   */
+  async getLLMProviderStatus(): Promise<Types.LLMProviderStatus> {
+    const { data } = await this.client.get('/admin/llm-provider');
+    return data;
+  }
+
+  /**
+   * Test the current LLM provider with a simple completion
+   */
+  async testLLMProvider(): Promise<Types.LLMProviderTestResult> {
+    const { data } = await this.client.post('/admin/llm-provider/test');
+    return data;
+  }
+
+  /**
+   * Reprocess a single document through chunking pipeline
+   */
+  async reprocessDocument(docId: number): Promise<Types.ReprocessDocumentResult> {
+    const { data } = await this.client.post(`/admin/reprocess-document/${docId}`);
+    return data;
+  }
+
   // ==========================================================================
   // KNOWLEDGE GRAPH
   // ==========================================================================
@@ -714,6 +769,34 @@ class ApiClient {
 
   getProjectZipUrl(projectId: number): string {
     return `${API_BASE}/generated-code/project/${projectId}/zip`;
+  }
+
+  /**
+   * Store a generated code file
+   */
+  async storeCode(request: Types.StoreCodeRequest): Promise<Types.GeneratedCode> {
+    const { data } = await this.client.post('/generated-code/store', null, { params: request });
+    return data;
+  }
+
+  /**
+   * Store multiple code files at once for a project
+   */
+  async storeCodeBatch(request: Types.StoreBatchCodeRequest): Promise<{
+    status: string;
+    files_stored: number;
+    filenames: string[];
+  }> {
+    const { data } = await this.client.post('/generated-code/store-batch', request);
+    return data;
+  }
+
+  /**
+   * Delete a generated code file
+   */
+  async deleteGeneratedCode(codeId: number): Promise<{ status: string; code_id: number }> {
+    const { data } = await this.client.delete(`/generated-code/${codeId}`);
+    return data;
   }
 
   // ==========================================================================

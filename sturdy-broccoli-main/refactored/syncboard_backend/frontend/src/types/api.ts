@@ -184,6 +184,40 @@ export interface BuildSuggestionsResponse {
   };
 }
 
+export interface MarketValidationRequest {
+  project_title: string;
+  project_description: string;
+  target_market?: string;
+}
+
+export interface MarketValidationResponse {
+  id: number;
+  user_id: string;
+  market_size_estimate: string;
+  competition_level: string;
+  competitors: string[];
+  unique_advantage: string;
+  potential_revenue_estimate?: string;
+  validation_sources: string[];
+  recommendation: string;
+  reasoning: string;
+  confidence_score: number;
+  created_at: string;
+}
+
+export interface QuickIdea {
+  id: number;
+  document_id: number;
+  idea_type: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  estimated_time: string;
+  required_skills: string[];
+  learning_outcomes: string[];
+  created_at: string;
+}
+
 // Analytics
 export interface AnalyticsOverview {
   total_docs: number;
@@ -351,7 +385,46 @@ export interface GeneratedCode {
   code_content: string;
   generation_type: string;
   project_attempt_id?: number;
+  description?: string;
+  dependencies?: string[];
+  setup_instructions?: string;
   created_at: string;
+}
+
+export interface StoreCodeRequest {
+  project_id?: number;
+  generation_type?: string;
+  language?: string;
+  filename: string;
+  code_content: string;
+  description?: string;
+  dependencies?: string[];
+  setup_instructions?: string;
+}
+
+export interface StoreBatchCodeRequest {
+  project_id: number;
+  files: Record<string, string>; // filename -> content mapping
+}
+
+// Admin
+export interface LLMProviderStatus {
+  provider: string;
+  status: string;
+  details: Record<string, any>;
+}
+
+export interface LLMProviderTestResult {
+  status: string;
+  provider: string;
+  response: string;
+}
+
+export interface ReprocessDocumentResult {
+  doc_id: number;
+  status: string;
+  chunks: number;
+  embeddings: number;
 }
 
 // Knowledge Tools
