@@ -229,22 +229,22 @@ export default function GoalsPage() {
                 </p>
                 {primaryGoal.constraints && (
                   <div className="flex flex-wrap gap-2 mt-3 text-sm text-gray-400">
-                    {primaryGoal.constraints.time_available && (
+                    {primaryGoal.constraints.time_available !== undefined && (
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {primaryGoal.constraints.time_available as string}
+                        {String(primaryGoal.constraints.time_available)}
                       </div>
                     )}
                     {primaryGoal.constraints.budget !== undefined && (
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-3 h-3" />
-                        Budget: ${primaryGoal.constraints.budget}
+                        Budget: ${String(primaryGoal.constraints.budget)}
                       </div>
                     )}
-                    {primaryGoal.constraints.tech_stack_preference && (
+                    {primaryGoal.constraints.tech_stack_preference !== undefined && (
                       <div className="flex items-center gap-1">
                         <Code2 className="w-3 h-3" />
-                        {primaryGoal.constraints.tech_stack_preference as string}
+                        {String(primaryGoal.constraints.tech_stack_preference)}
                       </div>
                     )}
                   </div>
@@ -476,28 +476,28 @@ export default function GoalsPage() {
 
                     {goal.constraints && (
                       <div className="space-y-2 text-sm text-gray-400 mb-4">
-                        {goal.constraints.time_available && (
+                        {goal.constraints.time_available !== undefined && (
                           <div className="flex items-center gap-2">
                             <Clock className="w-3 h-3" />
-                            <span>{goal.constraints.time_available as string}</span>
+                            <span>{String(goal.constraints.time_available)}</span>
                           </div>
                         )}
                         {goal.constraints.budget !== undefined && (
                           <div className="flex items-center gap-2">
                             <DollarSign className="w-3 h-3" />
-                            <span>Budget: ${goal.constraints.budget}</span>
+                            <span>Budget: ${String(goal.constraints.budget)}</span>
                           </div>
                         )}
-                        {goal.constraints.target_market && (
+                        {goal.constraints.target_market !== undefined && (
                           <div className="flex items-center gap-2">
                             <Users className="w-3 h-3" />
-                            <span className="truncate">{goal.constraints.target_market as string}</span>
+                            <span className="truncate">{String(goal.constraints.target_market)}</span>
                           </div>
                         )}
-                        {goal.constraints.tech_stack_preference && (
+                        {goal.constraints.tech_stack_preference !== undefined && (
                           <div className="flex items-center gap-2">
                             <Code2 className="w-3 h-3" />
-                            <span className="truncate">{goal.constraints.tech_stack_preference as string}</span>
+                            <span className="truncate">{String(goal.constraints.tech_stack_preference)}</span>
                           </div>
                         )}
                       </div>
