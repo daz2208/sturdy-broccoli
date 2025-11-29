@@ -59,4 +59,7 @@ from . import (
     usage,
     # Multi-industry content generation
     content_generation,
+    # Agentic learning system
+    feedback,
+    learning,
 )
