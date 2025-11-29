@@ -351,7 +351,26 @@ export interface GeneratedCode {
   code_content: string;
   generation_type: string;
   project_attempt_id?: number;
+  description?: string;
+  dependencies?: string[];
+  setup_instructions?: string;
   created_at: string;
+}
+
+export interface StoreCodeRequest {
+  project_id?: number;
+  generation_type?: string;
+  language?: string;
+  filename: string;
+  code_content: string;
+  description?: string;
+  dependencies?: string[];
+  setup_instructions?: string;
+}
+
+export interface StoreBatchCodeRequest {
+  project_id: number;
+  files: Record<string, string>; // filename -> content mapping
 }
 
 // Knowledge Tools

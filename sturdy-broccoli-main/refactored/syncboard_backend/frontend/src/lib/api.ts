@@ -716,6 +716,34 @@ class ApiClient {
     return `${API_BASE}/generated-code/project/${projectId}/zip`;
   }
 
+  /**
+   * Store a generated code file
+   */
+  async storeCode(request: Types.StoreCodeRequest): Promise<Types.GeneratedCode> {
+    const { data } = await this.client.post('/generated-code/store', null, { params: request });
+    return data;
+  }
+
+  /**
+   * Store multiple code files at once for a project
+   */
+  async storeCodeBatch(request: Types.StoreBatchCodeRequest): Promise<{
+    status: string;
+    files_stored: number;
+    filenames: string[];
+  }> {
+    const { data } = await this.client.post('/generated-code/store-batch', request);
+    return data;
+  }
+
+  /**
+   * Delete a generated code file
+   */
+  async deleteGeneratedCode(codeId: number): Promise<{ status: string; code_id: number }> {
+    const { data } = await this.client.delete(`/generated-code/${codeId}`);
+    return data;
+  }
+
   // ==========================================================================
   // KNOWLEDGE TOOLS
   // ==========================================================================
