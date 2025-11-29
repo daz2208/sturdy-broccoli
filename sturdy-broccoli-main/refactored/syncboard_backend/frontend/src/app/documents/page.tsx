@@ -332,6 +332,22 @@ export default function DocumentsPage() {
     }
   };
 
+  const exportAll = async (format: 'json' | 'markdown') => {
+    try {
+      const blob = await api.exportAll(format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `knowledge-base-export.${format === 'json' ? 'json' : 'md'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export downloaded');
+    } catch (err) {
+      toast.error('Export failed');
+      console.error('Export error:', err);
+    }
+  };
+
   const filteredDocs = documents.filter(doc => {
     if (filter.source_type && doc.source_type !== filter.source_type) return false;
     if (filter.skill_level && doc.skill_level !== filter.skill_level) return false;
@@ -356,13 +372,23 @@ export default function DocumentsPage() {
           </div>
           <p className="text-gray-500">{documents.length} documents in your knowledge base</p>
         </div>
-        <button
-          onClick={() => setShowUpload(!showUpload)}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <Upload className="w-4 h-4" />
-          Upload Content
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportAll('json')}
+            className="btn btn-secondary flex items-center gap-2"
+            title="Export all documents as JSON"
+          >
+            <Download className="w-4 h-4" />
+            Export All
+          </button>
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Content
+          </button>
+        </div>
       </div>
 
       {/* Active Upload Jobs Progress */}
