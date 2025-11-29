@@ -549,6 +549,31 @@ class ApiClient {
     const { data } = await this.client.post('/idea-seeds/backfill');
     return data;
   }
+
+  /**
+   * Get current LLM provider configuration and status
+   */
+  async getLLMProviderStatus(): Promise<Types.LLMProviderStatus> {
+    const { data } = await this.client.get('/admin/llm-provider');
+    return data;
+  }
+
+  /**
+   * Test the current LLM provider with a simple completion
+   */
+  async testLLMProvider(): Promise<Types.LLMProviderTestResult> {
+    const { data } = await this.client.post('/admin/llm-provider/test');
+    return data;
+  }
+
+  /**
+   * Reprocess a single document through chunking pipeline
+   */
+  async reprocessDocument(docId: number): Promise<Types.ReprocessDocumentResult> {
+    const { data } = await this.client.post(`/admin/reprocess-document/${docId}`);
+    return data;
+  }
+
   // ==========================================================================
   // KNOWLEDGE GRAPH
   // ==========================================================================

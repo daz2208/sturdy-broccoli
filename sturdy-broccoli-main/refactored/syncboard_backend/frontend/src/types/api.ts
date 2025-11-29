@@ -373,6 +373,26 @@ export interface StoreBatchCodeRequest {
   files: Record<string, string>; // filename -> content mapping
 }
 
+// Admin
+export interface LLMProviderStatus {
+  provider: string;
+  status: string;
+  details: Record<string, any>;
+}
+
+export interface LLMProviderTestResult {
+  status: string;
+  provider: string;
+  response: string;
+}
+
+export interface ReprocessDocumentResult {
+  doc_id: number;
+  status: string;
+  chunks: number;
+  embeddings: number;
+}
+
 // Knowledge Tools
 export interface KnowledgeGap {
   area: string;
