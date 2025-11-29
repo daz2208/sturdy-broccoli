@@ -13,11 +13,19 @@ Environment:
 - ENCRYPTION_KEY: Base64-encoded 32-byte Fernet key (required)
 """
 
-import os
 import base64
 import logging
 from cryptography.fernet import Fernet, InvalidToken
 from typing import Optional
+
+try:
+    from ..config import settings
+except ImportError:
+    # Fallback for standalone imports
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +43,7 @@ def get_encryption_key() -> bytes:
     Raises:
         ValueError: If ENCRYPTION_KEY not set or invalid
     """
-    key_str = os.getenv("ENCRYPTION_KEY")
+    key_str = settings.encryption_key
 
     if not key_str:
         raise ValueError(
@@ -237,8 +245,9 @@ def rotate_token_encryption(
         str: Token encrypted with new key
 
     Example:
-        >>> old_key = os.getenv("OLD_ENCRYPTION_KEY")
-        >>> new_key = os.getenv("ENCRYPTION_KEY")
+        >>> from backend.config import settings
+        >>> old_key = settings.encryption_key  # Save old key first
+        >>> new_key = settings.encryption_key  # After updating .env with new key
         >>> for token_row in db.query(IntegrationToken).all():
         >>>     token_row.access_token = rotate_token_encryption(
         >>>         token_row.access_token, old_key, new_key
@@ -277,7 +286,7 @@ def check_encryption_health() -> dict:
             return {
                 "healthy": False,
                 "error": "Encryption not initialized",
-                "key_set": bool(os.getenv("ENCRYPTION_KEY"))
+                "key_set": bool(settings.encryption_key)
             }
 
         # Test encryption/decryption
@@ -301,7 +310,7 @@ def check_encryption_health() -> dict:
         return {
             "healthy": False,
             "error": str(e),
-            "key_set": bool(os.getenv("ENCRYPTION_KEY"))
+            "key_set": bool(settings.encryption_key)
         }
 
 

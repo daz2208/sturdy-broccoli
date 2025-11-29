@@ -4,12 +4,13 @@ Image processing and OCR for visual content ingestion.
 
 import base64
 import logging
-import os
 from io import BytesIO
 from pathlib import Path
 from typing import Dict
 from PIL import Image
 import pytesseract
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ class ImageProcessor:
     
     def __init__(self):
         # Windows users may need to set tesseract path
-        tesseract_cmd = os.environ.get("TESSERACT_CMD")
+        tesseract_cmd = settings.tesseract_cmd
         if tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
     

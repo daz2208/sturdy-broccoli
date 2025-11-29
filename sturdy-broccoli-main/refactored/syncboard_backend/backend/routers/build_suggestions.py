@@ -322,7 +322,7 @@ async def what_can_i_build_goal_driven(
     validation_info['stats']['skill_distribution'] = skill_counts
 
     # Initialize LLM provider
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = settings.openai_api_key
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 
@@ -399,7 +399,7 @@ async def validate_market(
             knowledge_summary += f"\n{meta.filename or 'Document'}: {content[:500]}...\n"
 
     # Initialize services
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = settings.openai_api_key
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 
@@ -1044,7 +1044,7 @@ async def create_mega_project(
         ideas_data.append(idea)
 
     # Initialize LLM provider
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = settings.openai_api_key
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 

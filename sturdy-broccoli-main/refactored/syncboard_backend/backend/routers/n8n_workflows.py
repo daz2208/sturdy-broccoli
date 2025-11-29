@@ -82,7 +82,7 @@ async def generate_workflow(
                 })
 
             # Initialize LLM provider
-            api_key = os.getenv("OPENAI_API_KEY")
+            api_key = settings.openai_api_key
             if not api_key:
                 raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 

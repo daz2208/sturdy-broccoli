@@ -6,7 +6,6 @@ Improvement #5: Redis-based caching to save 20-40% on API costs.
 Improvement #7: Agentic Learning - extract_with_learning() closes the feedback loop.
 """
 
-import os
 import json
 import logging
 from typing import Dict, Optional, Any
@@ -87,7 +86,7 @@ class ConceptExtractor:
         """
         if llm_provider is None:
             # Default to OpenAI provider
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key = settings.openai_api_key
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable required")
             self.provider = OpenAIProvider(api_key=api_key)
@@ -603,9 +602,7 @@ Be critical but constructive. The goal is ACCURACY."""
     async def _call_provider_extract(self, prompt: str) -> str:
         """Fallback method to call provider's extract via chat completion."""
         from openai import AsyncOpenAI
-        import os
-
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = settings.openai_api_key
         client = AsyncOpenAI(api_key=api_key)
 
         response = await client.chat.completions.create(

@@ -21,7 +21,6 @@ Usage:
     gaps = await services.analyze_knowledge_gaps(user_id, kb_id)
 """
 
-import os
 import logging
 from typing import List, Dict, Optional, Any, Tuple
 from dataclasses import dataclass, field
@@ -31,6 +30,7 @@ import json
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from openai import AsyncOpenAI
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ class KnowledgeServices:
     def _get_client(self) -> AsyncOpenAI:
         """Lazy-load OpenAI client."""
         if self._client is None:
-            self._client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         return self._client
 
     async def _call_llm(

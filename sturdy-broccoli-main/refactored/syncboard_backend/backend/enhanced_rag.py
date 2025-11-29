@@ -19,7 +19,6 @@ Usage:
     )
 """
 
-import os
 import logging
 import asyncio
 from typing import List, Dict, Optional, Tuple, Any
@@ -452,7 +451,8 @@ class QueryExpander:
         """Lazy-load OpenAI client."""
         if self._client is None:
             from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            from .config import settings
+            self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         return self._client
 
     async def expand(
@@ -840,8 +840,9 @@ class EnhancedRAGService:
     ) -> str:
         """Generate answer using LLM with retrieved context."""
         from openai import AsyncOpenAI
+        from .config import settings
 
-        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
 
         # Build context from chunks
         context_parts = []

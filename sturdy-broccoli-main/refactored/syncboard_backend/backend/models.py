@@ -1,10 +1,11 @@
 """Data models and schemas for SyncBoard 3.0 Knowledge Bank."""
 
-import os
 from enum import Enum
 from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 from typing import List, Optional
 from datetime import datetime
+
+from .config import settings
 
 
 # =============================================================================
@@ -64,7 +65,7 @@ class BatchFileItem(BaseModel):
 
 
 # Configurable batch upload limit from environment
-MAX_BATCH_FILES = int(os.getenv("MAX_BATCH_FILES", "20"))
+MAX_BATCH_FILES = settings.max_batch_files
 
 
 class BatchFileUpload(BaseModel):
