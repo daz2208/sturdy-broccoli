@@ -696,7 +696,7 @@ def process_file_upload(
         )
 
         with get_db_context() as db:
-            repo = DatabaseRepository(db)
+            repo = DatabaseKnowledgeBankRepository(db)
             run_async(repo.add_document(document_text, meta))
 
         # Record AI decision for clustering (agentic learning)
@@ -1103,7 +1103,7 @@ def process_url_upload(
         )
 
         with get_db_context() as db:
-            repo = DatabaseRepository(db)
+            repo = DatabaseKnowledgeBankRepository(db)
             run_async(repo.add_document(document_text, meta))
 
         # Record AI decision for clustering (agentic learning)
@@ -1487,7 +1487,7 @@ def process_image_upload(
 
         # Save to database via repository
         with get_db_context() as db:
-            repo = DatabaseRepository(db)
+            repo = DatabaseKnowledgeBankRepository(db)
             run_async(repo.add_document(combined_text, meta))
 
         # Record AI decision for clustering (agentic learning)

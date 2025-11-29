@@ -194,12 +194,12 @@ async def lifespan(app: FastAPI):
     # Create default test user if none exist
     if not dependencies.users:
         # Use repository to create default test user
-        from .db_repository import DatabaseRepository
+        from .db_repository import DatabaseKnowledgeBankRepository
         from .database import SessionLocal
 
         db_session = SessionLocal()
         try:
-            repo = DatabaseRepository(db_session)
+            repo = DatabaseKnowledgeBankRepository(db_session)
             test_user = await repo.get_user('test')
             if not test_user:
                 await repo.add_user('test', hash_password('test123'))
