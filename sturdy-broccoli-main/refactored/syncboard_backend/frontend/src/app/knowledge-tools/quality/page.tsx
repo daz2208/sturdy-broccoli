@@ -170,7 +170,7 @@ export default function QualityPage() {
               <ul className="space-y-2">
                 {result.key_excerpts.map((excerpt, i) => (
                   <li key={i} className="text-gray-300 text-sm p-3 bg-dark-200 rounded">
-                    "{excerpt}"
+                    &quot;{excerpt}&quot;
                   </li>
                 ))}
               </ul>

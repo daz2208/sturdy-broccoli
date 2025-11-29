@@ -389,7 +389,7 @@ export default function DocumentDetailPage() {
         </div>
 
         {summaries.length === 0 ? (
-          <p className="text-gray-500 text-sm">No summaries yet. Click "Generate Summary" to create one.</p>
+          <p className="text-gray-500 text-sm">No summaries yet. Click &quot;Generate Summary&quot; to create one.</p>
         ) : (
           <div className="space-y-3">
             {summaries.map((summary, idx) => (
@@ -480,7 +480,7 @@ export default function DocumentDetailPage() {
         {/* Current Relationships */}
         {relationships.length === 0 && discoveredDocs.length === 0 ? (
           <p className="text-gray-500 text-sm">
-            No relationships yet. Click "Discover Similar" to find related documents or "Add Relationship" to manually link documents.
+            No relationships yet. Click &quot;Discover Similar&quot; to find related documents or &quot;Add Relationship&quot; to manually link documents.
           </p>
         ) : (
           <div className="space-y-4">

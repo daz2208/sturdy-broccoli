@@ -100,7 +100,7 @@ export default function PWAInstallPrompt() {
         </p>
         <div className="text-sm text-gray-300 space-y-2">
           <p>1. Tap the <span className="text-primary">Share</span> button in Safari</p>
-          <p>2. Scroll and tap <span className="text-primary">"Add to Home Screen"</span></p>
+          <p>2. Scroll and tap <span className="text-primary">&quot;Add to Home Screen&quot;</span></p>
           <p>3. Tap <span className="text-primary">Add</span></p>
         </div>
         <button onClick={handleDismiss} className="w-full mt-4 btn btn-secondary">
