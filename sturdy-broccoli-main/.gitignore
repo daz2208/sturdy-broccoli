@@ -58,9 +58,59 @@ stored_images/
 *.db
 *.sqlite
 
+# Uploads & User Content (CRITICAL - DO NOT COMMIT)
+uploads/
+temp_uploads/
+user_uploads/
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Audio/Video files
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.m4a
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# Images (user uploaded)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.ico
+*.webp
+
+# Code archives (user uploaded)
+*.py.zip
+*.js.zip
+moralguard*
+salvage*
+django*.zip
+pytorch*
+agentic*
+
 # Logs
 *.log
 logs/
+temp_logs.txt
 
 # OS files
 .DS_Store
