@@ -7,14 +7,22 @@ import Sidebar from '@/components/Sidebar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, hasHydrated, checkAuth } = useAuthStore();
 
   useEffect(() => {
-    checkAuth();
-    if (!isAuthenticated) {
-      router.push('/login');
+    // Only check auth after Zustand has rehydrated from localStorage
+    if (hasHydrated) {
+      checkAuth();
+      if (!isAuthenticated) {
+        router.push('/login');
+      }
     }
-  }, [isAuthenticated, checkAuth, router]);
+  }, [isAuthenticated, hasHydrated, checkAuth, router]);
+
+  // Show loading while Zustand rehydrates
+  if (!hasHydrated) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return null;
