@@ -1,0 +1,249 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.1, pluggy-1.6.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /home/user/sturdy-broccoli/sturdy-broccoli-main/refactored/syncboard_backend
+configfile: pytest.ini
+plugins: anyio-4.12.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 534 items / 7 errors / 1 skipped
+
+==================================== ERRORS ====================================
+___________________ ERROR collecting tests/test_analytics.py ___________________
+tests/test_analytics.py:16: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:1: in <module>
+    from jose.backends.base import Key
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+_________________ ERROR collecting tests/test_api_endpoints.py _________________
+tests/test_api_endpoints.py:20: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+_____________________ ERROR collecting tests/test_jobs.py ______________________
+tests/test_jobs.py:18: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+_____________________ ERROR collecting tests/test_oauth.py _____________________
+tests/test_oauth.py:16: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+_________________ ERROR collecting tests/test_project_goals.py _________________
+tests/test_project_goals.py:23: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+___________________ ERROR collecting tests/test_security.py ____________________
+tests/test_security.py:14: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+_____________________ ERROR collecting tests/test_usage.py _____________________
+tests/test_usage.py:10: in <module>
+    from backend.main import app
+backend/main.py:38: in <module>
+    from .routers import (
+backend/routers/__init__.py:29: in <module>
+    from . import (
+backend/routers/auth.py:22: in <module>
+    from ..auth import hash_password, verify_password, create_access_token
+backend/auth.py:12: in <module>
+    from jose import JWTError, jwt
+/usr/local/lib/python3.11/dist-packages/jose/jwt.py:17: in <module>
+    from jose import jws
+/usr/local/lib/python3.11/dist-packages/jose/jws.py:9: in <module>
+    from jose import jwk
+/usr/local/lib/python3.11/dist-packages/jose/jwk.py:6: in <module>
+    from jose.backends import RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/__init__.py:4: in <module>
+    from jose.backends.cryptography_backend import CryptographyRSAKey as RSAKey  # noqa: F401
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/dist-packages/jose/backends/cryptography_backend.py:4: in <module>
+    from cryptography.exceptions import InvalidSignature, InvalidTag
+/usr/lib/python3/dist-packages/cryptography/exceptions.py:9: in <module>
+    from cryptography.hazmat.bindings._rust import exceptions as rust_exceptions
+E   pyo3_runtime.PanicException: Python API call failed
+------------------------------- Captured stderr --------------------------------
+ModuleNotFoundError: No module named '_cffi_backend'
+thread '<unnamed>' panicked at /usr/share/cargo/registry/pyo3-0.20.2/src/err/mod.rs:788:5:
+Python API call failed
+stack backtrace:
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+=============================== warnings summary ===============================
+../../../../../../usr/local/lib/python3.11/dist-packages/passlib/utils/__init__.py:854
+  /usr/local/lib/python3.11/dist-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_analytics.py - pyo3_runtime.PanicException: Python API call ...
+ERROR tests/test_api_endpoints.py - pyo3_runtime.PanicException: Python API c...
+ERROR tests/test_jobs.py - pyo3_runtime.PanicException: Python API call failed
+ERROR tests/test_oauth.py - pyo3_runtime.PanicException: Python API call failed
+ERROR tests/test_project_goals.py - pyo3_runtime.PanicException: Python API c...
+ERROR tests/test_security.py - pyo3_runtime.PanicException: Python API call f...
+ERROR tests/test_usage.py - pyo3_runtime.PanicException: Python API call failed
+!!!!!!!!!!!!!!!!!!! Interrupted: 7 errors during collection !!!!!!!!!!!!!!!!!!!!
+=================== 1 skipped, 1 warning, 7 errors in 7.31s ====================
