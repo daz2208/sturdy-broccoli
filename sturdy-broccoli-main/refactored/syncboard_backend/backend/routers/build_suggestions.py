@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from ..models import (
     User, BuildSuggestionRequest,
     GoalDrivenSuggestionsRequest, GoalDrivenSuggestionsResponse,
-    MarketValidationRequest, MarketValidationResponse
+    MarketValidationRequest, MarketValidationResponse,
+    SaveIdeaRequest, UpdateSavedIdeaRequest, SavedIdeaResponse, MegaProjectRequest
 )
 from ..dependencies import (
     get_current_user,
@@ -730,7 +731,7 @@ async def backfill_idea_seeds(
 @limiter.limit("30/minute")
 async def save_idea(
     request: Request,
-    idea_data: dict = Body(...),
+    idea_data: SaveIdeaRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -742,23 +743,19 @@ async def save_idea(
     - A custom suggestion from /what_can_i_build (by title, description, suggestion_data)
 
     Args:
-        idea_data: Dict containing idea_seed_id OR (title, description, suggestion_data)
+        idea_data: Validated request containing idea_seed_id OR (title, description, suggestion_data)
         current_user: Authenticated user
         db: Database session
 
     Returns:
         Saved idea details
     """
-    # Extract fields from request body
-    idea_seed_id = idea_data.get('idea_seed_id')
-    title = idea_data.get('title')
-    description = idea_data.get('description')
-    suggestion_data = idea_data.get('suggestion_data')
-    notes = idea_data.get('notes', '')
-
-    # Validate input - need either idea_seed_id or title
-    if not idea_seed_id and not title:
-        raise HTTPException(400, "Must provide either idea_seed_id or title")
+    # Extract fields from validated request
+    idea_seed_id = idea_data.idea_seed_id
+    title = idea_data.title
+    description = idea_data.description
+    suggestion_data = idea_data.suggestion_data
+    notes = idea_data.notes
 
     # If saving an idea seed, verify it exists
     if idea_seed_id:
@@ -878,8 +875,7 @@ async def get_saved_ideas(
 async def update_saved_idea(
     saved_id: int,
     request: Request,
-    status: str = None,
-    notes: str = None,
+    update_data: UpdateSavedIdeaRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -888,8 +884,7 @@ async def update_saved_idea(
 
     Args:
         saved_id: ID of saved idea to update
-        status: New status (saved, started, completed)
-        notes: Updated notes
+        update_data: Validated update request
         current_user: Authenticated user
         db: Database session
 
@@ -904,15 +899,15 @@ async def update_saved_idea(
     if not saved_idea:
         raise HTTPException(404, f"Saved idea {saved_id} not found")
 
-    if status:
-        if status not in ["saved", "started", "completed"]:
-            raise HTTPException(400, "Invalid status. Use: saved, started, completed")
-        saved_idea.status = status
+    # Update fields if provided
+    if update_data.status:
+        saved_idea.status = update_data.status
 
-    if notes is not None:
-        saved_idea.notes = notes
+    if update_data.notes is not None:
+        saved_idea.notes = update_data.notes
 
     db.commit()
+    db.refresh(saved_idea)
 
     return {
         "message": "Saved idea updated",
@@ -965,8 +960,7 @@ async def delete_saved_idea(
 @limiter.limit("3/minute")
 async def create_mega_project(
     request: Request,
-    idea_ids: list[int] = None,
-    title: str = None,
+    project_data: MegaProjectRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -982,8 +976,7 @@ async def create_mega_project(
     - Single implementation roadmap
 
     Args:
-        idea_ids: List of saved idea IDs to combine
-        title: Optional custom title for the mega-project
+        project_data: Validated request with idea IDs and optional title
         current_user: Authenticated user
         db: Database session
 
@@ -992,11 +985,8 @@ async def create_mega_project(
     """
     from ..llm_providers import OpenAIProvider
 
-    if not idea_ids or len(idea_ids) < 2:
-        raise HTTPException(400, "Must provide at least 2 idea IDs to combine")
-
-    if len(idea_ids) > 10:
-        raise HTTPException(400, "Maximum 10 ideas can be combined at once")
+    idea_ids = project_data.idea_ids
+    title = project_data.custom_title
 
     # Fetch all saved ideas
     saved_ideas = db.query(DBSavedIdea).filter(
@@ -1117,7 +1107,18 @@ Be creative but practical. The mega-project should feel natural, not forced."""
         if json_match:
             response = json_match.group(1)
 
-        mega_project = json.loads(response.strip())
+        try:
+            mega_project = json.loads(response.strip())
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse mega-project JSON: {e}\nResponse: {response[:500]}")
+            raise HTTPException(500, "AI returned invalid response. Please try again.")
+
+        # Validate required fields
+        required_fields = ["title", "description", "tech_stack"]
+        missing_fields = [f for f in required_fields if f not in mega_project]
+        if missing_fields:
+            logger.error(f"Mega-project missing required fields: {missing_fields}")
+            raise HTTPException(500, "Generated project is incomplete. Please try again.")
 
         # Add metadata
         mega_project["source_ideas"] = [
@@ -1133,10 +1134,9 @@ Be creative but practical. The mega-project should feel natural, not forced."""
             "status": "success",
             "mega_project": mega_project
         }
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse mega-project JSON: {e}")
-        raise HTTPException(500, "Failed to generate mega-project structure")
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors, etc.)
+        raise
     except Exception as e:
         logger.error(f"Mega-project generation failed: {e}")
         raise HTTPException(500, f"Failed to create mega-project: {str(e)}")

@@ -1,7 +1,7 @@
 """Data models and schemas for SyncBoard 3.0 Knowledge Bank."""
 
 from enum import Enum
-from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 
@@ -771,3 +771,80 @@ class GoalDrivenSuggestionsResponse(BaseModel):
     user_goal: str
     total_documents: int
     total_clusters: int
+
+
+# =============================================================================
+# Saved Ideas Models
+# =============================================================================
+
+class SaveIdeaRequest(BaseModel):
+    """Request model for saving an idea."""
+    idea_seed_id: Optional[int] = Field(None, ge=1, description="ID of pre-computed idea seed")
+    title: Optional[str] = Field(None, min_length=1, max_length=500, description="Custom idea title")
+    description: Optional[str] = Field(None, min_length=1, max_length=10000, description="Custom idea description")
+    suggestion_data: Optional[dict] = Field(None, description="Full suggestion data from /what_can_i_build")
+    notes: Optional[str] = Field("", max_length=5000, description="User notes")
+
+    @field_validator('title', 'description')
+    @classmethod
+    def strip_whitespace(cls, v):
+        """Strip leading/trailing whitespace."""
+        if v:
+            return v.strip()
+        return v
+
+    @model_validator(mode='after')
+    def validate_idea_source(self):
+        """Ensure either idea_seed_id or title is provided."""
+        if not self.idea_seed_id and not self.title:
+            raise ValueError("Must provide either idea_seed_id or title")
+
+        # If using custom idea, description is required
+        if self.title and not self.idea_seed_id:
+            if not self.description:
+                raise ValueError("Description is required when providing a custom title")
+
+        return self
+
+
+class UpdateSavedIdeaRequest(BaseModel):
+    """Request model for updating a saved idea."""
+    status: Optional[str] = Field(None, pattern="^(saved|started|completed)$", description="Idea status")
+    notes: Optional[str] = Field(None, max_length=5000, description="User notes")
+
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        """Ensure at least one field is being updated."""
+        if not self.status and not self.notes:
+            raise ValueError("Must provide at least one field to update")
+        return self
+
+
+class SavedIdeaResponse(BaseModel):
+    """Response model for a saved idea."""
+    id: int
+    title: str
+    description: Optional[str]
+    difficulty: Optional[str]
+    feasibility: Optional[str]
+    effort_estimate: Optional[str]
+    notes: str
+    status: str
+    saved_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class MegaProjectRequest(BaseModel):
+    """Request model for creating a mega project."""
+    idea_ids: List[int] = Field(..., min_length=2, max_length=10, description="List of saved idea IDs to combine")
+    custom_title: Optional[str] = Field(None, max_length=500, description="Custom title for the mega project")
+
+    @field_validator('idea_ids')
+    @classmethod
+    def validate_unique_ids(cls, v):
+        """Ensure all IDs are unique."""
+        if len(v) != len(set(v)):
+            raise ValueError("idea_ids must contain unique values")
+        return v
