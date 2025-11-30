@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi, Loader2, CheckCircle, XCircle, Download } from 'lucide-react';
+import { FileText, Upload, Trash2, ExternalLink, Filter, Image, Link, Type, Wifi, Loader2, CheckCircle, XCircle, Download, Database } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
-import type { Document } from '@/types/api';
+import type { Document, KnowledgeBase } from '@/types/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 // Type for tracking upload jobs
@@ -19,6 +20,7 @@ interface UploadJob {
 }
 
 export default function DocumentsPage() {
+  const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -28,6 +30,10 @@ export default function DocumentsPage() {
   const [urlInput, setUrlInput] = useState('');
   const [filter, setFilter] = useState({ source_type: '', skill_level: '' });
 
+  // KB filtering
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [selectedKB, setSelectedKB] = useState<string>('all');
+
   // Upload jobs tracking
   const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([]);
   const pollIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
@@ -35,8 +41,17 @@ export default function DocumentsPage() {
   // WebSocket for real-time document updates
   const { isConnected, on } = useWebSocket();
 
+  // Read KB from URL on mount
+  useEffect(() => {
+    const kbId = searchParams.get('kb_id');
+    if (kbId) {
+      setSelectedKB(kbId);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     loadDocuments();
+    loadKnowledgeBases();
 
     // Listen for real-time document events
     const unsubCreated = on('document_created', () => {
@@ -104,6 +119,20 @@ export default function DocumentsPage() {
       setLoading(false);
     }
   };
+
+  const loadKnowledgeBases = async () => {
+    try {
+      const data = await api.getKnowledgeBases();
+      setKnowledgeBases(data.knowledge_bases);
+    } catch (err) {
+      console.error('Failed to load knowledge bases:', err);
+    }
+  };
+
+  // Filter documents by selected KB
+  const filteredDocuments = selectedKB === 'all'
+    ? documents
+    : documents.filter(doc => doc.knowledge_base_id === parseInt(selectedKB));
 
   // Poll job status
   const pollJobStatus = useCallback(async (jobId: string) => {
@@ -348,7 +377,8 @@ export default function DocumentsPage() {
     }
   };
 
-  const filteredDocs = documents.filter(doc => {
+  // Apply KB filter first, then source_type/skill_level filters
+  const filteredDocs = filteredDocuments.filter(doc => {
     if (filter.source_type && doc.source_type !== filter.source_type) return false;
     if (filter.skill_level && doc.skill_level !== filter.skill_level) return false;
     return true;
@@ -370,7 +400,24 @@ export default function DocumentsPage() {
               </span>
             )}
           </div>
-          <p className="text-gray-500">{documents.length} documents in your knowledge base</p>
+          <div className="flex items-center gap-4 mt-1">
+            <p className="text-gray-500">
+              {filteredDocuments.length} of {documents.length} documents
+              {selectedKB !== 'all' && ' (filtered)'}
+            </p>
+            <select
+              value={selectedKB}
+              onChange={(e) => setSelectedKB(e.target.value)}
+              className="text-sm px-3 py-1 bg-dark-200 border border-dark-300 rounded-lg text-gray-300 focus:outline-none focus:border-primary"
+            >
+              <option value="all">All Knowledge Bases</option>
+              {knowledgeBases.map(kb => (
+                <option key={kb.id} value={kb.id.toString()}>
+                  {kb.name} {kb.is_default ? '⭐' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
