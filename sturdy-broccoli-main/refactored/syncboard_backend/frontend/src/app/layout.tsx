@@ -1,10 +1,23 @@
 'use client';
 
+import { useEffect } from 'react';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import { useAuthStore } from '@/stores/auth';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const { checkAuth } = useAuthStore();
+
+  // Initialize auth state on app mount
+  useEffect(() => {
+    // Give zustand persist middleware time to rehydrate from localStorage
+    const timer = setTimeout(() => {
+      checkAuth();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [checkAuth]);
+
   return (
     <html lang="en">
       <head>
