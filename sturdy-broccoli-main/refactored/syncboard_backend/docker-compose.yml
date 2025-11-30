@@ -78,8 +78,8 @@ services:
       OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
       OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
 
-      # CORS
-      SYNCBOARD_ALLOWED_ORIGINS: ${SYNCBOARD_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
+      # CORS - Allow localhost, 127.0.0.1, and host.docker.internal for Docker/WSL compatibility
+      SYNCBOARD_ALLOWED_ORIGINS: ${SYNCBOARD_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000,http://host.docker.internal:3000}
 
       # Auth
       SYNCBOARD_TOKEN_EXPIRE_MINUTES: ${SYNCBOARD_TOKEN_EXPIRE_MINUTES:-1440}
