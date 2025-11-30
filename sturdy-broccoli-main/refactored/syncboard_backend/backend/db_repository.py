@@ -260,6 +260,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             concepts=concepts,
             skill_level=db_doc.skill_level,
             cluster_id=db_doc.cluster_id,
+            knowledge_base_id=db_doc.knowledge_base_id,
             ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
             content_length=db_doc.content_length
         )
