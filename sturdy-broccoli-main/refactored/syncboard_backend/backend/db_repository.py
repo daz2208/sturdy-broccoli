@@ -145,6 +145,45 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             # Add to vector store first to get doc_id
             doc_id = self.vector_store.add_document(content)
 
+            # CRITICAL FIX: Ensure cluster exists in database if cluster_id is set
+            # Previously, clusters were only created in memory, causing foreign key violations
+            actual_cluster_id = metadata.cluster_id
+            if metadata.cluster_id is not None:
+                # Check if cluster exists in database
+                existing_cluster = self.db.query(DBCluster).filter_by(id=metadata.cluster_id).first()
+
+                if not existing_cluster:
+                    # Cluster doesn't exist in DB - need to create it from in-memory state
+                    # Get the cluster from in-memory storage via knowledge base
+                    from .dependencies import get_kb_clusters
+                    kb_clusters = get_kb_clusters(metadata.knowledge_base_id)
+
+                    if metadata.cluster_id in kb_clusters:
+                        in_memory_cluster = kb_clusters[metadata.cluster_id]
+                        # Create cluster in database
+                        db_cluster = DBCluster(
+                            name=in_memory_cluster.name,
+                            primary_concepts=in_memory_cluster.primary_concepts,
+                            skill_level=in_memory_cluster.skill_level,
+                            knowledge_base_id=metadata.knowledge_base_id
+                        )
+                        self.db.add(db_cluster)
+                        self.db.flush()  # Get the auto-generated database ID
+                        actual_cluster_id = db_cluster.id
+
+                        # Update in-memory cluster with database ID
+                        in_memory_cluster.id = actual_cluster_id
+                        kb_clusters[actual_cluster_id] = in_memory_cluster
+                        # Remove old ID entry if different
+                        if actual_cluster_id != metadata.cluster_id:
+                            del kb_clusters[metadata.cluster_id]
+
+                        logger.info(f"Created cluster {actual_cluster_id} in database: {in_memory_cluster.name}")
+                    else:
+                        # Cluster not in memory either - set to NULL
+                        logger.warning(f"Cluster {metadata.cluster_id} not found in memory or database, setting to NULL")
+                        actual_cluster_id = None
+
             # Create database document
             # Convert ingested_at from ISO string to datetime object for database
             ingested_datetime = (
@@ -156,7 +195,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             db_doc = DBDocument(
                 doc_id=doc_id,
                 owner_username=metadata.owner,
-                cluster_id=metadata.cluster_id,
+                cluster_id=actual_cluster_id,
                 knowledge_base_id=metadata.knowledge_base_id,
                 source_type=metadata.source_type,
                 source_url=metadata.source_url,
