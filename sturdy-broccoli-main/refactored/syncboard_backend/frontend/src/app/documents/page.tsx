@@ -394,7 +394,17 @@ export default function DocumentsPage() {
       {/* Active Upload Jobs Progress */}
       {uploadJobs.length > 0 && (
         <div className="bg-dark-100 rounded-xl border border-dark-300 p-4 space-y-3">
-          <h3 className="text-sm font-medium text-gray-300">Upload Progress</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-300">Upload Progress</h3>
+            {uploadJobs.some(j => j.status === 'success' || j.status === 'failed') && (
+              <button
+                onClick={() => setUploadJobs(prev => prev.filter(j => j.status !== 'success' && j.status !== 'failed'))}
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                Clear Completed
+              </button>
+            )}
+          </div>
           {uploadJobs.map(job => (
             <div key={job.id} className="flex items-center gap-3">
               {job.status === 'processing' || job.status === 'pending' ? (
@@ -422,6 +432,24 @@ export default function DocumentsPage() {
                   {job.error || job.message}
                 </p>
               </div>
+              {(job.status === 'processing' || job.status === 'pending') && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await api.cancelJob(job.id);
+                      setUploadJobs(prev => prev.filter(j => j.id !== job.id));
+                      toast.success('Upload canceled');
+                    } catch (err) {
+                      toast.error('Failed to cancel upload');
+                      console.error(err);
+                    }
+                  }}
+                  className="text-gray-400 hover:text-red-400 transition-colors"
+                  title="Cancel upload"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>
