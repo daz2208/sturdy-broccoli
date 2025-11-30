@@ -75,7 +75,10 @@ def run_async(coro):
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, coro)
-            return future.result(timeout=30)
+            # CRITICAL FIX: Increased timeout from 30s to 300s (5 minutes)
+            # Upload operations include: AI extraction, clustering, DB save, chunking, summarization
+            # These can easily exceed 30s for large documents or slow API responses
+            return future.result(timeout=300)
 
 CONCEPT_SAMPLE_CHARS = 12_000  # limit sent to LLM for concept extraction
 MAX_SINGLE_DOCUMENT_CHARS = 200_000  # cap single-document payloads to keep processing responsive
@@ -273,6 +276,7 @@ def process_multi_document_zip(
     kb_metadata = get_kb_metadata(kb_id)
 
     processed_docs = []
+    failed_docs = []
     total_docs = len(documents_list)
 
     for idx, doc_dict in enumerate(documents_list):
@@ -459,6 +463,11 @@ def process_multi_document_zip(
 
         except Exception as e:
             logger.error(f"Failed to process ZIP document {doc_filename}: {e}", exc_info=True)
+            failed_docs.append({
+                "filename": doc_filename,
+                "error": str(e),
+                "index": idx
+            })
             continue
 
     # Reload cache and notify
@@ -466,19 +475,28 @@ def process_multi_document_zip(
     reload_cache_from_db()
     notify_data_changed()
 
-    logger.info(
-        f"Multi-document ZIP processing complete: {filename} → "
-        f"{len(processed_docs)}/{total_docs} documents successfully processed"
-    )
+    # Log completion with failure summary
+    if failed_docs:
+        logger.warning(
+            f"Multi-document ZIP processing completed WITH FAILURES: {filename} → "
+            f"{len(processed_docs)}/{total_docs} succeeded, {len(failed_docs)} failed"
+        )
+    else:
+        logger.info(
+            f"Multi-document ZIP processing complete: {filename} → "
+            f"{len(processed_docs)}/{total_docs} documents successfully processed"
+        )
 
-    # Return summary
+    # Return summary including failures
     return {
-        "status": "multi_document_success",
+        "status": "multi_document_success" if not failed_docs else "multi_document_partial",
         "original_filename": filename,
         "total_documents": len(processed_docs),
+        "total_failed": len(failed_docs),
         "doc_ids": [d["doc_id"] for d in processed_docs],
         "filenames": [d["filename"] for d in processed_docs],
         "documents": processed_docs,
+        "failed_documents": failed_docs,
         "user_id": user_id,
         "knowledge_base_id": kb_id
     }
