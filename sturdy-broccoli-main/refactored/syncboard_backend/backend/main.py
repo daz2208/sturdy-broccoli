@@ -123,28 +123,33 @@ def reload_cache_from_database():
 
         total_docs = sum(len(d) for d in docs.values())
         total_clusters = sum(len(c) for c in clusts.values())
-        logger.info(f"Cache reloaded: {total_docs} documents in {len(docs)} KBs, {total_clusters} clusters, {len(usrs)} users, next_id={dependencies.vector_store._next_id}")
+        logger.info(f"✅ Cache reloaded successfully: {total_docs} documents in {len(docs)} KBs, {total_clusters} clusters, {len(usrs)} users, next_id={dependencies.vector_store._next_id}")
     except Exception as e:
-        logger.error(f"Failed to reload cache: {e}")
+        logger.error(f"❌ CRITICAL: Failed to reload cache from database: {e}", exc_info=True)
+        raise  # Re-raise to make failure visible
 
 
 def listen_for_data_changes():
     """Background thread that listens for data change notifications via Redis pub/sub."""
     if not redis_client:
-        logger.warning("Redis not available, cache auto-reload disabled")
+        logger.warning("⚠️  Redis not available, cache auto-reload disabled - uploads will NOT appear until restart!")
         return
 
     try:
         pubsub = redis_client.pubsub()
         pubsub.subscribe("syncboard:data_changed")
-        logger.info("✅ Subscribed to data change notifications")
+        logger.info("✅ Subscribed to data change notifications (Redis pub/sub)")
 
         for message in pubsub.listen():
             if message['type'] == 'message':
-                logger.debug("Received data_changed notification, reloading cache...")
-                reload_cache_from_database()
+                logger.info("📨 Received data_changed notification, reloading cache from database...")
+                try:
+                    reload_cache_from_database()
+                except Exception as reload_error:
+                    logger.error(f"❌ Cache reload failed after notification: {reload_error}", exc_info=True)
     except Exception as e:
-        logger.error(f"Data change listener error: {e}")
+        logger.error(f"❌ CRITICAL: Data change listener crashed: {e}", exc_info=True)
+        logger.error("⚠️  Cache will NOT auto-reload - uploads will NOT appear until restart!")
 
 
 # =============================================================================

@@ -435,13 +435,14 @@ def notify_data_changed():
     Publishes to Redis pub/sub channel so backend can reload from database.
     """
     if not redis_client:
+        logger.warning("❌ Cannot notify data_changed: Redis not connected!")
         return
 
     try:
-        redis_client.publish("syncboard:data_changed", "reload")
-        logger.debug("Published data_changed notification")
+        subscribers = redis_client.publish("syncboard:data_changed", "reload")
+        logger.info(f"📢 Published data_changed notification ({subscribers} subscribers)")
     except RedisError as e:
-        logger.warning(f"Failed to publish data_changed notification: {e}")
+        logger.error(f"❌ Failed to publish data_changed notification: {e}", exc_info=True)
 
 
 # =============================================================================
