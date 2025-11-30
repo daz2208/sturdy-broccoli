@@ -54,8 +54,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: () => {
-        const isAuth = api.isAuthenticated();
-        set({ isAuthenticated: isAuth });
+        // Check if we have a token in localStorage
+        const hasToken = api.isAuthenticated();
+
+        // If we have a token, trust the persisted state from zustand
+        // The persist middleware already restored username and isAuthenticated
+        if (hasToken) {
+          // Only update if not already authenticated (prevents unnecessary re-renders)
+          set((state) => state.isAuthenticated ? {} : { isAuthenticated: true });
+        } else {
+          // No token means definitely not authenticated
+          set({ isAuthenticated: false, username: null });
+        }
       },
 
       setToken: (token: string, username: string) => {
