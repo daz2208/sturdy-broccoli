@@ -151,7 +151,7 @@ class ImprovedClusteringEngine:
         existing_clusters: Dict[int, Cluster]
     ) -> int:
         """Create new cluster with concept tracking."""
-        cluster_id = max(existing_clusters.keys()) + 1 if existing_clusters else 0
+        cluster_id = max(existing_clusters.keys()) + 1 if existing_clusters else 1
 
         # Extract and expand primary concepts
         concept_names = [c["name"] for c in concepts]
