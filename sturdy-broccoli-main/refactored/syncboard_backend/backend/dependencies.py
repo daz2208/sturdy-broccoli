@@ -84,12 +84,16 @@ build_suggester = ImprovedBuildSuggester(llm_provider=llm_provider)
 # Authentication Dependency
 # =============================================================================
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> User:
     """
     Get current user from JWT token.
 
     Args:
         token: JWT token from Authorization header
+        db: Database session for user validation
 
     Returns:
         User object with username
@@ -105,9 +109,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     try:
         payload = decode_access_token(token)
         username = payload.get("sub")
-        if not username or username not in users:
+        if not username:
             raise credentials_exception
-    except Exception:
+
+        # CRITICAL FIX: Check database instead of in-memory dict
+        # The in-memory 'users' dict gets cleared on server restart
+        from .db_models import DBUser
+        db_user = db.query(DBUser).filter(DBUser.username == username).first()
+        if not db_user:
+            logger.warning(f"Token validation failed: user {username} not found in database")
+            raise credentials_exception
+
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
+        logger.error(f"Token decode error: {e}")
         raise credentials_exception
 
     return User(username=username)
