@@ -208,15 +208,18 @@ export interface MarketValidationResponse {
 
 export interface QuickIdea {
   id: number;
-  document_id: number;
-  idea_type: string;
   title: string;
   description: string;
   difficulty: string;
-  estimated_time: string;
-  required_skills: string[];
-  learning_outcomes: string[];
-  created_at: string;
+  feasibility: string | null;
+  effort_estimate: string | null;
+  dependencies: string[] | null;
+  source_document: {
+    id: string | null;
+    filename: string | null;
+    source_type: string | null;
+  };
+  created_at: string | null;
 }
 
 // Analytics
