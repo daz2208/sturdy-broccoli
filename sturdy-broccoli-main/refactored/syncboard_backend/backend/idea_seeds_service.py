@@ -85,42 +85,77 @@ class IdeaSeedsService:
         tech_str = ", ".join(tech_stack[:10]) if tech_stack else "various technologies"
         skill_str = json.dumps(skill_profile) if skill_profile else "mixed levels"
 
-        system_prompt = """You are a creative software project ideation assistant.
-Given a document summary and its key concepts, generate 2-4 practical project ideas
-that someone could build after learning from this document.
+        system_prompt = """You are a practical software project ideation assistant.
 
-For each idea, provide:
-1. title: A catchy, descriptive project name
-2. description: 2-3 sentences explaining the project and its value
-3. difficulty: "beginner", "intermediate", or "advanced"
-4. dependencies: List of concepts/skills needed (from the document)
-5. feasibility: "high" (can start immediately), "medium" (needs some prep), "low" (requires additional learning)
-6. effort_estimate: Time estimate like "2-3 hours", "1 day", "1 week"
+YOUR TASK: Suggest realistic projects someone could build after studying a document.
 
-Respond in JSON format:
+IDEATION PRINCIPLES:
+1. Projects should APPLY what the document teaches, not require additional skills
+2. Start simple - a working small project beats an abandoned ambitious one
+3. Each project should have a clear, tangible outcome
+4. Effort estimates should be realistic for a solo developer
+
+FEASIBILITY CRITERIA:
+- "high": Can start within 30 minutes, all skills covered in document
+- "medium": Needs 1-2 hours of additional research/setup
+- "low": Requires learning concepts not in the document
+
+EFFORT ESTIMATION GUIDE:
+- "2-4 hours": Simple CLI tool, basic script
+- "1 day": Basic API, simple web app
+- "2-3 days": Full-featured API with database
+- "1 week": Full-stack application
+
+Generate 2-4 project ideas. Return ONLY valid JSON:
 {
     "ideas": [
         {
-            "title": "...",
-            "description": "...",
-            "difficulty": "...",
+            "title": "Specific Project Name",
+            "description": "2-3 sentences: what it does, why it's useful, what they'll learn",
+            "difficulty": "beginner|intermediate|advanced",
             "dependencies": ["concept1", "concept2"],
-            "feasibility": "...",
-            "effort_estimate": "..."
+            "feasibility": "high|medium|low",
+            "effort_estimate": "realistic time"
         }
     ]
 }"""
 
-        user_prompt = f"""Based on this document summary, generate practical project ideas:
+        user_prompt = f"""Generate practical project ideas based on this document.
 
-SUMMARY:
+DOCUMENT SUMMARY:
 {document_summary[:2000]}
 
-KEY CONCEPTS: {concepts_str}
-TECHNOLOGIES: {tech_str}
+KEY CONCEPTS COVERED: {concepts_str}
+TECHNOLOGIES USED: {tech_str}
 SKILL LEVEL: {skill_str}
 
-Generate 2-4 project ideas that apply the knowledge from this document."""
+---
+
+EXAMPLE OUTPUT for a Docker Basics document:
+{{
+  "ideas": [
+    {{
+      "title": "Dockerized Personal Blog",
+      "description": "Create a blog using a static site generator, containerized with Docker. Practice Dockerfiles and container management. Deploy to a free hosting service.",
+      "difficulty": "beginner",
+      "dependencies": ["docker", "dockerfile", "containers"],
+      "feasibility": "high",
+      "effort_estimate": "3-4 hours"
+    }},
+    {{
+      "title": "Multi-Container Dev Environment",
+      "description": "Set up docker-compose for a web app with separate containers for app, database, and cache. Learn container networking and volumes.",
+      "difficulty": "intermediate",
+      "dependencies": ["docker", "docker-compose", "networking"],
+      "feasibility": "medium",
+      "effort_estimate": "1 day"
+    }}
+  ]
+}}
+
+---
+
+Generate 2-4 project ideas using ONLY concepts from this document:"""
 
         try:
             # Build API parameters
@@ -191,24 +226,39 @@ Generate 2-4 project ideas that apply the knowledge from this document."""
             if doc.get("summary"):
                 summaries.append(f"Doc {doc.get('doc_id', '?')}: {doc['summary'][:300]}")
 
-        system_prompt = """You are a creative software project ideation assistant.
-Given summaries from multiple documents in a knowledge bank, generate project ideas
-that COMBINE knowledge from two or more documents.
+        system_prompt = """You are a creative software project ideation assistant specializing in cross-document synthesis.
 
-Focus on ideas that wouldn't be possible with just one document - projects that
-synthesize different technologies or concepts together.
+YOUR TASK: Generate project ideas that COMBINE knowledge from multiple documents.
 
-Respond in JSON format:
+SYNTHESIS PRINCIPLES:
+1. Focus on ideas that wouldn't be possible with just ONE document
+2. Look for complementary technologies (e.g., frontend + backend, API + database)
+3. Identify "1+1=3" combinations where skills multiply each other's value
+4. Projects should leverage the user's unique combination of knowledge
+
+COMBINATION EXAMPLES:
+- Docker + Python API docs → Containerized microservice
+- React + FastAPI docs → Full-stack application
+- PostgreSQL + Data Science docs → Analytics dashboard
+
+FEASIBILITY:
+- "high": All required skills covered across the documents
+- "medium": Most skills covered, minor gaps
+- "low": Significant additional learning needed
+
+Generate ideas that make the user's knowledge MORE VALUABLE together than separately.
+
+Return ONLY valid JSON:
 {
     "ideas": [
         {
-            "title": "...",
-            "description": "...",
-            "difficulty": "...",
+            "title": "Specific Project Name",
+            "description": "What it does and WHY this combination is powerful",
+            "difficulty": "beginner|intermediate|advanced",
             "dependencies": ["concept1", "concept2"],
-            "feasibility": "...",
-            "effort_estimate": "...",
-            "combines_from": ["doc concept 1", "doc concept 2"]
+            "feasibility": "high|medium|low",
+            "effort_estimate": "realistic time",
+            "combines_from": ["doc1 concept", "doc2 concept"]
         }
     ]
 }"""

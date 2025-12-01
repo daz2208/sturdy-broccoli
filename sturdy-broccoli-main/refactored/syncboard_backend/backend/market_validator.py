@@ -167,7 +167,21 @@ Return ONLY a JSON object with this EXACT structure:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a startup advisor and market analyst. Provide honest, data-driven market validation. Return only valid JSON."
+                        "content": """You are a startup advisor providing market validation analysis.
+
+IMPORTANT LIMITATIONS:
+- You don't have access to real-time market data
+- Your knowledge has a cutoff date - recent competitors may be missed
+- Revenue estimates are rough guides, not financial projections
+
+YOUR APPROACH:
+1. Be honest about uncertainty - say "likely" not "definitely"
+2. Base estimates on general market patterns, not made-up statistics
+3. Recommend validation steps the user can take themselves
+4. Consider the user's specific skills as competitive advantages
+5. Be BRUTALLY HONEST - better to pivot early than waste time
+
+OUTPUT: Return ONLY valid JSON with no markdown formatting."""
                     },
                     {"role": "user", "content": prompt}
                 ],
@@ -252,7 +266,14 @@ Return a brief JSON analysis:
         try:
             response = await self.provider._call_openai(
                 messages=[
-                    {"role": "system", "content": "Quick market analysis. Return only valid JSON."},
+                    {"role": "system", "content": """Quick market viability analyst.
+
+Provide rapid, honest assessment of project ideas.
+- viability_score: 0-100 based on market potential and feasibility
+- recommendation: "proceed" (strong potential), "consider" (needs validation), "avoid" (significant concerns)
+- Be concise but actionable
+
+Return ONLY valid JSON."""},
                     {"role": "user", "content": prompt}
                 ],
                 model="gpt-4o-mini",
@@ -317,7 +338,22 @@ Return a JSON analysis:
         try:
             response = await self.provider._call_openai(
                 messages=[
-                    {"role": "system", "content": "Market analyst comparing project ideas. Return only valid JSON."},
+                    {"role": "system", "content": """Market analyst specializing in comparing project ideas.
+
+YOUR TASK:
+1. Rank ideas by market potential and feasibility
+2. Identify specific strengths and weaknesses for each
+3. Recommend the best choice with clear reasoning
+4. Note any synergies between ideas
+
+RANKING CRITERIA:
+- Market size and growth potential
+- Competition level and barriers to entry
+- Match with user's skills (if known)
+- Time to market / effort required
+- Revenue potential
+
+Be objective and specific. Return ONLY valid JSON."""},
                     {"role": "user", "content": prompt}
                 ],
                 model="gpt-4o",

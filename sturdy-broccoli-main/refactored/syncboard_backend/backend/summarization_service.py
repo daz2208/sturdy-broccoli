@@ -77,12 +77,21 @@ class SummarizationService:
                 key_concepts=[]
             )
 
-        system_prompt = """You are a technical documentation summarizer. Given a text chunk, provide:
-1. A concise summary (2-3 sentences, max 100 words)
-2. Key concepts mentioned (up to 5)
-3. Technologies/tools mentioned (if any)
+        system_prompt = """You are a technical documentation summarizer optimized for knowledge management.
 
-Respond in JSON format:
+YOUR TASK: Summarize a chunk of technical content for later retrieval and understanding.
+
+SUMMARY REQUIREMENTS:
+- short_summary: 2-3 sentences, max 100 words, focus on WHAT the chunk teaches
+- key_concepts: Up to 5 specific technical concepts (not vague terms)
+- tech_stack: Technologies/tools explicitly mentioned
+
+QUALITY CRITERIA:
+- Summaries should help someone decide if this chunk is relevant to their question
+- Concepts should be specific: "react hooks" not "frontend"
+- Only list tech_stack items actually used/discussed, not just mentioned
+
+Return ONLY valid JSON:
 {
     "short_summary": "...",
     "key_concepts": ["concept1", "concept2"],
@@ -161,19 +170,29 @@ Respond in JSON format:
             if s.tech_stack:
                 all_tech.extend(s.tech_stack)
 
-        system_prompt = """You are a technical documentation summarizer. Given multiple chunk summaries from a section, provide:
-1. A coherent section summary (3-5 sentences, max 200 words) that synthesizes the main points
-2. The most important concepts from this section (up to 7)
-3. Technologies mentioned (consolidated list)
-4. A brief skill profile if applicable
+        system_prompt = """You are a technical documentation summarizer synthesizing multiple chunk summaries.
 
-Respond in JSON format:
+YOUR TASK: Create a coherent section summary from multiple chunk summaries.
+
+SUMMARY REQUIREMENTS:
+- short_summary: 1-2 sentences, the key takeaway from this section
+- long_summary: 3-5 sentences, max 200 words, synthesize main points into a coherent narrative
+- key_concepts: Up to 7 most important concepts (deduplicated, specific)
+- tech_stack: Consolidated list of technologies
+- skill_profile: What skill level/areas does this section address
+
+SYNTHESIS GUIDELINES:
+- Don't just concatenate summaries - synthesize them into a flowing narrative
+- Identify the overarching theme connecting the chunks
+- Prioritize concepts by importance, not just frequency
+
+Return ONLY valid JSON:
 {
     "short_summary": "...",
     "long_summary": "...",
     "key_concepts": ["concept1", "concept2"],
     "tech_stack": ["tech1", "tech2"],
-    "skill_profile": {"area": "level"}
+    "skill_profile": {"area": "beginner|intermediate|advanced"}
 }"""
 
         user_prompt = f"Synthesize these chunk summaries into a coherent section summary:\n\n{summaries_text}"
@@ -261,21 +280,33 @@ Respond in JSON format:
         if source_type:
             context += f"Source type: {source_type}\n"
 
-        system_prompt = """You are a technical documentation summarizer. Given section summaries from a complete document, provide:
-1. A comprehensive document summary (5-8 sentences, max 300 words)
-2. An executive short summary (1-2 sentences)
-3. The core concepts covered in the document (up to 10)
-4. Complete technology stack mentioned
-5. Skill profile required to understand this content
+        system_prompt = """You are an expert technical content summarizer creating document-level overviews.
 
-Respond in JSON format:
+YOUR TASK: Create a comprehensive document summary from section summaries.
+
+SUMMARY REQUIREMENTS:
+- short_summary: 1-2 sentence executive summary - what is this document about and who is it for?
+- long_summary: 5-8 sentences, max 300 words - what will someone learn from this document?
+- key_concepts: Up to 10 core concepts covered (specific, deduplicated)
+- tech_stack: Complete list of technologies used/taught
+- skill_profile: Skill levels required by area
+
+DOCUMENT SUMMARY GUIDELINES:
+- short_summary should help someone decide in 5 seconds if this doc is relevant
+- long_summary should explain the learning journey through the document
+- Mention prerequisites if the content assumes prior knowledge
+- Note the practical outcomes - what can someone BUILD after reading this?
+
+EXAMPLE:
 {
-    "short_summary": "1-2 sentence executive summary",
-    "long_summary": "comprehensive 5-8 sentence summary",
-    "key_concepts": ["concept1", "concept2", ...],
-    "tech_stack": ["tech1", "tech2", ...],
-    "skill_profile": {"area": "beginner|intermediate|advanced"}
-}"""
+    "short_summary": "A comprehensive guide to building REST APIs with FastAPI, covering routing, databases, and authentication for intermediate Python developers.",
+    "long_summary": "This document teaches how to build production-ready REST APIs using FastAPI. It starts with basic routing and request handling, progresses to Pydantic models for validation, covers SQLAlchemy database integration, implements JWT authentication, and concludes with Docker deployment. By the end, readers can build and deploy a complete API.",
+    "key_concepts": ["fastapi", "rest api", "pydantic", "sqlalchemy", "jwt", "authentication"],
+    "tech_stack": ["python", "fastapi", "postgresql", "docker"],
+    "skill_profile": {"python": "intermediate", "web development": "beginner"}
+}
+
+Return ONLY valid JSON:"""
 
         user_prompt = f"{context}\nSynthesize these section summaries into a complete document summary:\n\n{sections_text}"
 
