@@ -428,6 +428,8 @@ export default function BuildPage() {
   const [knowledgeSummary, setKnowledgeSummary] = useState<any>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [savingQuickIdea, setSavingQuickIdea] = useState<number | null>(null);
+  const [savedQuickIdeas, setSavedQuickIdeas] = useState<Set<number>>(new Set());
 
   // Market validation form
   const [projectTitle, setProjectTitle] = useState('');
@@ -500,6 +502,56 @@ export default function BuildPage() {
     } finally {
       setLoadingQuick(false);
     }
+  };
+
+  const saveQuickIdea = async (idea: QuickIdea) => {
+    setSavingQuickIdea(idea.id);
+    try {
+      await api.saveIdea({
+        idea_seed_id: idea.id,
+        custom_title: idea.title,
+        custom_description: idea.description,
+        custom_data: {
+          difficulty: idea.difficulty,
+          feasibility: idea.feasibility,
+          effort_estimate: idea.effort_estimate,
+          dependencies: idea.dependencies,
+          source_document: idea.source_document
+        },
+        notes: '',
+        status: 'saved'
+      });
+      setSavedQuickIdeas(prev => new Set(prev).add(idea.id));
+      toast.success('Idea saved! View in Saved Ideas.');
+    } catch (err) {
+      toast.error('Failed to save idea');
+    } finally {
+      setSavingQuickIdea(null);
+    }
+  };
+
+  const downloadIdea = (idea: QuickIdea) => {
+    const ideaData = {
+      title: idea.title,
+      description: idea.description,
+      difficulty: idea.difficulty,
+      feasibility: idea.feasibility,
+      effort_estimate: idea.effort_estimate,
+      dependencies: idea.dependencies,
+      source: idea.source_document?.filename || 'Unknown',
+      exported_at: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(ideaData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `idea-${idea.title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Idea downloaded!');
   };
 
   const validateMarket = async () => {
@@ -684,6 +736,35 @@ export default function BuildPage() {
                         <p className="text-xs text-gray-400">{idea.source_document.filename}</p>
                       </div>
                     )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 pt-3 border-t border-dark-300 mt-3">
+                      <button
+                        onClick={() => saveQuickIdea(idea)}
+                        disabled={savingQuickIdea === idea.id || savedQuickIdeas.has(idea.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          savedQuickIdeas.has(idea.id)
+                            ? 'bg-green-500/20 text-green-400 cursor-default'
+                            : 'bg-primary/20 text-primary hover:bg-primary/30'
+                        }`}
+                      >
+                        {savingQuickIdea === idea.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : savedQuickIdeas.has(idea.id) ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Bookmark className="w-4 h-4" />
+                        )}
+                        {savedQuickIdeas.has(idea.id) ? 'Saved' : 'Save Idea'}
+                      </button>
+                      <button
+                        onClick={() => downloadIdea(idea)}
+                        className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-dark-200 text-gray-300 hover:bg-dark-300 transition-colors"
+                        title="Download as JSON"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
