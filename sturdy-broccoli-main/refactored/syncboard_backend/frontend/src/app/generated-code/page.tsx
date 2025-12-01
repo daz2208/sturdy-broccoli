@@ -22,6 +22,7 @@ export default function GeneratedCodePage() {
   const [filter, setFilter] = useState<string>('');
   const [deleting, setDeleting] = useState<number | null>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadCode(); }, [filter]);
 
   const loadCode = async () => {

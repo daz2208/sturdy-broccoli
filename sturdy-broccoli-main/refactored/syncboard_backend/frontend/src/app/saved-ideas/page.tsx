@@ -842,6 +842,7 @@ export default function SavedIdeasPage() {
   useEffect(() => {
     if (!isReady) return; // Wait for auth to be ready!
     loadIdeas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, filter]);
 
   const handleStatusChange = async (id: number, status: string) => {
