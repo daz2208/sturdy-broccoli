@@ -447,3 +447,132 @@ async def test_llm_provider(
             status_code=503,
             detail=f"LLM provider test failed: {str(e)}"
         )
+
+
+# =============================================================================
+# Cleanup Failed Documents
+# =============================================================================
+
+class CleanupResponse(BaseModel):
+    """Response from cleanup operation."""
+    deleted_documents: int
+    deleted_chunks: int
+    deleted_summaries: int
+    freed_memory: bool
+
+
+@router.delete("/cleanup-failed-documents")
+@limiter.limit("5/minute")
+async def cleanup_failed_documents(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    hours_old: int = 1
+):
+    """
+    Delete documents stuck in failed/pending state for more than N hours.
+
+    This cleans up zombie documents from failed uploads, timeouts, or crashes.
+    Also removes associated chunks, summaries, and vector store entries.
+
+    Args:
+        hours_old: Delete documents in failed/pending state older than this (default 1 hour)
+        request: FastAPI request
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        CleanupResponse with deletion counts
+    """
+    from datetime import datetime, timedelta
+    from ..db_models import DBDocumentChunk, DBDocumentSummary
+    from ..cache import get_kb_documents, get_kb_metadata
+    from ..vector_store import vector_store
+
+    # Get user's default knowledge base
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Calculate cutoff time
+    cutoff_time = datetime.utcnow() - timedelta(hours=hours_old)
+
+    # Find failed/pending documents older than cutoff
+    failed_docs = db.query(DBDocument).filter(
+        DBDocument.knowledge_base_id == kb_id,
+        DBDocument.owner_username == current_user.username,
+        DBDocument.chunking_status.in_(['failed', 'pending']),
+        DBDocument.created_at < cutoff_time
+    ).all()
+
+    if not failed_docs:
+        return CleanupResponse(
+            deleted_documents=0,
+            deleted_chunks=0,
+            deleted_summaries=0,
+            freed_memory=False
+        )
+
+    deleted_chunks = 0
+    deleted_summaries = 0
+    doc_ids_to_delete = []
+
+    for doc in failed_docs:
+        doc_ids_to_delete.append(doc.doc_id)
+
+        # Count and delete chunks
+        chunk_count = db.query(DBDocumentChunk).filter(
+            DBDocumentChunk.document_id == doc.id
+        ).count()
+        deleted_chunks += chunk_count
+
+        db.query(DBDocumentChunk).filter(
+            DBDocumentChunk.document_id == doc.id
+        ).delete()
+
+        # Count and delete summaries
+        summary_count = db.query(DBDocumentSummary).filter(
+            DBDocumentSummary.document_id == doc.id
+        ).count()
+        deleted_summaries += summary_count
+
+        db.query(DBDocumentSummary).filter(
+            DBDocumentSummary.document_id == doc.id
+        ).delete()
+
+        # Delete document
+        db.delete(doc)
+
+        # Clean up vector store
+        try:
+            vector_store.delete_document(doc.doc_id)
+        except Exception as vs_err:
+            logger.warning(f"Failed to delete vector store entry for doc {doc.doc_id}: {vs_err}")
+
+    # Commit all deletions
+    db.commit()
+
+    # Clean up in-memory caches
+    try:
+        kb_documents = get_kb_documents(kb_id)
+        kb_metadata = get_kb_metadata(kb_id)
+
+        for doc_id in doc_ids_to_delete:
+            kb_documents.pop(doc_id, None)
+            kb_metadata.pop(doc_id, None)
+
+        freed_memory = True
+    except Exception as cache_err:
+        logger.warning(f"Failed to clean up memory caches: {cache_err}")
+        freed_memory = False
+
+    logger.info(
+        f"Cleanup complete for user {current_user.username}: "
+        f"{len(failed_docs)} documents, {deleted_chunks} chunks, "
+        f"{deleted_summaries} summaries deleted"
+    )
+
+    return CleanupResponse(
+        deleted_documents=len(failed_docs),
+        deleted_chunks=deleted_chunks,
+        deleted_summaries=deleted_summaries,
+        freed_memory=freed_memory
+    )

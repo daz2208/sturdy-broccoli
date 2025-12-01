@@ -11,7 +11,8 @@ import {
   Briefcase,
   BookOpen,
   Zap,
-  CheckCircle
+  CheckCircle,
+  FileCheck
 } from 'lucide-react';
 import type {
   Industry,
@@ -30,13 +31,17 @@ export default function ContentGenerationPage() {
   const [includeCitations, setIncludeCitations] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadingIndustries, setLoadingIndustries] = useState(true);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<ContentGenerationResponse | null>(null);
   const [currentKBIndustry, setCurrentKBIndustry] = useState<Industry | null>(null);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
 
   // Load industries on mount
   useEffect(() => {
     loadIndustries();
     loadCurrentKBIndustry();
+    loadDocuments();
   }, []);
 
   // Load templates when industry changes
@@ -87,6 +92,35 @@ export default function ContentGenerationPage() {
     }
   };
 
+  const loadDocuments = async () => {
+    try {
+      setLoadingDocuments(true);
+      const response = await api.getDocuments();
+      setDocuments(response.documents || []);
+    } catch (err) {
+      console.error('Failed to load documents:', err);
+      toast.error('Failed to load documents');
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  const toggleDocumentSelection = (docId: string) => {
+    setSelectedDocIds(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
+  };
+
+  const selectAllDocuments = () => {
+    if (selectedDocIds.length === documents.length) {
+      setSelectedDocIds([]);
+    } else {
+      setSelectedDocIds(documents.map(doc => doc.doc_id));
+    }
+  };
+
   const handleGenerate = async () => {
     if (!selectedIndustry) {
       toast.error('Please select an industry');
@@ -104,6 +138,7 @@ export default function ContentGenerationPage() {
         topic: topic || undefined,
         target_length: targetLength,
         include_citations: includeCitations,
+        doc_ids: selectedDocIds.length > 0 ? selectedDocIds : undefined,
       }, selectedIndustry);
 
       setGeneratedContent(response);
@@ -296,6 +331,73 @@ Date: ${new Date(generatedContent.metadata.generated_at).toLocaleDateString()}
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Document Selection */}
+          {selectedTemplate && documents.length > 0 && (
+            <div className="bg-dark-100 rounded-xl border border-dark-300 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <FileCheck className="w-5 h-5 text-accent-green" />
+                  <h2 className="text-lg font-semibold text-gray-200">Source Documents</h2>
+                </div>
+                <button
+                  onClick={selectAllDocuments}
+                  className="text-sm text-accent-purple hover:text-accent-purple/80 transition-colors"
+                >
+                  {selectedDocIds.length === documents.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+
+              {loadingDocuments ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-10 bg-dark-200 rounded"></div>
+                  <div className="h-10 bg-dark-200 rounded"></div>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {documents.slice(0, 20).map((doc) => (
+                    <label
+                      key={doc.doc_id}
+                      className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedDocIds.includes(doc.doc_id)
+                          ? 'bg-accent-green/20 border-2 border-accent-green'
+                          : 'bg-dark-200 border-2 border-transparent hover:border-dark-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDocIds.includes(doc.doc_id)}
+                        onChange={() => toggleDocumentSelection(doc.doc_id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-200 truncate">
+                          {doc.filename || doc.title || `Document ${doc.doc_id}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {doc.source_type} • {doc.skill_level || 'unknown'}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                  {documents.length > 20 && (
+                    <p className="text-xs text-gray-500 text-center pt-2">
+                      Showing first 20 of {documents.length} documents
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedDocIds.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-dark-300">
+                  <p className="text-sm text-gray-400">
+                    {selectedDocIds.length} document{selectedDocIds.length !== 1 ? 's' : ''} selected
+                    {selectedDocIds.length === 0 && ' (will use all available documents)'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

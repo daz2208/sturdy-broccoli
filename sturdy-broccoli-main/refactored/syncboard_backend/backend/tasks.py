@@ -905,6 +905,40 @@ def process_file_upload(
 
     except Exception as e:
         logger.error(f"File upload task failed: {e}", exc_info=True)
+
+        # CLEANUP: Rollback and remove partial data
+        try:
+            # Clean up vector store if doc_id was created
+            if 'doc_id' in locals() and doc_id:
+                try:
+                    vector_store.delete_document(doc_id)
+                    logger.debug(f"Cleaned up vector store entry for doc {doc_id}")
+                except Exception as vs_err:
+                    logger.warning(f"Failed to clean up vector store: {vs_err}")
+
+                # Clean up KB documents and metadata
+                try:
+                    kb_documents = get_kb_documents(kb_id)
+                    kb_metadata = get_kb_metadata(kb_id)
+                    kb_documents.pop(doc_id, None)
+                    kb_metadata.pop(doc_id, None)
+                    logger.debug(f"Cleaned up KB memory for doc {doc_id}")
+                except Exception as kb_err:
+                    logger.warning(f"Failed to clean up KB memory: {kb_err}")
+
+                # Clean up database entry if it exists
+                try:
+                    with get_db_context() as db:
+                        db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                        if db_doc:
+                            db.delete(db_doc)
+                            db.commit()
+                            logger.debug(f"Cleaned up database entry for doc {doc_id}")
+                except Exception as db_err:
+                    logger.warning(f"Failed to clean up database: {db_err}")
+        except Exception as cleanup_err:
+            logger.error(f"Cleanup after failure encountered error: {cleanup_err}")
+
         self.update_state(
             state="FAILURE",
             meta={
@@ -912,6 +946,7 @@ def process_file_upload(
                 "message": f"Failed to process {filename}: {str(e)}"
             }
         )
+
         # Broadcast job failure
         try:
             run_async(broadcast_job_failed(
