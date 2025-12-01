@@ -37,7 +37,7 @@ export default function ELI5Page() {
   return (
     <div className="space-y-6 animate-fadeIn">
       <div>
-        <h1 className="text-2xl font-bold text-gray-100">ELI5 - Explain Like I'm 5</h1>
+        <h1 className="text-2xl font-bold text-gray-100">ELI5 - Explain Like I&apos;m 5</h1>
         <p className="text-gray-500">Get simple explanations for complex topics</p>
       </div>
 

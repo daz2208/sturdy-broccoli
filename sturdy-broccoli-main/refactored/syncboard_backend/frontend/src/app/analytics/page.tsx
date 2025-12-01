@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { BarChart3, TrendingUp, FileText, FolderOpen, Brain, Layers, Wifi, RefreshCw } from 'lucide-react';
@@ -14,6 +14,18 @@ export default function AnalyticsPage() {
 
   // WebSocket for real-time updates
   const { isConnected, on } = useWebSocket();
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const data = await api.getAnalytics(period);
+      setAnalytics(data);
+    } catch (err) {
+      toast.error('Failed to load analytics');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [period]);
 
   useEffect(() => {
     loadAnalytics();
@@ -31,19 +43,7 @@ export default function AnalyticsPage() {
       unsubCreated();
       unsubDeleted();
     };
-  }, [period, on]);
-
-  const loadAnalytics = async () => {
-    try {
-      const data = await api.getAnalytics(period);
-      setAnalytics(data);
-    } catch (err) {
-      toast.error('Failed to load analytics');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  }, [period, on, loadAnalytics]);
 
   const handleRefresh = () => {
     setRefreshing(true);

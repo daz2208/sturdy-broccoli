@@ -86,6 +86,9 @@ export default function DocumentsPage() {
       }
     });
 
+    // Capture ref value for cleanup
+    const intervals = pollIntervalsRef.current;
+
     return () => {
       unsubCreated();
       unsubDeleted();
@@ -93,7 +96,7 @@ export default function DocumentsPage() {
       unsubJobCompleted();
       unsubJobFailed();
       // Clean up all polling intervals
-      pollIntervalsRef.current.forEach(interval => clearInterval(interval));
+      intervals.forEach(interval => clearInterval(interval));
     };
   }, [on]);
 
@@ -132,7 +135,7 @@ export default function DocumentsPage() {
   // Filter documents by selected KB
   const filteredDocuments = selectedKB === 'all'
     ? documents
-    : documents.filter(doc => doc.knowledge_base_id === parseInt(selectedKB));
+    : documents.filter(doc => doc.knowledge_base_id === selectedKB);
 
   // Poll job status
   const pollJobStatus = useCallback(async (jobId: string) => {
@@ -557,7 +560,7 @@ export default function DocumentsPage() {
               }`}
             >
               <input {...getImageInputProps()} />
-              <Image className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+              <Image className="w-12 h-12 mx-auto mb-4 text-gray-500" aria-label="Upload image" />
               {uploading ? (
                 <p className="text-gray-400">Queuing for OCR...</p>
               ) : isImageDragActive ? (

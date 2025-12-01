@@ -634,7 +634,7 @@ export default function BuildPage() {
 
                     {idea.learning_outcomes.length > 0 && (
                       <div>
-                        <p className="text-xs text-gray-500 uppercase mb-1">You'll Learn</p>
+                        <p className="text-xs text-gray-500 uppercase mb-1">You&apos;ll Learn</p>
                         <ul className="space-y-1">
                           {idea.learning_outcomes.slice(0, 3).map((outcome, idx) => (
                             <li key={idx} className="text-xs text-gray-400 flex items-start gap-1">
@@ -727,7 +727,7 @@ export default function BuildPage() {
               <Lightbulb className="w-12 h-12 mx-auto text-gray-600 mb-4" />
               <h3 className="text-lg font-medium text-gray-300">No build ideas yet</h3>
               <p className="text-gray-500 mt-2 max-w-md mx-auto">
-                Click "Generate Ideas" to analyze your knowledge bank and get personalized project suggestions with code, file structures, and step-by-step guides.
+                Click &quot;Generate Ideas&quot; to analyze your knowledge bank and get personalized project suggestions with code, file structures, and step-by-step guides.
               </p>
             </div>
           )}

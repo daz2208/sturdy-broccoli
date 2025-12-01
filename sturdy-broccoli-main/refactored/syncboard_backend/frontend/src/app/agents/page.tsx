@@ -181,7 +181,7 @@ function HypothesisCard({ hypothesis, type }: { hypothesis: Hypothesis; type: 'p
         <p className="text-sm text-gray-500 mt-1">Target: {hypothesis.target}</p>
       )}
       {hypothesis.reasoning && (
-        <p className="text-sm text-gray-400 mt-2 italic">"{hypothesis.reasoning}"</p>
+        <p className="text-sm text-gray-400 mt-2 italic">&quot;{hypothesis.reasoning}&quot;</p>
       )}
       {hypothesis.improvement_score !== undefined && (
         <div className="mt-2 flex items-center gap-2">

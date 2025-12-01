@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -42,15 +42,7 @@ export default function DocumentDetailPage() {
   const [showAddRelationship, setShowAddRelationship] = useState(false);
   const [newRelationship, setNewRelationship] = useState({ targetDocId: '', type: 'related' });
 
-  useEffect(() => {
-    loadDocument();
-    loadAllTags();
-    loadDocumentTags();
-    loadSummaries();
-    loadRelationships();
-  }, [docId]);
-
-  const loadDocument = async () => {
+  const loadDocument = useCallback(async () => {
     try {
       const data = await api.getDocument(docId);
       setDocument(data);
@@ -60,34 +52,34 @@ export default function DocumentDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [docId]);
 
-  const loadAllTags = async () => {
+  const loadAllTags = useCallback(async () => {
     try {
       const data = await api.getTags();
       setAllTags(data.tags);
     } catch (err) {
       console.error('Failed to load tags:', err);
     }
-  };
+  }, []);
 
-  const loadDocumentTags = async () => {
+  const loadDocumentTags = useCallback(async () => {
     try {
       const data = await api.getDocumentTags(docId);
       setDocumentTags(data.tags);
     } catch (err) {
       console.error('Failed to load document tags:', err);
     }
-  };
+  }, [docId]);
 
-  const loadSummaries = async () => {
+  const loadSummaries = useCallback(async () => {
     try {
       const data = await api.getDocumentSummaries(docId);
       setSummaries(data.summaries || []);
     } catch (err) {
       console.error('Failed to load summaries:', err);
     }
-  };
+  }, [docId]);
 
   const addTag = async (tagId: number) => {
     setAddingTag(true);
@@ -150,14 +142,22 @@ export default function DocumentDetailPage() {
     }
   };
 
-  const loadRelationships = async () => {
+  const loadRelationships = useCallback(async () => {
     try {
       const data = await api.getRelationships(docId);
       setRelationships(data.relationships || []);
     } catch (err) {
       console.error('Failed to load relationships:', err);
     }
-  };
+  }, [docId]);
+
+  useEffect(() => {
+    loadDocument();
+    loadAllTags();
+    loadDocumentTags();
+    loadSummaries();
+    loadRelationships();
+  }, [docId, loadDocument, loadAllTags, loadDocumentTags, loadSummaries, loadRelationships]);
 
   const addRelationship = async () => {
     const targetId = parseInt(newRelationship.targetDocId);
@@ -389,7 +389,7 @@ export default function DocumentDetailPage() {
         </div>
 
         {summaries.length === 0 ? (
-          <p className="text-gray-500 text-sm">No summaries yet. Click "Generate Summary" to create one.</p>
+          <p className="text-gray-500 text-sm">No summaries yet. Click &quot;Generate Summary&quot; to create one.</p>
         ) : (
           <div className="space-y-3">
             {summaries.map((summary, idx) => (
@@ -480,7 +480,7 @@ export default function DocumentDetailPage() {
         {/* Current Relationships */}
         {relationships.length === 0 && discoveredDocs.length === 0 ? (
           <p className="text-gray-500 text-sm">
-            No relationships yet. Click "Discover Similar" to find related documents or "Add Relationship" to manually link documents.
+            No relationships yet. Click &quot;Discover Similar&quot; to find related documents or &quot;Add Relationship&quot; to manually link documents.
           </p>
         ) : (
           <div className="space-y-4">
