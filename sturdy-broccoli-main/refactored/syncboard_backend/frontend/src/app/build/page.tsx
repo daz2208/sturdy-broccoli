@@ -641,36 +641,47 @@ export default function BuildPage() {
                   <p className="text-gray-400 text-sm mb-4">{idea.description}</p>
 
                   <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">Time Estimate</p>
-                      <p className="text-sm text-gray-300 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {idea.estimated_time}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">Required Skills</p>
-                      <div className="flex flex-wrap gap-1">
-                        {idea.required_skills.map((skill, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-dark-200 rounded text-xs text-gray-400">
-                            {skill}
+                    <div className="flex gap-4">
+                      {idea.effort_estimate && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase mb-1">Time Estimate</p>
+                          <p className="text-sm text-gray-300 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {idea.effort_estimate}
+                          </p>
+                        </div>
+                      )}
+                      {idea.feasibility && (
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase mb-1">Feasibility</p>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            idea.feasibility === 'high' ? 'bg-green-500/20 text-green-400' :
+                            idea.feasibility === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-red-500/20 text-red-400'
+                          }`}>
+                            {idea.feasibility}
                           </span>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
-                    {idea.learning_outcomes.length > 0 && (
+                    {(idea.dependencies?.length || 0) > 0 && (
                       <div>
-                        <p className="text-xs text-gray-500 uppercase mb-1">You&apos;ll Learn</p>
-                        <ul className="space-y-1">
-                          {idea.learning_outcomes.slice(0, 3).map((outcome, idx) => (
-                            <li key={idx} className="text-xs text-gray-400 flex items-start gap-1">
-                              <CheckCircle className="w-3 h-3 mt-0.5 flex-shrink-0 text-green-400" />
-                              {outcome}
-                            </li>
+                        <p className="text-xs text-gray-500 uppercase mb-1">Dependencies</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(idea.dependencies || []).map((dep, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-dark-200 rounded text-xs text-gray-400">
+                              {dep}
+                            </span>
                           ))}
-                        </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {idea.source_document?.filename && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase mb-1">Source</p>
+                        <p className="text-xs text-gray-400">{idea.source_document.filename}</p>
                       </div>
                     )}
                   </div>
