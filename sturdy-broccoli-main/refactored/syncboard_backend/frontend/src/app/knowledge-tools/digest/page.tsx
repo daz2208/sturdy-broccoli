@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { Calendar, FileText, Lightbulb, TrendingUp, RefreshCw } from 'lucide-react';
@@ -11,10 +11,7 @@ export default function DigestPage() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadDigest(); }, [days]);
-
-  const loadDigest = async () => {
+  const loadDigest = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getWeeklyDigest(days);
@@ -24,7 +21,11 @@ export default function DigestPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [days]);
+
+  useEffect(() => {
+    loadDigest();
+  }, [loadDigest]);
 
   if (loading) {
     return (

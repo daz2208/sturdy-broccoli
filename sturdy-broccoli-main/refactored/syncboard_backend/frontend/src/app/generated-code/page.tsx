@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { Code, Download, Trash2, FileCode, Archive } from 'lucide-react';
@@ -22,10 +22,7 @@ export default function GeneratedCodePage() {
   const [filter, setFilter] = useState<string>('');
   const [deleting, setDeleting] = useState<number | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadCode(); }, [filter]);
-
-  const loadCode = async () => {
+  const loadCode = useCallback(async () => {
     try {
       const data = await api.getGeneratedCode(undefined, filter || undefined);
       setCodeFiles(Array.isArray(data) ? data : []);
@@ -34,7 +31,11 @@ export default function GeneratedCodePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadCode();
+  }, [loadCode]);
 
   const downloadCode = (id: number) => {
     window.open(api.getCodeDownloadUrl(id), '_blank');

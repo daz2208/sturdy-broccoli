@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -28,12 +28,7 @@ export default function DuplicatesPage() {
   const [comparisonResult, setComparisonResult] = useState<any>(null);
   const [merging, setMerging] = useState(false);
 
-  useEffect(() => {
-    findDuplicates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const findDuplicates = async () => {
+  const findDuplicates = useCallback(async () => {
     setScanning(true);
     try {
       const data = await api.findDuplicates(threshold, 50);
@@ -50,7 +45,11 @@ export default function DuplicatesPage() {
       setScanning(false);
       setLoading(false);
     }
-  };
+  }, [threshold]);
+
+  useEffect(() => {
+    findDuplicates();
+  }, [findDuplicates]);
 
   const compareDocs = async (doc1Id: number, doc2Id: number) => {
     setComparing({ doc1: doc1Id, doc2: doc2Id });

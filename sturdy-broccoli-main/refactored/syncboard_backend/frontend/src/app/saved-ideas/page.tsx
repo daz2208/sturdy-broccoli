@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -827,7 +827,7 @@ export default function SavedIdeasPage() {
   const [megaProject, setMegaProject] = useState<MegaProject | null>(null);
   const [generatingMega, setGeneratingMega] = useState(false);
 
-  const loadIdeas = async () => {
+  const loadIdeas = useCallback(async () => {
     setLoading(true);
     try {
       const status = filter === 'all' ? undefined : filter;
@@ -837,13 +837,12 @@ export default function SavedIdeasPage() {
       toast.error('Failed to load saved ideas');
     }
     setLoading(false);
-  };
+  }, [filter]);
 
   useEffect(() => {
-    if (!isReady) return; // Wait for auth to be ready!
+    if (!isReady) return;
     loadIdeas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, filter]);
+  }, [isReady, loadIdeas]);
 
   const handleStatusChange = async (id: number, status: string) => {
     try {

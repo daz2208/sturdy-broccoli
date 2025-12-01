@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 
 interface Usage {
@@ -145,12 +145,7 @@ export default function UsageDashboard() {
   const [upgrading, setUpgrading] = useState(false);
   const [historyMonths, setHistoryMonths] = useState(6);
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [usageRes, subRes, plansRes, historyRes] = await Promise.all([
@@ -168,7 +163,11 @@ export default function UsageDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [historyMonths]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleUpgrade = async (planId: string) => {
     if (!confirm(`Upgrade to ${planId} plan?`)) return;
