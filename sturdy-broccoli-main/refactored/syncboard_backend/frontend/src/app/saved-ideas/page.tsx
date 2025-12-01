@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import {
   Bookmark,
   Loader2,
@@ -818,6 +819,7 @@ ${idea.notes || '*No notes yet*'}
 }
 
 export default function SavedIdeasPage() {
+  const isReady = useRequireAuth();
   const [ideas, setIdeas] = useState<SavedIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
@@ -838,8 +840,9 @@ export default function SavedIdeasPage() {
   };
 
   useEffect(() => {
+    if (!isReady) return; // Wait for auth to be ready!
     loadIdeas();
-  }, [filter]);
+  }, [isReady, filter]);
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
@@ -920,6 +923,15 @@ export default function SavedIdeasPage() {
     started: ideas.filter(i => i.status === 'started').length,
     completed: ideas.filter(i => i.status === 'completed').length
   };
+
+  // Show loading while auth is initializing
+  if (!isReady) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
