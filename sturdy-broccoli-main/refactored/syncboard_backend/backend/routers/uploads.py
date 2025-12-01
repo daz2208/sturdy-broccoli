@@ -63,6 +63,7 @@ from ..tasks import process_file_upload, process_url_upload, process_image_uploa
 from ..chunking_pipeline import chunk_document_on_upload
 from ..db_models import DBDocument
 from celery import group  # For parallel batch processing
+from ..celery_app import celery_app  # For queue depth inspection
 from ..websocket_manager import broadcast_document_created
 from ..feedback_service import feedback_service
 
@@ -71,6 +72,11 @@ logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
+
+# Batch upload configuration
+MAX_BATCH_SIZE = 20  # Maximum files per batch submission
+CHUNK_SIZE = 5  # Process N files at a time to avoid overwhelming workers
+MAX_QUEUE_DEPTH = 30  # Maximum pending tasks before rejecting new uploads
 
 # Create router
 router = APIRouter(
@@ -658,8 +664,35 @@ async def upload_batch(
 
     Poll /jobs/{job_id}/status for progress on each file.
     """
+    # Validate batch size
+    if len(req.files) > MAX_BATCH_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Batch size exceeds limit. Maximum {MAX_BATCH_SIZE} files per batch (received {len(req.files)})."
+        )
+
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Check queue depth to prevent overwhelming the system
+    try:
+        inspect = celery_app.control.inspect()
+        active_tasks = inspect.active() or {}
+        reserved_tasks = inspect.reserved() or {}
+
+        total_pending = sum(len(tasks) for tasks in active_tasks.values())
+        total_pending += sum(len(tasks) for tasks in reserved_tasks.values())
+
+        if total_pending > MAX_QUEUE_DEPTH:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Upload queue is full ({total_pending} pending tasks). Please try again in a few minutes."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If we can't check queue depth (Redis down?), log but continue
+        logger.warning(f"Could not check queue depth: {e}")
 
     # Check concurrent job count - batch counts as multiple jobs
     user_job_count = get_user_job_count(current_user.username)
@@ -715,34 +748,46 @@ async def upload_batch(
         valid_tasks.append(task_signature)
         valid_filenames.append(filename)
 
-    # Phase 2: Execute all valid tasks in parallel using group
+    # Phase 2: Execute tasks in chunks to avoid overwhelming workers
     if valid_tasks:
         try:
-            # Execute tasks in parallel
-            job_group = group(valid_tasks)
-            group_result = job_group.apply_async()
+            all_task_ids = []
 
-            # Get individual task IDs from the group
-            for i, (task_result, filename) in enumerate(zip(group_result.results, valid_filenames)):
+            # Process tasks in chunks (e.g., 5 at a time)
+            for i in range(0, len(valid_tasks), CHUNK_SIZE):
+                chunk = valid_tasks[i:i+CHUNK_SIZE]
+                chunk_group = group(chunk)
+                chunk_result = chunk_group.apply_async()
+
+                # Collect task IDs from this chunk
+                all_task_ids.extend([task.id for task in chunk_result.results])
+
+                logger.debug(
+                    f"Queued chunk {i//CHUNK_SIZE + 1}/{(len(valid_tasks)-1)//CHUNK_SIZE + 1}: "
+                    f"{len(chunk)} files"
+                )
+
+            # Build jobs response with all task IDs
+            for task_id, filename in zip(all_task_ids, valid_filenames):
                 # Increment job count for each queued task
                 increment_user_job_count(current_user.username)
 
                 jobs.append({
                     "filename": filename,
-                    "job_id": task_result.id,
+                    "job_id": task_id,
                     "status": "queued"
                 })
 
             logger.info(
-                f"[{request.state.request_id}] User {current_user.username} queued batch file upload IN PARALLEL: "
-                f"{len(jobs)} files to KB {kb_id} (group_id: {group_result.id})"
+                f"[{request.state.request_id}] User {current_user.username} queued batch file upload (CHUNKED): "
+                f"{len(jobs)} files to KB {kb_id} in {(len(valid_tasks)-1)//CHUNK_SIZE + 1} chunks"
             )
         except Exception as celery_err:
             # Celery/Redis not available - add to errors
             error_msg = f"Background processing unavailable: {str(celery_err)[:100]}"
             logger.error(f"Celery group execution failed: {celery_err}")
 
-            # Add all filenames to errors since parallel execution failed
+            # Add all filenames to errors since execution failed
             for filename in valid_filenames:
                 errors.append({
                     "filename": filename,
@@ -755,7 +800,7 @@ async def upload_batch(
             )
 
     return {
-        "message": "Batch upload queued (parallel processing)",
+        "message": "Batch upload queued (chunked processing)",
         "total_files": len(req.files),
         "queued": len(jobs),
         "knowledge_base_id": kb_id,
