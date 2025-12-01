@@ -229,19 +229,7 @@ class OpenAIProvider(LLMProvider):
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are an expert technical concept extraction system for a developer knowledge management platform.
-
-Your role: Analyze documents and identify the specific technologies, tools, and skills being taught or discussed.
-
-EXTRACTION PRINCIPLES:
-- Extract SPECIFIC technologies, not generic terms (e.g., "flask" not "web framework")
-- Code examples = HIGH confidence (0.9+), prose mentions = MEDIUM confidence (0.7-0.85)
-- If a concept is the main topic, confidence should be 0.95+
-- If mentioned in passing, confidence should be 0.7-0.8
-- Always use lowercase for concept names
-- Never extract vague terms like "programming", "code", "software", "web"
-
-OUTPUT: Return ONLY valid JSON with no markdown formatting or code blocks."""
+                        "content": "You are a concept extraction system. Return only valid JSON."
                     },
                     {"role": "user", "content": prompt}
                 ],
@@ -276,153 +264,73 @@ OUTPUT: Return ONLY valid JSON with no markdown formatting or code blocks."""
 
     def _build_youtube_prompt(self, sample: str, sampling_note: str = "") -> str:
         """Build specialized prompt for YouTube transcripts."""
-        return f"""Analyze this YouTube video transcript and extract learning content.{sampling_note}
-
-TRANSCRIPT CHALLENGES TO HANDLE:
-- Transcripts often lack punctuation - use context to understand meaning
-- Speaker may say "um", "uh", repeat words - ignore filler
-- Technical terms may be mistranscribed - use context to correct (e.g., "pie torch" = "PyTorch")
+        return f"""Analyze this YouTube video transcript and extract comprehensive information.{sampling_note}
 
 TRANSCRIPT:
 {sample}
 
----
-
-EXAMPLE OUTPUT for a React Tutorial video:
+Return ONLY valid JSON (no markdown, no explanation) with this structure:
 {{
-  "title": "React Hooks Crash Course",
-  "creator": "Traversy Media",
-  "concepts": [
-    {{"name": "react", "category": "framework", "confidence": 0.98}},
-    {{"name": "react hooks", "category": "concept", "confidence": 0.96}},
-    {{"name": "usestate", "category": "concept", "confidence": 0.94}},
-    {{"name": "useeffect", "category": "concept", "confidence": 0.92}}
-  ],
-  "skill_level": "intermediate",
-  "primary_topic": "React Hooks",
-  "suggested_cluster": "React & Frontend",
-  "target_audience": "React developers new to hooks",
-  "key_takeaways": [
-    "useState replaces this.state in functional components",
-    "useEffect handles side effects and replaces lifecycle methods",
-    "Custom hooks allow reusable stateful logic"
-  ],
-  "video_type": "tutorial",
-  "estimated_watch_time": "45 minutes"
-}}
-
----
-
-Return ONLY valid JSON with this structure:
-{{
-  "title": "Full video title (infer from intro if not explicit)",
-  "creator": "Channel or creator name (look for 'Hey I'm...' or channel mentions)",
+  "title": "Full video title",
+  "creator": "Channel or creator name",
   "concepts": [
     {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
   ],
   "skill_level": "beginner|intermediate|advanced",
   "primary_topic": "main topic in 2-4 words",
   "suggested_cluster": "cluster name for grouping similar content",
-  "target_audience": "Who this video is for",
-  "key_takeaways": ["Actionable point 1", "Actionable point 2", "Actionable point 3"],
+  "target_audience": "Who this video is for (e.g., 'Python beginners', 'DevOps engineers')",
+  "key_takeaways": ["Main point 1", "Main point 2", "Main point 3"],
   "video_type": "tutorial|talk|demo|discussion|course|review",
-  "estimated_watch_time": "Approximate length"
+  "estimated_watch_time": "Approximate length (e.g., '15 minutes', '1 hour')"
 }}
 
-CATEGORY REFERENCE:
-- language: python, javascript, rust, go, java
-- framework: react, django, fastapi, spring, flask
-- library: pandas, numpy, axios, lodash
-- tool: docker, git, webpack, vscode
-- platform: aws, azure, kubernetes, vercel
-- database: postgresql, mongodb, redis, mysql
-- methodology: agile, tdd, ci/cd, scrum
-- architecture: microservices, rest, graphql, mvc
-- testing: pytest, jest, cypress, selenium
-- devops: terraform, ansible, github-actions
-- concept: async, authentication, caching, orm
+CATEGORY DEFINITIONS:
+- language: Programming languages (python, javascript, rust)
+- framework: Web/app frameworks (react, django, spring)
+- library: Code libraries (pandas, numpy, lodash)
+- tool: Development tools (docker, git, webpack)
+- platform: Cloud/hosting platforms (aws, azure, vercel)
+- database: Databases (postgresql, mongodb, redis)
+- methodology: Development practices (agile, tdd, ci/cd)
+- architecture: System design patterns (microservices, mvc, rest)
+- testing: Testing approaches (unit testing, e2e, jest)
+- devops: Operations concepts (kubernetes, terraform, monitoring)
+- concept: General programming concepts (async, orm, api)
 
-VIDEO TYPE DEFINITIONS:
-- tutorial: Step-by-step building something
-- talk: Conference presentation or lecture
-- demo: Showing a tool/product features
-- discussion: Multiple speakers, opinions
-- course: Part of a larger learning series
-- review: Evaluating tools/frameworks
-
-Extract 3-10 concepts that are being TAUGHT, not just mentioned. Use lowercase."""
+Extract 3-10 concepts from the actual content discussed. Be specific. Use lowercase for concept names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
 
     def _build_standard_prompt(self, sample: str, source_type: str, sampling_note: str = "") -> str:
         """Build standard prompt for non-YouTube content."""
-        return f"""Analyze this {source_type} document and extract technical concepts.{sampling_note}
+        return f"""Analyze this {source_type} content and extract structured information.{sampling_note}
 
-DOCUMENT CONTENT:
+CONTENT:
 {sample}
 
----
-
-EXAMPLES OF GOOD EXTRACTION:
-
-Example 1 - Flask REST API Tutorial:
+Return ONLY valid JSON (no markdown, no explanation) with this structure:
 {{
   "concepts": [
-    {{"name": "flask", "category": "framework", "confidence": 0.98}},
-    {{"name": "python", "category": "language", "confidence": 0.95}},
-    {{"name": "rest api", "category": "architecture", "confidence": 0.92}},
-    {{"name": "sqlalchemy", "category": "library", "confidence": 0.85}}
+    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
   ],
-  "skill_level": "intermediate",
-  "primary_topic": "Flask REST APIs",
-  "suggested_cluster": "Python Web Development"
-}}
-
-Example 2 - Docker Getting Started:
-{{
-  "concepts": [
-    {{"name": "docker", "category": "tool", "confidence": 0.98}},
-    {{"name": "containers", "category": "concept", "confidence": 0.90}},
-    {{"name": "dockerfile", "category": "concept", "confidence": 0.88}}
-  ],
-  "skill_level": "beginner",
-  "primary_topic": "Docker basics",
-  "suggested_cluster": "DevOps & Containers"
-}}
-
----
-
-EXTRACTION RULES:
-1. Extract 3-10 SPECIFIC technical concepts (not vague terms like "web", "code", "programming")
-2. For versioned tools, use base name: "python" not "python 3.11"
-3. Code blocks indicate concepts in USE - extract with HIGH confidence (0.9+)
-4. Prose mentions indicate concepts DISCUSSED - extract with MEDIUM confidence (0.7-0.85)
-5. Skip concepts only mentioned as alternatives or historical context
-
-CONFIDENCE SCORING:
-- 0.95-1.0: Main topic of document, extensively covered with examples
-- 0.85-0.94: Clearly explained with code or detailed explanation
-- 0.75-0.84: Mentioned and briefly explained
-- 0.70-0.74: Mentioned but not explained in detail
-
-CATEGORIES (use exactly these):
-- language: python, javascript, rust, go, java, typescript
-- framework: react, django, fastapi, spring, flask, nextjs
-- library: pandas, numpy, axios, lodash, sqlalchemy
-- tool: docker, git, webpack, vscode, npm
-- platform: aws, azure, kubernetes, vercel, heroku
-- database: postgresql, mongodb, redis, mysql, sqlite
-- methodology: agile, tdd, ci/cd, scrum, devops
-- architecture: microservices, rest, graphql, mvc, serverless
-- testing: pytest, jest, cypress, selenium, unittest
-- devops: terraform, ansible, github-actions, jenkins
-- concept: async, authentication, caching, orm, api
-
-Return ONLY valid JSON (no markdown backticks):
-{{
-  "concepts": [{{"name": "...", "category": "...", "confidence": 0.9}}],
   "skill_level": "beginner|intermediate|advanced",
   "primary_topic": "main topic in 2-4 words",
-  "suggested_cluster": "cluster name for grouping"
-}}"""
+  "suggested_cluster": "cluster name for grouping similar content"
+}}
+
+CATEGORY DEFINITIONS:
+- language: Programming languages (python, javascript, rust)
+- framework: Web/app frameworks (react, django, spring)
+- library: Code libraries (pandas, numpy, lodash)
+- tool: Development tools (docker, git, webpack)
+- platform: Cloud/hosting platforms (aws, azure, vercel)
+- database: Databases (postgresql, mongodb, redis)
+- methodology: Development practices (agile, tdd, ci/cd)
+- architecture: System design patterns (microservices, mvc, rest)
+- testing: Testing approaches (unit testing, e2e, jest)
+- devops: Operations concepts (kubernetes, terraform, monitoring)
+- concept: General programming concepts (async, orm, api)
+
+Extract 3-10 concepts. Be specific. Use lowercase for names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
 
     async def generate_build_suggestions(
         self,
@@ -430,71 +338,40 @@ Return ONLY valid JSON (no markdown backticks):
         max_suggestions: int
     ) -> List[Dict]:
         """Generate build suggestions using OpenAI."""
-        prompt = f"""Suggest {max_suggestions} projects this user can build based on their knowledge bank.
+        prompt = f"""Based on this user's knowledge bank, suggest {max_suggestions} practical projects they could build RIGHT NOW.
 
-USER'S KNOWLEDGE BANK:
+KNOWLEDGE BANK:
 {knowledge_summary}
 
----
-
-EXAMPLE OUTPUT (for a user with Python, Flask, PostgreSQL knowledge):
+Return ONLY a JSON array of suggestions (no markdown, no explanation):
 [
   {{
-    "title": "Personal Expense Tracker API",
-    "description": "A REST API to track daily expenses with categories, built with Flask and PostgreSQL. Applies the API design patterns from your docs.",
-    "feasibility": "high",
-    "effort_estimate": "1-2 days",
-    "required_skills": ["python", "flask", "postgresql", "rest api"],
-    "missing_knowledge": [],
-    "relevant_clusters": [0, 2],
-    "starter_steps": [
-      "Create Flask app with basic route structure",
-      "Design expense table schema in PostgreSQL",
-      "Implement CRUD endpoints for expenses",
-      "Add category filtering and date range queries",
-      "Write basic tests with pytest"
-    ],
-    "file_structure": "expense-tracker/\\n  app/\\n    __init__.py\\n    models.py\\n    routes.py\\n  tests/\\n  requirements.txt"
+    "title": "Project Name",
+    "description": "What they'll build and why it's valuable",
+    "feasibility": "high|medium|low",
+    "effort_estimate": "2-3 days",
+    "required_skills": ["skill1", "skill2"],
+    "missing_knowledge": ["gap1", "gap2"],
+    "relevant_clusters": [1, 2],
+    "starter_steps": ["step 1", "step 2", "step 3"],
+    "file_structure": "project/\\n  src/\\n  tests/\\n  README.md"
   }}
 ]
 
----
-
-RULES:
-1. Only suggest projects using knowledge FROM THEIR DOCUMENTS
-2. "high" feasibility = user can start within 30 minutes
-3. Effort estimates should be realistic for a solo developer
-4. Give 5-7 specific, actionable starter steps
-5. missing_knowledge should only list gaps if feasibility is medium/low
-
-Return ONLY a valid JSON array:"""
+Be specific. Reference actual content from their knowledge. Prioritize projects they can START TODAY."""
 
         try:
             response = await self._call_openai(
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are an expert project advisor who suggests realistic, achievable software projects.
-
-YOUR PRINCIPLES:
-1. Suggest projects the user can ACTUALLY build with their current knowledge
-2. Don't suggest projects requiring skills they haven't learned
-3. Be specific - "Task Manager API" not "Some API"
-4. Match project complexity to their skill level
-5. Every suggestion must reference their actual knowledge
-
-FEASIBILITY CRITERIA:
-- "high": User has 80%+ of required skills, can start immediately
-- "medium": User has 50-80% of skills, needs 1-2 days prep
-- "low": User has <50% of skills, significant learning needed
-
-OUTPUT: Return ONLY a valid JSON array with no markdown formatting."""
+                        "content": "You are a project advisor. Return only valid JSON arrays of build suggestions."
                     },
                     {"role": "user", "content": prompt}
                 ],
                 model=self.suggestion_model,
-                temperature=0.5,
-                max_tokens=4000
+                temperature=0.7,
+                max_tokens=2000
             )
 
             # Parse JSON response
