@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { FolderKanban, Plus, Play, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
@@ -29,10 +29,7 @@ export default function ProjectsPage() {
   const [newDescription, setNewDescription] = useState('');
   const [filter, setFilter] = useState<string>('');
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadData(); }, [filter]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [projectsData, statsData] = await Promise.all([
         api.getProjects(filter || undefined),
@@ -45,7 +42,11 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const createProject = async () => {
     if (!newTitle.trim()) return;
