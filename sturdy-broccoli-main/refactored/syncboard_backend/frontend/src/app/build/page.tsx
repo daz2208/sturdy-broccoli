@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import {
@@ -427,11 +427,30 @@ export default function BuildPage() {
   const [maxSuggestions, setMaxSuggestions] = useState(5);
   const [knowledgeSummary, setKnowledgeSummary] = useState<any>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   // Market validation form
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [targetMarket, setTargetMarket] = useState('');
+
+  // Wait for auth to load before making API calls (prevents logout on refresh)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    api.setToken(token);
+    setAuthReady(true);
+  }, []);
+
+  // Auto-load quick ideas when page opens (after auth is ready)
+  useEffect(() => {
+    if (authReady) {
+      getQuickIdeas(undefined);
+    }
+  }, [authReady]);
 
   const getSuggestions = async () => {
     setLoading(true);
@@ -505,6 +524,15 @@ export default function BuildPage() {
       setValidating(false);
     }
   };
+
+  // Show loading state while auth loads (prevents logout on refresh)
+  if (!authReady) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-7xl mx-auto">

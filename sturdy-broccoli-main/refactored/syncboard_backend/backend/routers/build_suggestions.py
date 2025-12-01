@@ -144,7 +144,8 @@ async def what_can_i_build(
         db=db,
         knowledge_base_id=kb_id,
         difficulty=None,  # Get all difficulties
-        limit=50  # Get more seeds for better context
+        limit=50,  # Get more seeds for better context
+        username=current_user.username  # Enable cross-KB fallback
     )
 
     logger.info(f"Found {len(idea_seeds)} pre-computed idea seeds for enhanced suggestions")
@@ -533,12 +534,13 @@ async def get_idea_seeds(
     # Get user's default knowledge base
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get stored idea seeds
+    # Get stored idea seeds (with cross-KB fallback)
     ideas = await get_user_idea_seeds(
         db=db,
         knowledge_base_id=kb_id,
         difficulty=difficulty,
-        limit=limit
+        limit=limit,
+        username=current_user.username  # Enable cross-KB fallback
     )
 
     return {
