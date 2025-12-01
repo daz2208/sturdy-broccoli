@@ -11,6 +11,7 @@ export default function DigestPage() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadDigest(); }, [days]);
 
   const loadDigest = async () => {

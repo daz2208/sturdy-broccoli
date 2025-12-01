@@ -29,6 +29,7 @@ export default function ProjectsPage() {
   const [newDescription, setNewDescription] = useState('');
   const [filter, setFilter] = useState<string>('');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [filter]);
 
   const loadData = async () => {

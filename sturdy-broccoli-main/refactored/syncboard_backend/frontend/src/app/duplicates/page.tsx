@@ -30,6 +30,7 @@ export default function DuplicatesPage() {
 
   useEffect(() => {
     findDuplicates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const findDuplicates = async () => {
