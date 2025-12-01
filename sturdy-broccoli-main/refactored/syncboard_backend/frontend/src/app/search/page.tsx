@@ -64,7 +64,7 @@ export default function SearchPage() {
     }
   };
 
-  const useSavedSearch = async (searchId: number) => {
+  const applySavedSearch = async (searchId: number) => {
     try {
       const response = await api.useSavedSearch(searchId);
       setQuery(response.query);
@@ -166,7 +166,7 @@ export default function SearchPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-gray-200 truncate">{search.name}</h3>
-                    <p className="text-sm text-gray-400 truncate mt-1">"{search.query}"</p>
+                    <p className="text-sm text-gray-400 truncate mt-1">&quot;{search.query}&quot;</p>
                     <div className="flex gap-3 mt-2 text-xs text-gray-500">
                       <div className="flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" />
@@ -182,7 +182,7 @@ export default function SearchPage() {
                   </div>
                   <div className="flex gap-2 ml-2">
                     <button
-                      onClick={() => useSavedSearch(search.id)}
+                      onClick={() => applySavedSearch(search.id)}
                       className="btn btn-sm btn-secondary opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Use this search"
                     >

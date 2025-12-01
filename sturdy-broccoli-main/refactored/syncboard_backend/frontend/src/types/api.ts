@@ -123,6 +123,7 @@ export interface ContentGenerationRequest {
   template_name: string;
   topic?: string;
   cluster_ids?: number[];
+  doc_ids?: string[];
   target_length?: 'short' | 'medium' | 'long';
   include_citations?: boolean;
   skill_level?: string;

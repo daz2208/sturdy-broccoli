@@ -352,7 +352,7 @@ export default function KnowledgeGraphPage() {
                 <div className="mt-6 bg-dark-200 rounded-lg border border-dark-300 p-4">
                   <h4 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-primary" />
-                    Documents covering "{selectedConcept}" ({conceptDocs.length})
+                    Documents covering &quot;{selectedConcept}&quot; ({conceptDocs.length})
                   </h4>
                   {loadingDocs ? (
                     <div className="flex justify-center py-4">
@@ -410,7 +410,7 @@ export default function KnowledgeGraphPage() {
                 <div className="mt-6 bg-dark-200 rounded-lg border border-dark-300 p-4">
                   <h4 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
                     <Code2 className="w-4 h-4 text-accent-orange" />
-                    Documents using "{selectedTech}" ({techDocs.length})
+                    Documents using &quot;{selectedTech}&quot; ({techDocs.length})
                   </h4>
                   {loadingDocs ? (
                     <div className="flex justify-center py-4">
