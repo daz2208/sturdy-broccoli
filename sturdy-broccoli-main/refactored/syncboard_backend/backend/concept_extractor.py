@@ -282,41 +282,52 @@ class ConceptExtractor:
         """Build prompt for AI to critique its own extraction."""
         concepts_list = [c.get('name') for c in initial_result.get('concepts', [])]
 
-        prompt = f"""You are a critical AI reviewer. Analyze this concept extraction and identify issues.
+        prompt = f"""You are a quality assurance reviewer for a concept extraction system.
 
-ORIGINAL CONTENT (sample):
-{content[:1000]}
+Your role: Find errors and omissions in an AI's previous extraction.
 
-EXTRACTED CONCEPTS:
-{', '.join(concepts_list)}
+ORIGINAL CONTENT:
+{content[:1500]}
 
-SKILL LEVEL: {initial_result.get('skill_level', 'unknown')}
-PRIMARY TOPIC: {initial_result.get('primary_topic', 'unknown')}
-INITIAL CONFIDENCE: {initial_result.get('confidence_score', 0.5):.2f}
+EXTRACTION TO REVIEW:
+- Concepts: {', '.join(concepts_list)}
+- Skill Level: {initial_result.get('skill_level', 'unknown')}
+- Primary Topic: {initial_result.get('primary_topic', 'unknown')}
+- Confidence Score: {initial_result.get('confidence_score', 0.5):.2f}
 
-Your task: Critically review this extraction. Be harsh but fair.
+---
 
-Questions to ask:
-1. Are any IMPORTANT concepts missing from the content?
-2. Are any extracted concepts WRONG or too vague?
-3. Is the skill level accurate?
-4. Should confidence be adjusted up or down?
+REVIEW CRITERIA:
+1. MISSING CONCEPTS: Important technologies discussed but not extracted
+2. WRONG CONCEPTS: Extracted concepts not actually in the content, or too vague
+3. WRONG CATEGORIES: Concept exists but category is incorrect
+4. CONFIDENCE ISSUES: Over-confident for minor mentions, under-confident for main topics
+5. SKILL LEVEL: Does it match the content's actual complexity?
 
-Return JSON with:
+---
+
+EXAMPLE CRITIQUE:
 {{
-    "issues_found": ["issue 1", "issue 2"],
-    "missing_concepts": [
-        {{"name": "Docker", "category": "tool", "confidence": 0.9, "reasoning": "Mentioned 5 times"}}
-    ],
-    "incorrect_concepts": [
-        {{"name": "Web", "reasoning": "Too vague, should be 'REST API'"}}
-    ],
-    "skill_level_adjustment": "intermediate" or null,
-    "confidence_adjustment": 0.05,  // -0.2 to +0.2
-    "overall_assessment": "Brief assessment"
+  "issues_found": [
+    "Missed 'kubernetes' which is mentioned 8 times",
+    "'Web' is too vague - content specifically discusses REST APIs",
+    "Skill level should be 'advanced' not 'intermediate' - assumes prior Docker knowledge"
+  ],
+  "missing_concepts": [
+    {{"name": "kubernetes", "category": "platform", "confidence": 0.92, "reasoning": "Central topic, mentioned 8 times with examples"}}
+  ],
+  "incorrect_concepts": [
+    {{"name": "web", "reasoning": "Too vague. Content specifically covers REST API design patterns."}}
+  ],
+  "skill_level_adjustment": "advanced",
+  "confidence_adjustment": -0.1,
+  "overall_assessment": "Extraction missed the main topic (Kubernetes) and included vague terms. Needs revision."
 }}
 
-Be critical but constructive. The goal is ACCURACY."""
+---
+
+Provide your critique. Be critical - it's better to catch errors now than serve bad data to users.
+Return ONLY valid JSON:"""
 
         return prompt
 
@@ -628,41 +639,43 @@ Be critical but constructive. The goal is ACCURACY."""
         learning_section = ""
         if learning_additions:
             learning_section = f"""
-## LEARNING FROM PAST FEEDBACK
+---
+## LEARNING FROM PAST USER FEEDBACK
 {learning_additions}
 
-Apply the above learnings to improve your extraction accuracy.
+IMPORTANT: Apply these learnings to improve extraction accuracy. The user has corrected similar extractions before.
+---
 """
 
-        return f"""Analyze this {source_type} content and extract structured information.{sampling_note}
+        return f"""Analyze this {source_type} document and extract technical concepts.{sampling_note}
 {learning_section}
-CONTENT:
+DOCUMENT CONTENT:
 {sample}
 
-Return ONLY valid JSON (no markdown, no explanation) with this structure:
+---
+
+EXTRACTION RULES:
+1. Extract 3-10 SPECIFIC technical concepts (not vague terms like "web", "code", "programming")
+2. For versioned tools, use base name: "python" not "python 3.11"
+3. Code blocks = HIGH confidence (0.9+), prose mentions = MEDIUM confidence (0.7-0.85)
+4. Skip concepts only mentioned as alternatives or historical context
+
+CONFIDENCE SCORING:
+- 0.95-1.0: Main topic, extensively covered with examples
+- 0.85-0.94: Clearly explained with code or detailed explanation
+- 0.75-0.84: Mentioned and briefly explained
+- 0.70-0.74: Mentioned but not explained in detail
+
+CATEGORIES:
+language | framework | library | tool | platform | database | methodology | architecture | testing | devops | concept
+
+Return ONLY valid JSON (no markdown backticks):
 {{
-  "concepts": [
-    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
-  ],
+  "concepts": [{{"name": "...", "category": "...", "confidence": 0.9}}],
   "skill_level": "beginner|intermediate|advanced",
   "primary_topic": "main topic in 2-4 words",
-  "suggested_cluster": "cluster name for grouping similar content"
-}}
-
-CATEGORY DEFINITIONS:
-- language: Programming languages (python, javascript, rust)
-- framework: Web/app frameworks (react, django, spring)
-- library: Code libraries (pandas, numpy, lodash)
-- tool: Development tools (docker, git, webpack)
-- platform: Cloud/hosting platforms (aws, azure, vercel)
-- database: Databases (postgresql, mongodb, redis)
-- methodology: Development practices (agile, tdd, ci/cd)
-- architecture: System design patterns (microservices, mvc, rest)
-- testing: Testing approaches (unit testing, e2e, jest)
-- devops: Operations concepts (kubernetes, terraform, monitoring)
-- concept: General programming concepts (async, orm, api)
-
-Extract 3-10 concepts. Be specific. Use lowercase for names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
+  "suggested_cluster": "cluster name for grouping"
+}}"""
 
     def _build_youtube_learning_prompt(
         self,
@@ -674,34 +687,54 @@ Extract 3-10 concepts. Be specific. Use lowercase for names. Set confidence 0.7-
         learning_section = ""
         if learning_additions:
             learning_section = f"""
-## LEARNING FROM PAST FEEDBACK
+---
+## LEARNING FROM PAST USER FEEDBACK
 {learning_additions}
 
-Apply the above learnings to improve your extraction accuracy.
+IMPORTANT: Apply these learnings to improve extraction accuracy. The user has corrected similar extractions before.
+---
 """
 
-        return f"""Analyze this YouTube video transcript and extract comprehensive information.{sampling_note}
+        return f"""Analyze this YouTube video transcript and extract learning content.{sampling_note}
 {learning_section}
+TRANSCRIPT CHALLENGES:
+- Transcripts may lack punctuation - use context
+- Ignore filler words ("um", "uh")
+- Fix mistranscribed tech terms using context (e.g., "pie torch" = "PyTorch")
+
 TRANSCRIPT:
 {sample}
 
-Return ONLY valid JSON (no markdown, no explanation) with this structure:
-{{
-  "title": "Full video title",
-  "creator": "Channel or creator name",
-  "concepts": [
-    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
-  ],
-  "skill_level": "beginner|intermediate|advanced",
-  "primary_topic": "main topic in 2-4 words",
-  "suggested_cluster": "cluster name for grouping similar content",
-  "target_audience": "Who this video is for",
-  "key_takeaways": ["Main point 1", "Main point 2", "Main point 3"],
-  "video_type": "tutorial|talk|demo|discussion|course|review",
-  "estimated_watch_time": "Approximate length"
-}}
+---
 
-Extract 3-10 concepts from the actual content discussed. Be specific. Use lowercase for concept names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
+EXTRACTION GUIDELINES:
+1. Title: Infer from intro if not explicit
+2. Creator: Look for "Hey I'm..." or channel mentions
+3. Concepts: What's being TAUGHT, not just mentioned (3-10 concepts)
+4. Key Takeaways: 3 most actionable things a viewer would learn
+5. Confidence: 0.9+ for main topics, 0.7-0.85 for supporting topics
+
+VIDEO TYPES:
+- tutorial: Step-by-step building
+- talk: Conference/lecture
+- demo: Showing features
+- discussion: Multiple speakers
+- course: Part of series
+- review: Evaluating tools
+
+Return ONLY valid JSON (no markdown backticks):
+{{
+  "title": "Video title",
+  "creator": "Channel name",
+  "concepts": [{{"name": "...", "category": "...", "confidence": 0.9}}],
+  "skill_level": "beginner|intermediate|advanced",
+  "primary_topic": "main topic",
+  "suggested_cluster": "cluster name",
+  "target_audience": "Who this is for",
+  "key_takeaways": ["Point 1", "Point 2", "Point 3"],
+  "video_type": "tutorial|talk|demo|discussion|course|review",
+  "estimated_watch_time": "length"
+}}"""
 
     def _calibrate_confidence(
         self,

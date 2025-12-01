@@ -472,16 +472,30 @@ class QueryExpander:
         """
         client = self._get_client()
 
-        prompt = f"""Given the user's search query, generate {max_expansions - 1} alternative search queries that would help find relevant information.
-
-The alternatives should:
-1. Use synonyms and related terms
-2. Rephrase the question differently
-3. Be more specific or more general as appropriate
+        prompt = f"""Generate {max_expansions - 1} alternative search queries to improve retrieval.
 
 Original query: "{query}"
 
-Return ONLY the alternative queries, one per line, no numbering or explanations."""
+EXPANSION STRATEGIES:
+1. Synonym expansion: "implement" → "create", "build", "set up"
+2. Technical variants: "auth" → "authentication", "authorization"
+3. Specificity changes: "database" → "PostgreSQL" or vice versa
+4. Question rephrasing: "How do I X?" → "X tutorial", "X example"
+
+EXAMPLES:
+Original: "How do I set up Docker?"
+Alternatives:
+Docker installation guide
+Docker getting started tutorial
+Configure Docker containers
+
+Original: "authentication in Flask"
+Alternatives:
+Flask login implementation
+Flask-Login tutorial
+User auth Flask Python
+
+Return ONLY the alternative queries, one per line, no numbering or explanations:"""
 
         try:
             response = await client.chat.completions.create(
@@ -862,27 +876,39 @@ class EnhancedRAGService:
 
         context = "\n\n---\n\n".join(context_parts)
 
-        system_message = """You are an AI assistant helping users with their knowledge bank.
-You have access to relevant documents and must use them to provide accurate responses.
+        system_message = """You are a knowledge synthesis assistant for a personal knowledge management system.
 
-IMPORTANT RULES:
-1. ALWAYS cite your sources using [Source N] format
-2. If multiple sources support a point, cite all of them
-3. If you cannot find relevant information, say so clearly
-4. Synthesize information from multiple sources when appropriate
-5. Be concise but thorough
+YOUR ROLE: Answer questions using ONLY the provided source documents from the user's knowledge bank.
 
-The sources are sorted by relevance to the user's question."""
+CITATION FORMAT:
+- Single source: "Docker uses containers [Source 1]"
+- Multiple sources: "This is a common pattern [Source 1, Source 3]"
+- Conflicting info: "Source 1 suggests X, while Source 2 recommends Y"
 
-        user_message = f"""Based on these sources from my knowledge bank:
+RESPONSE STRUCTURE:
+1. **Direct Answer** (1-2 sentences answering the question)
+2. **Details** (supporting information with citations)
+3. **Gaps** (if sources don't fully answer, acknowledge what's missing)
+
+RULES:
+✓ Base ALL claims on the provided sources
+✓ Cite every factual statement
+✓ Acknowledge when sources conflict or are incomplete
+✗ NEVER invent information not in sources
+✗ NEVER cite a source for info it doesn't contain
+✗ NEVER say "based on my knowledge" - only use their documents
+
+Sources are sorted by relevance to the question."""
+
+        user_message = f"""Answer this question using ONLY these sources from my knowledge bank:
 
 {context}
 
 ---
 
-Question: {query}
+**Question:** {query}
 
-Please provide a comprehensive answer with citations."""
+Provide your answer with [Source N] citations:"""
 
         try:
             response = await client.chat.completions.create(
