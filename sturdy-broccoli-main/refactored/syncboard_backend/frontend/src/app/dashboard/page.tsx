@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { FileText, FolderOpen, Brain, Cpu, Upload, Search, Lightbulb, Activity, Wifi } from 'lucide-react';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { FileText, FolderOpen, Brain, Cpu, Upload, Search, Lightbulb, Activity, Wifi, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
@@ -25,6 +26,7 @@ interface RecentActivity {
 }
 
 export default function DashboardPage() {
+  const isReady = useRequireAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activity, setActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +35,7 @@ export default function DashboardPage() {
   const { isConnected, on } = useWebSocket();
 
   useEffect(() => {
+    if (!isReady) return; // Wait for auth to be ready!
     loadDashboard();
 
     // Listen for real-time events to refresh dashboard
@@ -63,7 +66,7 @@ export default function DashboardPage() {
       unsubClusterCreated();
       unsubClusterDeleted();
     };
-  }, [on]);
+  }, [isReady, on]);
 
   const loadDashboard = async () => {
     try {
@@ -92,10 +95,11 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) {
+  // Show loading while auth is initializing OR data is loading
+  if (!isReady || loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }

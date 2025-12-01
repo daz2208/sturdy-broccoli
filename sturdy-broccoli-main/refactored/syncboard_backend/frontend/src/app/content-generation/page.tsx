@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import {
   FileText,
   Sparkles,
@@ -12,7 +13,8 @@ import {
   BookOpen,
   Zap,
   CheckCircle,
-  FileCheck
+  FileCheck,
+  Loader2
 } from 'lucide-react';
 import type {
   Industry,
@@ -21,6 +23,8 @@ import type {
 } from '@/types/api';
 
 export default function ContentGenerationPage() {
+  const isReady = useRequireAuth();
+
   // State management
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [selectedIndustry, setSelectedIndustry] = useState<string>('');
@@ -39,10 +43,11 @@ export default function ContentGenerationPage() {
 
   // Load industries on mount
   useEffect(() => {
+    if (!isReady) return; // Wait for auth to be ready!
     loadIndustries();
     loadCurrentKBIndustry();
     loadDocuments();
-  }, []);
+  }, [isReady]);
 
   // Load templates when industry changes
   useEffect(() => {
@@ -236,6 +241,15 @@ Date: ${new Date(generatedContent.metadata.generated_at).toLocaleDateString()}
     URL.revokeObjectURL(url);
     toast.success('Downloaded as Markdown!');
   };
+
+  // Show loading while auth is initializing
+  if (!isReady) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn max-w-7xl mx-auto">
