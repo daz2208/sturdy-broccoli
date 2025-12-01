@@ -407,22 +407,29 @@ async def get_user_idea_seeds(
     db: Session,
     knowledge_base_id: str,
     difficulty: Optional[str] = None,
-    limit: int = 20
+    limit: int = 20,
+    username: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Get stored idea seeds for a knowledge base.
 
+    If no ideas found in the specified KB and username is provided,
+    falls back to querying all user's KBs. This handles the case where
+    the user's default KB changed after ideas were generated.
+
     Args:
         db: Database session
-        knowledge_base_id: Knowledge base ID
+        knowledge_base_id: Knowledge base ID (primary)
         difficulty: Optional difficulty filter
         limit: Maximum results
+        username: Optional username for cross-KB fallback query
 
     Returns:
         List of idea dicts
     """
-    from .db_models import DBBuildIdeaSeed, DBDocument
+    from .db_models import DBBuildIdeaSeed, DBDocument, DBKnowledgeBase
 
+    # First, try the specified knowledge base
     query = db.query(DBBuildIdeaSeed).filter(
         DBBuildIdeaSeed.knowledge_base_id == knowledge_base_id
     )
@@ -431,6 +438,28 @@ async def get_user_idea_seeds(
         query = query.filter(DBBuildIdeaSeed.difficulty == difficulty)
 
     ideas = query.order_by(DBBuildIdeaSeed.created_at.desc()).limit(limit).all()
+
+    # If no ideas found and username provided, try all user's KBs
+    if not ideas and username:
+        logger.info(f"No ideas in default KB {knowledge_base_id}, checking all KBs for user {username}")
+
+        # Get all KB IDs for this user
+        user_kb_ids = [
+            kb.id for kb in db.query(DBKnowledgeBase).filter(
+                DBKnowledgeBase.owner_username == username
+            ).all()
+        ]
+
+        if user_kb_ids:
+            query = db.query(DBBuildIdeaSeed).filter(
+                DBBuildIdeaSeed.knowledge_base_id.in_(user_kb_ids)
+            )
+
+            if difficulty:
+                query = query.filter(DBBuildIdeaSeed.difficulty == difficulty)
+
+            ideas = query.order_by(DBBuildIdeaSeed.created_at.desc()).limit(limit).all()
+            logger.info(f"Found {len(ideas)} ideas across all user KBs")
 
     results = []
     for idea in ideas:
