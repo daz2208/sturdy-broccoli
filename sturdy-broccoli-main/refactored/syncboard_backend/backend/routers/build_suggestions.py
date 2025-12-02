@@ -129,11 +129,18 @@ async def what_can_i_build(
     # Check cache first (100x faster for cached results)
     cached_suggestions = get_cached_build_suggestions(user_id=current_user.username)
 
-    # Treat empty cached payloads as stale and recompute so users aren't stuck
+    # Validate cache has ENOUGH suggestions for the request
     if cached_suggestions:
-        if cached_suggestions.get("suggestions"):
-            logger.info(f"Cache HIT: Build suggestions for {current_user.username}")
+        suggestions_list = cached_suggestions.get("suggestions", [])
+        cached_count = len(suggestions_list)
+
+        if cached_count >= max_suggestions and suggestions_list:
+            logger.info(f"Cache HIT: {cached_count} cached, {max_suggestions} requested for {current_user.username}")
+            # Return only the requested amount from cache
+            cached_suggestions["suggestions"] = suggestions_list[:max_suggestions]
             return cached_suggestions
+        elif cached_count > 0:
+            logger.info(f"Cache INSUFFICIENT: has {cached_count}, need {max_suggestions} for {current_user.username} – regenerating")
         else:
             logger.info(f"Cache STALE (empty suggestions) for {current_user.username} – regenerating")
 
