@@ -425,17 +425,17 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             for area in knowledge_areas
         ])
 
-        # Build idea seeds summary (if available)
+        # Build idea seeds summary (if available) - as reference context only
         idea_seeds_text = ""
         if idea_seeds and len(idea_seeds) > 0:
-            idea_seeds_text = "\n\nPRE-COMPUTED IDEA SEEDS (use these as a starting point):\n"
-            for i, seed in enumerate(idea_seeds[:15], 1):  # Limit to 15 seeds
+            idea_seeds_text = "\n\n---\n\n📚 REFERENCE - Previously Generated Ideas (for quality comparison only):\n"
+            for i, seed in enumerate(idea_seeds[:10], 1):  # Limit to 10 seeds
                 idea_seeds_text += f"{i}. {seed.get('title', 'Untitled')} ({seed.get('difficulty', 'unknown')})\n"
-                idea_seeds_text += f"   - {seed.get('description', 'No description')[:150]}...\n"
-            idea_seeds_text += f"\n✨ ENHANCE, COMBINE, and REFINE these {len(idea_seeds)} pre-computed ideas into {max_suggestions} comprehensive suggestions.\n"
+                idea_seeds_text += f"   {seed.get('description', 'No description')[:100]}...\n\n"
+            idea_seeds_text += f"⚠️ DO NOT simply refine the above {len(idea_seeds)} ideas. Generate FRESH suggestions by analyzing the KNOWLEDGE BANK content above. Use these references only to understand expected quality and avoid duplicates.\n"
 
         prompt_template = string.Template(
-            """Based on this VALIDATED knowledge bank, suggest ${max_suggestions} DETAILED practical projects.${idea_seeds_text}
+            """Based on this VALIDATED knowledge bank, analyze the ACTUAL CONTENT below and suggest ${max_suggestions} DETAILED practical projects.
 
 KNOWLEDGE VALIDATION:
 ✅ ${stats_docs} documents analyzed
@@ -446,8 +446,8 @@ KNOWLEDGE VALIDATION:
 KNOWLEDGE AREAS:
 ${areas_text}
 
-DETAILED KNOWLEDGE CONTENT:
-${knowledge_summary}
+DETAILED KNOWLEDGE CONTENT (analyze THIS to generate suggestions):
+${knowledge_summary}${idea_seeds_text}
 
 Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
 [
