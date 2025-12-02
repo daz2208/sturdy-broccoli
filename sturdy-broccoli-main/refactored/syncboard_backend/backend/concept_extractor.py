@@ -658,7 +658,7 @@ IMPORTANT: Apply these learnings to improve extraction accuracy. The user has co
 ---
 """
 
-        return f"""Analyze this {source_type} document and extract technical concepts.{sampling_note}
+        return f"""Analyze this {source_type} document and extract BOTH capabilities AND technologies.{sampling_note}
 {learning_section}
 DOCUMENT CONTENT:
 {sample}
@@ -666,7 +666,17 @@ DOCUMENT CONTENT:
 ---
 
 EXTRACTION RULES:
-1. Extract 3-10 SPECIFIC technical concepts (not vague terms like "web", "code", "programming")
+1. Extract 5-15 concepts in TWO types (prioritize CAPABILITIES):
+
+   TYPE 1 - CAPABILITIES (extract these FIRST):
+   What problems does this code/document solve? What can it DO?
+   Examples: "cloud cost estimation", "CVE vulnerability scoring",
+   "multi-tenant isolation", "real-time data sync", "payment processing"
+
+   TYPE 2 - TECHNOLOGIES (extract these SECOND):
+   What tools/frameworks does it use?
+   Examples: "python", "django", "postgresql", "celery"
+
 2. For versioned tools, use base name: "python" not "python 3.11"
 3. Code blocks = HIGH confidence (0.9+), prose mentions = MEDIUM confidence (0.7-0.85)
 4. Skip concepts only mentioned as alternatives or historical context
@@ -678,7 +688,16 @@ CONFIDENCE SCORING:
 - 0.70-0.74: Mentioned but not explained in detail
 
 CATEGORIES:
-language | framework | library | tool | platform | database | methodology | architecture | testing | devops | concept
+Technologies: language | framework | library | tool | platform | database | devops
+Patterns: methodology | architecture | testing | concept
+Capabilities: capability | problem_domain | business_logic | algorithm | integration_pattern
+
+CATEGORY DEFINITIONS FOR CAPABILITIES:
+- capability: Functional ability (e.g., "cost estimation", "vulnerability scanning", "text-to-speech")
+- problem_domain: Business/domain area (e.g., "e-commerce", "healthcare compliance", "financial reporting")
+- business_logic: Specific logic patterns (e.g., "tenant isolation", "rate limiting", "audit logging")
+- algorithm: Computational approaches (e.g., "risk scoring", "similarity matching", "anomaly detection")
+- integration_pattern: How systems connect (e.g., "webhook handling", "API orchestration", "event streaming")
 
 Return ONLY valid JSON (no markdown backticks):
 {{

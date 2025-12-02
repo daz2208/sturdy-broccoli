@@ -305,7 +305,7 @@ Extract 3-10 concepts from the actual content discussed. Be specific. Use lowerc
 
     def _build_standard_prompt(self, sample: str, source_type: str, sampling_note: str = "") -> str:
         """Build standard prompt for non-YouTube content."""
-        return f"""Analyze this {source_type} content and extract structured information.{sampling_note}
+        return f"""Analyze this {source_type} content and extract BOTH capabilities AND technologies.{sampling_note}
 
 CONTENT:
 {sample}
@@ -313,12 +313,21 @@ CONTENT:
 Return ONLY valid JSON (no markdown, no explanation) with this structure:
 {{
   "concepts": [
-    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
+    {{"name": "concept name", "category": "...", "confidence": 0.9}}
   ],
   "skill_level": "beginner|intermediate|advanced",
   "primary_topic": "main topic in 2-4 words",
   "suggested_cluster": "cluster name for grouping similar content"
 }}
+
+EXTRACTION PRIORITY:
+1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
+2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
+
+CATEGORIES:
+Technologies: language | framework | library | tool | platform | database | devops
+Patterns: methodology | architecture | testing | concept
+Capabilities: capability | problem_domain | business_logic | algorithm | integration_pattern
 
 CATEGORY DEFINITIONS:
 - language: Programming languages (python, javascript, rust)
@@ -332,8 +341,13 @@ CATEGORY DEFINITIONS:
 - testing: Testing approaches (unit testing, e2e, jest)
 - devops: Operations concepts (kubernetes, terraform, monitoring)
 - concept: General programming concepts (async, orm, api)
+- capability: Functional abilities (cost estimation, vulnerability scanning, auth flows)
+- problem_domain: Business domains (e-commerce, healthcare, fintech)
+- business_logic: Logic patterns (tenant isolation, rate limiting, audit trails)
+- algorithm: Computational approaches (risk scoring, similarity matching)
+- integration_pattern: System connections (webhook handling, API orchestration)
 
-Extract 3-10 concepts. Be specific. Use lowercase for names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
+Extract 5-15 concepts. Prioritize CAPABILITIES over technologies. Use lowercase for names. Set confidence 0.7-1.0 based on how clearly the concept is discussed."""
 
     async def generate_build_suggestions(
         self,
@@ -486,14 +500,19 @@ Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
 ]
 
 IMPORTANT:
-- Reference ACTUAL content from their knowledge (concepts, code, examples)
+- COMBINE CAPABILITIES to create novel solutions:
+  • Find capability A + capability B → New use case they haven't built
+  • Example: "cost estimation" + "vulnerability scoring" → "Security budget planner"
+  • Example: "tech stack detection" + "industry multipliers" → "Repo cloud cost estimator"
+- Do NOT just recombine the same tech stack with different nouns
+- Reference ACTUAL capabilities from their knowledge, not just frameworks
 - Provide 5-10 DETAILED starter steps
 - Include WORKING starter code snippets
 - Add SPECIFIC learning resources and timelines
 - Give PRACTICAL troubleshooting tips
 - Only suggest if they have ENOUGH depth (check knowledge_coverage)
 - Be SPECIFIC - not generic
-- Prioritize projects they can START TODAY with existing knowledge"""
+- Prioritize NOVEL combinations over rebuilding what they already have"""
 
         )
 
@@ -1198,33 +1217,43 @@ class OllamaProvider(LLMProvider):
         else:
             sample = content[:settings.concept_sample_size] if len(content) > settings.concept_sample_size else content
 
-        prompt = f"""Analyze this {source_type} content and extract structured information.
+        prompt = f"""Analyze this {source_type} content and extract BOTH capabilities AND technologies.
 
 CONTENT:
 {sample}
 
+EXTRACTION PRIORITY:
+1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
+   Examples: "cloud cost estimation", "vulnerability scoring", "tenant isolation"
+2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
+   Examples: "python", "django", "postgresql"
+
 Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
 {{
   "concepts": [
-    {{"name": "concept name", "category": "language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
+    {{"name": "concept name", "category": "capability|problem_domain|business_logic|algorithm|integration_pattern|language|framework|library|tool|platform|database|methodology|architecture|testing|devops|concept", "confidence": 0.9}}
   ],
   "skill_level": "beginner|intermediate|advanced",
   "primary_topic": "main topic in 2-4 words",
   "suggested_cluster": "cluster name for grouping similar content"
 }}
 
-Extract 3-10 concepts. Use lowercase for names. Be specific."""
+Extract 5-15 concepts. Prioritize CAPABILITIES over technologies. Use lowercase for names. Be specific."""
 
         try:
             response = await self._call_ollama(
                 messages=[
                     {"role": "system", "content": """You are an expert technical concept extraction system.
 
-Extract SPECIFIC technologies, tools, and skills from documents.
+Extract BOTH capabilities AND technologies from documents:
+1. CAPABILITIES - What problems does this solve? (cost estimation, vulnerability scanning, etc.)
+2. TECHNOLOGIES - What tools does it use? (python, django, etc.)
+
 - Code examples = HIGH confidence (0.9+)
 - Prose mentions = MEDIUM confidence (0.7-0.85)
 - Use lowercase for concept names
 - Never extract vague terms like "programming", "code", "web"
+- Prioritize CAPABILITIES over technologies
 
 Return ONLY valid JSON with no markdown formatting."""},
                     {"role": "user", "content": prompt}
@@ -1262,16 +1291,25 @@ Return ONLY valid JSON with no markdown formatting."""},
         max_suggestions: int
     ) -> List[Dict]:
         """Generate build suggestions using Ollama."""
-        prompt = f"""Based on this user's knowledge bank, suggest {max_suggestions} practical projects they could build.
+        prompt = f"""Based on this user's knowledge bank, suggest {max_suggestions} practical projects that COMBINE their capabilities in new ways.
 
 KNOWLEDGE BANK:
 {knowledge_summary[:4000]}
+
+CRITICAL INSTRUCTION:
+- Look for CAPABILITIES (what their code can DO), not just technologies
+- COMBINE capabilities to create NOVEL solutions:
+  • capability A + capability B → New use case
+  • Example: "cost estimation" + "vulnerability scoring" → "Security budget planner"
+- Do NOT suggest rebuilding what they already built with different names
+- Do NOT just swap nouns on the same architecture
 
 Return ONLY a JSON array of suggestions (no markdown, no explanation):
 [
   {{
     "title": "Project Name",
-    "description": "What they'll build and why",
+    "description": "What they'll build - explain which CAPABILITIES are being combined",
+    "capability_combination": "capability A + capability B → novel outcome",
     "feasibility": "high|medium|low",
     "effort_estimate": "2-3 days",
     "required_skills": ["skill1", "skill2"],
@@ -1282,7 +1320,7 @@ Return ONLY a JSON array of suggestions (no markdown, no explanation):
   }}
 ]
 
-Be specific. Reference actual content from their knowledge. Prioritize projects they can START TODAY."""
+Be specific. Combine CAPABILITIES not just tech stacks. Prioritize NOVEL projects over variations of existing work."""
 
         try:
             response = await self._call_ollama(
@@ -1290,8 +1328,10 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
                     {"role": "system", "content": """You are an expert project advisor who suggests realistic software projects.
 
 PRINCIPLES:
-- Suggest projects the user can ACTUALLY build with their current knowledge
-- Be specific - "Task Manager API" not "Some API"
+- Look for CAPABILITIES (what problems their code solves), not just tech stacks
+- COMBINE capabilities to create novel solutions
+- Do NOT just recombine the same technologies with different domain nouns
+- Be specific - "Security budget planner combining cost estimation + vulnerability scoring" not "Task Manager API"
 - Match complexity to their skill level
 - "high" feasibility = can start immediately
 
