@@ -673,6 +673,14 @@ EXTRACTION RULES:
    Examples: "cloud cost estimation", "CVE vulnerability scoring",
    "multi-tenant isolation", "real-time data sync", "payment processing"
 
+   PRIORITIZE:   - Domain-specific engines (cost calculators, security analyzers, risk scorers)
+   - Complex business logic (industry multipliers, compliance checks, audit trails)
+   - Data processing algorithms (parsing, scoring, matching, detection)
+   OVER:
+   - Generic CRUD operations (create/read/update/delete)
+   - Simple API scaffolds (basic REST endpoints)
+   - Standard auth patterns (login/logout/token refresh)
+
    TYPE 2 - TECHNOLOGIES (extract these SECOND):
    What tools/frameworks does it use?
    Examples: "python", "django", "postgresql", "celery"

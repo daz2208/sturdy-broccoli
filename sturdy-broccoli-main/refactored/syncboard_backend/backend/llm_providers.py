@@ -18,7 +18,22 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 
-def get_representative_sample(content: str, max_chars: int = 6000) -> str:
+def _is_code(content: str) -> bool:
+    """Detect if content is source code."""
+    code_indicators = [
+        'def ', 'class ', 'import ', 'from ',  # Python
+        'function ', 'const ', 'let ', 'var ',  # JavaScript
+        'public ', 'private ', 'void ',         # Java/C#
+    ]
+
+    # Check first 2000 chars for code patterns
+    sample = content[:2000]
+    matches = sum(1 for ind in code_indicators if ind in sample)
+
+    return matches >= 2  # At least 2 indicators = likely code
+
+
+def get_document_sample(content: str, max_chars: int = 6000) -> str:
     """
     Get representative sample from beginning, middle, and end of content.
 
@@ -51,6 +66,115 @@ def get_representative_sample(content: str, max_chars: int = 6000) -> str:
 
     # Combine with clear separators
     return f"{start}\n\n[... content continued ...]\n\n{middle}\n\n[... content continued ...]\n\n{end}"
+
+
+def get_code_sample(content: str, max_chars: int = 6000) -> str:
+    """
+    Extract structural elements from code files (signatures, docstrings, domain models).
+
+    This hybrid approach:
+    1. Scales budget by file size (larger files get more budget)
+    2. Extracts ALL class/function signatures + docstrings
+    3. Captures dataclasses and enums (domain models)
+    4. Includes module docstring and imports for context
+
+    Args:
+        content: Source code content
+        max_chars: Base maximum characters (scaled by file size)
+
+    Returns:
+        Extracted code structures within budget
+    """
+    import re
+
+    # Scale budget by file size
+    file_size_kb = len(content) / 1024
+    if file_size_kb <= 10:
+        budget = max_chars  # 6000 for small files
+    elif file_size_kb <= 50:
+        budget = int(max_chars * 2)  # 12000 for medium files
+    else:
+        budget = int(max_chars * 3.33)  # 20000 for large files
+
+    parts = []
+
+    # 1. Module docstring (if present)
+    module_doc_match = re.match(r'^"""(.*?)"""', content, re.DOTALL)
+    if module_doc_match:
+        parts.append(f'"""{module_doc_match.group(1)}"""')
+
+    # 2. Imports (first 500 chars of imports for context)
+    import_lines = []
+    for line in content.split('\n')[:50]:  # Check first 50 lines
+        if line.startswith(('import ', 'from ')):
+            import_lines.append(line)
+    if import_lines:
+        parts.append('\n'.join(import_lines[:20]))  # Max 20 import lines
+
+    # 3. Extract ALL class definitions with their docstrings
+    class_pattern = r'(class\s+\w+[^:]*:(?:\s*""".*?""")?\s*(?:\s*\w+\s*=.*?)?)'
+    for match in re.finditer(class_pattern, content, re.DOTALL):
+        class_text = match.group(1)
+        # Limit each class snippet to 500 chars
+        if len(class_text) > 500:
+            class_text = class_text[:500] + '...'
+        parts.append(class_text)
+
+    # 4. Extract ALL function/method signatures with docstrings
+    func_pattern = r'((?:async\s+)?def\s+\w+\([^)]*\)[^:]*:(?:\s*""".*?""")?)'
+    for match in re.finditer(func_pattern, content, re.DOTALL):
+        func_text = match.group(1)
+        # Limit each function snippet to 400 chars
+        if len(func_text) > 400:
+            func_text = func_text[:400] + '...'
+        parts.append(func_text)
+
+    # 5. Extract dataclasses (full definitions - these are domain models!)
+    dataclass_pattern = r'(@dataclass\s+class\s+\w+[^:]*:.*?(?=\n(?:class|\ndef|@dataclass|\Z)))'
+    for match in re.finditer(dataclass_pattern, content, re.DOTALL):
+        dataclass_text = match.group(1)
+        # Limit to 600 chars but try to keep full definition
+        if len(dataclass_text) > 600:
+            dataclass_text = dataclass_text[:600] + '...'
+        parts.append(dataclass_text)
+
+    # 6. Extract enums (full definitions - these are domain models!)
+    enum_pattern = r'(class\s+\w+\(Enum\):.*?(?=\n(?:class|\ndef|\Z)))'
+    for match in re.finditer(enum_pattern, content, re.DOTALL):
+        enum_text = match.group(1)
+        # Limit to 400 chars
+        if len(enum_text) > 400:
+            enum_text = enum_text[:400] + '...'
+        parts.append(enum_text)
+
+    # Combine all parts
+    combined = '\n\n'.join(parts)
+
+    # Truncate to budget if needed
+    if len(combined) > budget:
+        combined = combined[:budget] + '\n\n[... truncated to budget ...]'
+
+    return combined if combined else content[:budget]  # Fallback to raw content
+
+
+def get_representative_sample(content: str, max_chars: int = 6000) -> str:
+    """
+    Get representative sample from content, using appropriate strategy.
+
+    - For source code: Extracts signatures, docstrings, and domain models
+    - For documents: Samples beginning, middle, and end
+
+    Args:
+        content: Content to sample
+        max_chars: Maximum characters to return (base budget)
+
+    Returns:
+        Sampled content
+    """
+    if _is_code(content):
+        return get_code_sample(content, max_chars)
+    else:
+        return get_document_sample(content, max_chars)
 
 
 class LLMProvider(ABC):
@@ -322,6 +446,13 @@ Return ONLY valid JSON (no markdown, no explanation) with this structure:
 
 EXTRACTION PRIORITY:
 1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
+   PRIORITIZE:   - Domain-specific engines (cost calculators, security analyzers, risk scorers)
+   - Complex business logic (industry multipliers, compliance checks, audit trails)
+   - Data processing algorithms (parsing, scoring, matching, detection)
+   OVER:
+   - Generic CRUD operations (create/read/update/delete)
+   - Simple API scaffolds (basic REST endpoints)
+   - Standard auth patterns (login/logout/token refresh)
 2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
 
 CATEGORIES:
@@ -1225,6 +1356,8 @@ CONTENT:
 EXTRACTION PRIORITY:
 1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
    Examples: "cloud cost estimation", "vulnerability scoring", "tenant isolation"
+   PRIORITIZE: Domain-specific engines, complex business logic, data processing algorithms
+   OVER: Generic CRUD, simple API scaffolds, standard auth patterns
 2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
    Examples: "python", "django", "postgresql"
 
