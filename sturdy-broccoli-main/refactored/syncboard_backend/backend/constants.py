@@ -85,8 +85,9 @@ SKILL_LEVELS = ["beginner", "intermediate", "advanced", "unknown"]
 # - settings.dual_pass_threshold (DUAL_PASS_THRESHOLD)
 # - settings.min_concept_confidence (MIN_CONCEPT_CONFIDENCE)
 
-# Valid concept categories (expanded from 5 to 11)
+# Valid concept categories (expanded to include capabilities)
 VALID_CONCEPT_CATEGORIES = [
+    # Technologies (what tools it uses)
     "language",      # Programming languages
     "framework",     # Web/app frameworks
     "library",       # Code libraries
@@ -97,7 +98,13 @@ VALID_CONCEPT_CATEGORIES = [
     "architecture",  # System design patterns
     "testing",       # Testing approaches
     "devops",        # Operations concepts
-    "concept"        # General programming concepts
+    "concept",       # General programming concepts
+    # Capabilities (what problems it solves)
+    "capability",    # Functional abilities (cost estimation, vulnerability scanning)
+    "problem_domain",  # Business/domain areas (e-commerce, healthcare, fintech)
+    "business_logic",  # Specific logic patterns (tenant isolation, rate limiting)
+    "algorithm",     # Computational approaches (risk scoring, similarity matching)
+    "integration_pattern"  # System connections (webhook handling, API orchestration)
 ]
 
 # =============================================================================
