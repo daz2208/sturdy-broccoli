@@ -395,14 +395,12 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
         knowledge_areas: List[Dict],
         validation_info: Dict,
         max_suggestions: int,
-        enable_quality_filter: bool = True,
-        idea_seeds: List[Dict] = None
+        enable_quality_filter: bool = True
     ) -> List[Dict]:
         """
-        Generate IMPROVED build suggestions with depth analysis (Tier 2: Enhanced).
+        Generate IMPROVED build suggestions with depth analysis.
 
         Includes:
-        - Pre-computed idea seeds (fast, already generated)
         - Actual content snippets (not just concept names)
         - Knowledge area detection
         - Minimum threshold validation
@@ -415,7 +413,6 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             validation_info: Knowledge depth validation info
             max_suggestions: Number of suggestions to generate
             enable_quality_filter: If True, filter out low-coverage suggestions
-            idea_seeds: Pre-computed ideas from database (Tier 2 enhancement)
         """
         stats = validation_info["stats"]
 
@@ -424,15 +421,6 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             f"- {area['name']}: {area['document_count']} docs, {len(area['core_concepts'])} concepts ({area['skill_level']})"
             for area in knowledge_areas
         ])
-
-        # Build idea seeds summary (if available) - as reference context only
-        idea_seeds_text = ""
-        if idea_seeds and len(idea_seeds) > 0:
-            idea_seeds_text = "\n\n---\n\n📚 REFERENCE - Previously Generated Ideas (for quality comparison only):\n"
-            for i, seed in enumerate(idea_seeds[:10], 1):  # Limit to 10 seeds
-                idea_seeds_text += f"{i}. {seed.get('title', 'Untitled')} ({seed.get('difficulty', 'unknown')})\n"
-                idea_seeds_text += f"   {seed.get('description', 'No description')[:100]}...\n\n"
-            idea_seeds_text += f"⚠️ DO NOT simply refine the above {len(idea_seeds)} ideas. Generate FRESH suggestions by analyzing the KNOWLEDGE BANK content above. Use these references only to understand expected quality and avoid duplicates.\n"
 
         prompt_template = string.Template(
             """Based on this VALIDATED knowledge bank, analyze the ACTUAL CONTENT below and suggest ${max_suggestions} DETAILED practical projects.
@@ -447,7 +435,7 @@ KNOWLEDGE AREAS:
 ${areas_text}
 
 DETAILED KNOWLEDGE CONTENT (analyze THIS to generate suggestions):
-${knowledge_summary}${idea_seeds_text}
+${knowledge_summary}
 
 Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
 [
@@ -512,7 +500,6 @@ IMPORTANT:
         try:
             prompt = prompt_template.substitute(
                 max_suggestions=max_suggestions,
-                idea_seeds_text=idea_seeds_text,
                 stats_docs=stats["total_documents"],
                 stats_concepts=stats["unique_concepts"],
                 stats_clusters=stats["total_clusters"],
