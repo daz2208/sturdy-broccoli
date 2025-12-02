@@ -19,23 +19,157 @@ logger = logging.getLogger(__name__)
 
 
 def _is_code(content: str) -> bool:
-    """Detect if content is source code."""
+    """
+    Detect if content is source code.
+
+    Checks for common programming patterns in the first 2000 characters.
+    Returns True if at least 2 code indicators are found.
+    """
     code_indicators = [
-        'def ', 'class ', 'import ', 'from ',  # Python
-        'function ', 'const ', 'let ', 'var ',  # JavaScript
-        'public ', 'private ', 'void ',         # Java/C#
+        # Python
+        'def ', 'class ', 'import ', 'from ', '@dataclass', '@property',
+        'async def', 'await ', 'self.', '__init__',
+        # JavaScript/TypeScript
+        'function ', 'const ', 'let ', 'var ', 'export ', '=>',
+        'async function', 'module.exports',
+        # Java/C#/C++
+        'public ', 'private ', 'protected ', 'void ', 'static ',
+        # Rust
+        'fn ', 'impl ', 'pub ', 'mod ',
+        # Go
+        'func ', 'package ',
     ]
 
     # Check first 2000 chars for code patterns
-    sample = content[:2000]
-    matches = sum(1 for ind in code_indicators if ind in sample)
+    sample = content[:2000].lower()
+    matches = sum(1 for ind in code_indicators if ind.lower() in sample)
 
-    return matches >= 2  # At least 2 indicators = likely code
+    # Also check for common code structure patterns
+    has_brackets = sample.count('{') > 2 or sample.count('(') > 5
+    has_colons = sample.count(':') > 3  # Python function defs
+
+    return matches >= 2 or (matches >= 1 and (has_brackets or has_colons))
+
+
+def get_code_sample(content: str, file_size: int, max_chars: int = 6000) -> str:
+    """
+    Code-aware sampling that extracts semantically important parts.
+
+    Instead of random position-based chunks, this extracts:
+    1. Module docstring and imports (context)
+    2. All class/function signatures with their docstrings (CAPABILITIES)
+    3. Enum and dataclass definitions (domain models)
+
+    Args:
+        content: Full source code content
+        file_size: Size of the file in bytes (for budget scaling)
+        max_chars: Base maximum characters (will be scaled by file size)
+
+    Returns:
+        Sampled content focused on capability-revealing code structures
+    """
+    import re
+
+    # 1. Scale budget by file size
+    if file_size < 10000:  # < 10KB
+        budget = max_chars  # Use default (6000)
+    elif file_size < 50000:  # 10-50KB
+        budget = max(max_chars, 12000)
+    else:  # > 50KB
+        budget = max(max_chars, 20000)
+
+    parts = []
+
+    # 2. Always get module docstring + imports (first 1500 chars for context)
+    header = content[:1500]
+    parts.append(header)
+
+    # 3. Extract ALL class definitions with their docstrings
+    # Pattern matches: class ClassName(Base): or class ClassName:
+    class_pattern = r'(class\s+\w+[^:]*:)\s*("""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')?'
+
+    for match in re.finditer(class_pattern, content):
+        signature = match.group(1).strip()
+        docstring = (match.group(2) or "").strip()
+
+        # Truncate long docstrings but keep the important first part
+        if len(docstring) > 300:
+            docstring = docstring[:300] + '..."""'
+
+        parts.append(f"{signature}\n    {docstring}")
+
+    # 4. Extract ALL function/method definitions with docstrings
+    # Pattern matches: def function_name(args): or async def function_name(args):
+    func_pattern = r'((?:async\s+)?def\s+\w+\s*\([^)]*\)[^:]*:)\s*("""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\')?'
+
+    for match in re.finditer(func_pattern, content):
+        signature = match.group(1).strip()
+        docstring = (match.group(2) or "").strip()
+
+        # Truncate long docstrings
+        if len(docstring) > 250:
+            docstring = docstring[:250] + '..."""'
+
+        parts.append(f"{signature}\n    {docstring}")
+
+    # 5. Get Enum definitions (domain models - often contain business categories)
+    enum_pattern = r'(class\s+\w+\s*\(\s*Enum\s*\)\s*:[\s\S]*?)(?=\nclass\s|\ndef\s|\Z)'
+
+    for match in re.finditer(enum_pattern, content):
+        enum_block = match.group(1).strip()
+        # Keep full enum if small, truncate if large
+        if len(enum_block) > 600:
+            enum_block = enum_block[:600] + "\n    # ... more values"
+        parts.append(enum_block)
+
+    # 6. Get dataclass definitions (data models)
+    dataclass_pattern = r'(@dataclass[\s\S]*?class\s+\w+[^:]*:[\s\S]*?)(?=\n@|\nclass\s|\ndef\s|\Z)'
+
+    for match in re.finditer(dataclass_pattern, content):
+        dataclass_block = match.group(1).strip()
+        if len(dataclass_block) > 500:
+            dataclass_block = dataclass_block[:500] + "\n    # ... more fields"
+        parts.append(dataclass_block)
+
+    # 7. Look for TypedDict, NamedTuple, and Pydantic models
+    typed_pattern = r'(class\s+\w+\s*\(\s*(?:TypedDict|NamedTuple|BaseModel)\s*\)\s*:[\s\S]*?)(?=\nclass\s|\ndef\s|\Z)'
+
+    for match in re.finditer(typed_pattern, content):
+        typed_block = match.group(1).strip()
+        if len(typed_block) > 400:
+            typed_block = typed_block[:400] + "\n    # ..."
+        parts.append(typed_block)
+
+    # 8. Combine, deduplicate, and truncate to budget
+    combined = "\n\n".join(parts)
+
+    # Remove duplicate sections (header might contain some class/func defs)
+    # Simple dedup: if a signature appears twice, keep first occurrence
+    seen_signatures = set()
+    deduped_parts = []
+
+    for part in parts:
+        # Extract first line as signature key
+        first_line = part.split('\n')[0].strip()
+        if first_line not in seen_signatures:
+            seen_signatures.add(first_line)
+            deduped_parts.append(part)
+
+    combined = "\n\n".join(deduped_parts)
+
+    # Final truncation to budget
+    if len(combined) > budget:
+        combined = combined[:budget] + "\n\n# ... [truncated for length]"
+
+    return combined
 
 
 def get_document_sample(content: str, max_chars: int = 6000) -> str:
     """
-    Get representative sample from beginning, middle, and end of content.
+    Get representative sample from beginning, middle, and end of documents.
+
+    This is the ORIGINAL sampling logic - kept for non-code content like
+    PDFs, articles, YouTube transcripts, etc.
 
     For content longer than max_chars, extracts three equal-sized chunks:
     - Beginning: First concepts and introduction
@@ -68,111 +202,31 @@ def get_document_sample(content: str, max_chars: int = 6000) -> str:
     return f"{start}\n\n[... content continued ...]\n\n{middle}\n\n[... content continued ...]\n\n{end}"
 
 
-def get_code_sample(content: str, max_chars: int = 6000) -> str:
+def get_representative_sample(content: str, max_chars: int = 6000, source_type: str = "") -> str:
     """
-    Extract structural elements from code files (signatures, docstrings, domain models).
+    Smart sampling that routes to the appropriate sampler based on content type.
 
-    This hybrid approach:
-    1. Scales budget by file size (larger files get more budget)
-    2. Extracts ALL class/function signatures + docstrings
-    3. Captures dataclasses and enums (domain models)
-    4. Includes module docstring and imports for context
+    For source code: Uses code-aware sampling that extracts signatures + docstrings
+    For documents: Uses position-based sampling (beginning/middle/end)
 
     Args:
-        content: Source code content
-        max_chars: Base maximum characters (scaled by file size)
+        content: Full content text
+        max_chars: Maximum characters for the sample
+        source_type: Optional hint about content type ("code", "pdf", "youtube", etc.)
 
     Returns:
-        Extracted code structures within budget
+        Representative sample optimized for the content type
     """
-    import re
+    # Check if explicitly marked as code or auto-detect
+    is_code = source_type in ("code", "python", "javascript", "java", "typescript")
 
-    # Scale budget by file size
-    file_size_kb = len(content) / 1024
-    if file_size_kb <= 10:
-        budget = max_chars  # 6000 for small files
-    elif file_size_kb <= 50:
-        budget = int(max_chars * 2)  # 12000 for medium files
-    else:
-        budget = int(max_chars * 3.33)  # 20000 for large files
+    if not is_code:
+        is_code = _is_code(content)
 
-    parts = []
-
-    # 1. Module docstring (if present)
-    module_doc_match = re.match(r'^"""(.*?)"""', content, re.DOTALL)
-    if module_doc_match:
-        parts.append(f'"""{module_doc_match.group(1)}"""')
-
-    # 2. Imports (first 500 chars of imports for context)
-    import_lines = []
-    for line in content.split('\n')[:50]:  # Check first 50 lines
-        if line.startswith(('import ', 'from ')):
-            import_lines.append(line)
-    if import_lines:
-        parts.append('\n'.join(import_lines[:20]))  # Max 20 import lines
-
-    # 3. Extract ALL class definitions with their docstrings
-    class_pattern = r'(class\s+\w+[^:]*:(?:\s*""".*?""")?\s*(?:\s*\w+\s*=.*?)?)'
-    for match in re.finditer(class_pattern, content, re.DOTALL):
-        class_text = match.group(1)
-        # Limit each class snippet to 500 chars
-        if len(class_text) > 500:
-            class_text = class_text[:500] + '...'
-        parts.append(class_text)
-
-    # 4. Extract ALL function/method signatures with docstrings
-    func_pattern = r'((?:async\s+)?def\s+\w+\([^)]*\)[^:]*:(?:\s*""".*?""")?)'
-    for match in re.finditer(func_pattern, content, re.DOTALL):
-        func_text = match.group(1)
-        # Limit each function snippet to 400 chars
-        if len(func_text) > 400:
-            func_text = func_text[:400] + '...'
-        parts.append(func_text)
-
-    # 5. Extract dataclasses (full definitions - these are domain models!)
-    dataclass_pattern = r'(@dataclass\s+class\s+\w+[^:]*:.*?(?=\n(?:class|\ndef|@dataclass|\Z)))'
-    for match in re.finditer(dataclass_pattern, content, re.DOTALL):
-        dataclass_text = match.group(1)
-        # Limit to 600 chars but try to keep full definition
-        if len(dataclass_text) > 600:
-            dataclass_text = dataclass_text[:600] + '...'
-        parts.append(dataclass_text)
-
-    # 6. Extract enums (full definitions - these are domain models!)
-    enum_pattern = r'(class\s+\w+\(Enum\):.*?(?=\n(?:class|\ndef|\Z)))'
-    for match in re.finditer(enum_pattern, content, re.DOTALL):
-        enum_text = match.group(1)
-        # Limit to 400 chars
-        if len(enum_text) > 400:
-            enum_text = enum_text[:400] + '...'
-        parts.append(enum_text)
-
-    # Combine all parts
-    combined = '\n\n'.join(parts)
-
-    # Truncate to budget if needed
-    if len(combined) > budget:
-        combined = combined[:budget] + '\n\n[... truncated to budget ...]'
-
-    return combined if combined else content[:budget]  # Fallback to raw content
-
-
-def get_representative_sample(content: str, max_chars: int = 6000) -> str:
-    """
-    Get representative sample from content, using appropriate strategy.
-
-    - For source code: Extracts signatures, docstrings, and domain models
-    - For documents: Samples beginning, middle, and end
-
-    Args:
-        content: Content to sample
-        max_chars: Maximum characters to return (base budget)
-
-    Returns:
-        Sampled content
-    """
-    if _is_code(content):
-        return get_code_sample(content, max_chars)
+    if is_code:
+        file_size = len(content)
+        sample = get_code_sample(content, file_size, max_chars)
+        return sample
     else:
         return get_document_sample(content, max_chars)
 
