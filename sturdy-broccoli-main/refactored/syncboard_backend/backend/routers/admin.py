@@ -485,7 +485,7 @@ async def cleanup_failed_documents(
         CleanupResponse with deletion counts
     """
     from datetime import datetime, timedelta
-    from ..db_models import DBDocumentChunk, DBDocumentSummary
+    from ..db_models import DBDocumentChunk, DBDocumentSummary, DBBuildIdeaSeed
     from ..cache import get_kb_documents, get_kb_metadata
     from ..vector_store import vector_store
 
@@ -536,6 +536,11 @@ async def cleanup_failed_documents(
 
         db.query(DBDocumentSummary).filter(
             DBDocumentSummary.document_id == doc.id
+        ).delete()
+
+        # Delete build idea seeds (cascade unreliable)
+        db.query(DBBuildIdeaSeed).filter(
+            DBBuildIdeaSeed.document_id == doc.id
         ).delete()
 
         # Delete document

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from .models import DocumentMetadata, Cluster, Concept
-from .db_models import DBUser, DBCluster, DBDocument, DBConcept, DBVectorDocument
+from .db_models import DBUser, DBCluster, DBDocument, DBConcept, DBVectorDocument, DBBuildIdeaSeed
 from .vector_store import VectorStore
 from .repository_interface import KnowledgeBankRepository
 
@@ -297,6 +297,11 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
 
             # Delete vector document
             self.db.query(DBVectorDocument).filter_by(doc_id=doc_id).delete()
+
+            # Explicitly delete build idea seeds (cascade unreliable)
+            self.db.query(DBBuildIdeaSeed).filter(
+                DBBuildIdeaSeed.document_id == db_doc.id
+            ).delete()
 
             # Delete document (concepts deleted via cascade)
             self.db.delete(db_doc)

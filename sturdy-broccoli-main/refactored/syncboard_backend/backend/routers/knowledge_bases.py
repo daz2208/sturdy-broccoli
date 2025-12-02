@@ -13,7 +13,7 @@ from datetime import datetime
 from ..database import get_db
 from ..dependencies import get_current_user, get_repository, get_kb_documents, get_kb_metadata, get_kb_clusters, get_build_suggester
 from ..repository_interface import KnowledgeBankRepository
-from ..db_models import DBKnowledgeBase, DBBuildSuggestion, DBDocument, DBCluster
+from ..db_models import DBKnowledgeBase, DBBuildSuggestion, DBDocument, DBCluster, DBBuildIdeaSeed
 from ..models import (
     KnowledgeBase,
     KnowledgeBaseCreate,
@@ -189,6 +189,11 @@ async def delete_knowledge_base(
         ).first()
         if other_kb:
             other_kb.is_default = True
+
+    # Explicitly delete build idea seeds (cascade unreliable)
+    db.query(DBBuildIdeaSeed).filter(
+        DBBuildIdeaSeed.knowledge_base_id == kb_id
+    ).delete()
 
     db.delete(kb)
     db.commit()
