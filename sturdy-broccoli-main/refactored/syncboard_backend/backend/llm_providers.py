@@ -132,7 +132,10 @@ class OpenAIProvider(LLMProvider):
         if not self.api_key:
             raise ValueError("OpenAI API key required")
 
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        self.client = AsyncOpenAI(
+            api_key=self.api_key,
+            timeout=120.0  # 2 minute timeout
+        )
         self.concept_model = concept_model
         self.suggestion_model = suggestion_model
 
@@ -549,7 +552,7 @@ OUTPUT: Return ONLY valid JSON with no markdown formatting."""
                 ],
                 model=self.suggestion_model,
                 temperature=0.5,
-                max_tokens=32000
+                max_tokens=16000  # Reduced from 32000 - still plenty for detailed suggestions
             )
 
             suggestions = json.loads(response)
