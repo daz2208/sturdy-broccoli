@@ -322,6 +322,13 @@ Return ONLY valid JSON (no markdown, no explanation) with this structure:
 
 EXTRACTION PRIORITY:
 1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
+   PRIORITIZE:   - Domain-specific engines (cost calculators, security analyzers, risk scorers)
+   - Complex business logic (industry multipliers, compliance checks, audit trails)
+   - Data processing algorithms (parsing, scoring, matching, detection)
+   OVER:
+   - Generic CRUD operations (create/read/update/delete)
+   - Simple API scaffolds (basic REST endpoints)
+   - Standard auth patterns (login/logout/token refresh)
 2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
 
 CATEGORIES:
@@ -1225,6 +1232,8 @@ CONTENT:
 EXTRACTION PRIORITY:
 1. CAPABILITIES FIRST - What problems does this solve? What can it DO?
    Examples: "cloud cost estimation", "vulnerability scoring", "tenant isolation"
+   PRIORITIZE: Domain-specific engines, complex business logic, data processing algorithms
+   OVER: Generic CRUD, simple API scaffolds, standard auth patterns
 2. TECHNOLOGIES SECOND - What tools/frameworks does it use?
    Examples: "python", "django", "postgresql"
 
