@@ -134,7 +134,8 @@ class OpenAIProvider(LLMProvider):
 
         self.client = AsyncOpenAI(
             api_key=self.api_key,
-            timeout=120.0  # 2 minute timeout
+            timeout=120.0,  # 2 minute timeout
+            max_retries=0  # Disable OpenAI client retries (we handle retries ourselves)
         )
         self.concept_model = concept_model
         self.suggestion_model = suggestion_model
