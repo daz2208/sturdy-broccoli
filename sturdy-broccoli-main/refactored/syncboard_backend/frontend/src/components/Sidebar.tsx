@@ -28,7 +28,6 @@ const navigation: NavItem[] = [
   { name: 'Knowledge Graph', href: '/knowledge-graph', icon: Network },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'AI Validation', href: '/ai-validation', icon: CheckCircle },
-  { name: 'Agent Monitor', href: '/agents', icon: Bot },
   { name: 'Learning Dashboard', href: '/learning-dashboard', icon: Brain },
   { name: 'Build Ideas', href: '/build', icon: Lightbulb },
   { name: 'Content Generation', href: '/content-generation', icon: Sparkles },
