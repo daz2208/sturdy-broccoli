@@ -151,6 +151,17 @@ class ConceptExtractor:
             )
             filtered_count = len(result['concepts'])
 
+            # Apply learned rules from agentic learning (vocabulary, reject/rename rules)
+            if username:
+                from backend.learning_engine import LearningEngine
+                result['concepts'], applied_rules_log = LearningEngine.apply_learned_rules(
+                    username=username,
+                    concepts=result['concepts'],
+                    content_sample=content[:500]  # First 500 chars for context
+                )
+                if applied_rules_log:
+                    logger.info(f"🤖 Applied {len(applied_rules_log)} learned rules for {username}: {', '.join(applied_rules_log[:3])}")
+
             # Calculate overall confidence score for agentic learning
             # Based on: number of concepts, their confidence scores, and content quality signals
             if result['concepts']:
