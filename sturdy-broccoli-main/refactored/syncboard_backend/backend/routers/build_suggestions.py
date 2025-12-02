@@ -137,18 +137,22 @@ async def what_can_i_build(
         else:
             logger.info(f"Cache STALE (empty suggestions) for {current_user.username} – regenerating")
 
-    # Tier 2 Enhancement: Pull pre-computed idea seeds first
+    # Tier 2 Enhancement: Pull pre-computed idea seeds first (optional)
+    from ..config import settings
     from ..idea_seeds_service import get_user_idea_seeds
 
-    idea_seeds = await get_user_idea_seeds(
-        db=db,
-        knowledge_base_id=kb_id,
-        difficulty=None,  # Get all difficulties
-        limit=50,  # Get more seeds for better context
-        username=current_user.username  # Enable cross-KB fallback
-    )
-
-    logger.info(f"Found {len(idea_seeds)} pre-computed idea seeds for enhanced suggestions")
+    idea_seeds = []
+    if settings.enable_idea_seeds:
+        idea_seeds = await get_user_idea_seeds(
+            db=db,
+            knowledge_base_id=kb_id,
+            difficulty=None,  # Get all difficulties
+            limit=50,  # Get more seeds for better context
+            username=current_user.username  # Enable cross-KB fallback
+        )
+        logger.info(f"Found {len(idea_seeds)} pre-computed idea seeds for enhanced suggestions")
+    else:
+        logger.info("Idea seeds DISABLED via config - generating suggestions without seeds")
 
     # Cache miss - generate suggestions (enhanced with idea seeds)
     logger.info(f"Cache MISS: Generating ENHANCED build suggestions for {current_user.username}")

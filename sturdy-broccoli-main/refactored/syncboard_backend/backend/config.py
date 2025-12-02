@@ -199,6 +199,12 @@ class Settings(BaseSettings):
     # AI/ML Configuration
     # =============================================================================
 
+    enable_idea_seeds: bool = Field(
+        default=True,
+        description="Enable idea seeds in build suggestions (set to False to test without seeds)",
+        validation_alias="ENABLE_IDEA_SEEDS"
+    )
+
     concept_sample_size: int = Field(
         default=6000,
         description="Maximum characters to analyze for concept extraction",
