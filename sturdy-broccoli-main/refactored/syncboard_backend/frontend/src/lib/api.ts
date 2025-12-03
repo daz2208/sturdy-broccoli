@@ -170,7 +170,7 @@ class ApiClient {
   // ==========================================================================
   // DOCUMENTS
   // ==========================================================================
-  async getDocuments(): Promise<{ documents: Types.Document[]; total: number; knowledge_base_id: number }> {
+  async getDocuments(): Promise<{ documents: Types.Document[]; total: number; knowledge_base_id: string }> {
     const { data } = await this.client.get('/documents');
     return data;
   }
@@ -220,7 +220,7 @@ class ApiClient {
   // ==========================================================================
   // CLUSTERS
   // ==========================================================================
-  async getClusters(): Promise<{ clusters: Types.Cluster[]; total: number; knowledge_base_id: number }> {
+  async getClusters(): Promise<{ clusters: Types.Cluster[]; total: number; knowledge_base_id: string }> {
     const { data } = await this.client.get('/clusters');
     return data;
   }
@@ -658,12 +658,12 @@ class ApiClient {
   // ==========================================================================
   // KNOWLEDGE GRAPH
   // ==========================================================================
-  async getKnowledgeGraphStats(): Promise<{ knowledge_base_id: number; stats: Types.KnowledgeGraphStats }> {
+  async getKnowledgeGraphStats(): Promise<{ knowledge_base_id: string; stats: Types.KnowledgeGraphStats }> {
     const { data } = await this.client.get('/knowledge-graph/stats');
     return data;
   }
 
-  async buildKnowledgeGraph(): Promise<{ status: string; knowledge_base_id: number; stats: Types.KnowledgeGraphStats }> {
+  async buildKnowledgeGraph(): Promise<{ status: string; knowledge_base_id: string; stats: Types.KnowledgeGraphStats }> {
     const { data } = await this.client.post('/knowledge-graph/build');
     return data;
   }

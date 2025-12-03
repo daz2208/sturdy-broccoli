@@ -14,7 +14,7 @@ export default function KnowledgeBasesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
   useEffect(() => { loadKnowledgeBases(); }, []);
@@ -41,7 +41,7 @@ export default function KnowledgeBasesPage() {
     }
   };
 
-  const handleKBClick = (kbId: number) => {
+  const handleKBClick = (kbId: string) => {
     // Navigate to documents page filtered by this KB
     router.push(`/documents?kb_id=${kbId}`);
   };
@@ -60,7 +60,7 @@ export default function KnowledgeBasesPage() {
     }
   };
 
-  const deleteKnowledgeBase = async (id: number) => {
+  const deleteKnowledgeBase = async (id: string) => {
     if (!confirm('Are you sure you want to delete this knowledge base?')) return;
     try {
       await api.deleteKnowledgeBase(id);
@@ -71,7 +71,7 @@ export default function KnowledgeBasesPage() {
     }
   };
 
-  const setDefault = async (id: number) => {
+  const setDefault = async (id: string) => {
     try {
       await api.updateKnowledgeBase(id, { is_default: true });
       toast.success('Default knowledge base updated');
@@ -81,7 +81,7 @@ export default function KnowledgeBasesPage() {
     }
   };
 
-  const saveEdit = async (id: number) => {
+  const saveEdit = async (id: string) => {
     try {
       await api.updateKnowledgeBase(id, { name: editName });
       toast.success('Knowledge base updated');
