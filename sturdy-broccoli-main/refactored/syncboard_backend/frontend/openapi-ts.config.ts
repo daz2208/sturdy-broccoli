@@ -1,7 +1,7 @@
 import { defineConfig } from '@hey-api/openapi-ts';
 
 export default defineConfig({
-  client: '@hey-api/client-axios',
+  client: '@hey-api/client-fetch',
   input: 'http://localhost:8000/openapi.json',
   output: {
     path: './src/generated',
@@ -10,9 +10,9 @@ export default defineConfig({
   },
   types: {
     enums: 'javascript',
-    dates: 'types+transform',
   },
   services: {
-    asClass: true,
+    asClass: false,
   },
 });
+
