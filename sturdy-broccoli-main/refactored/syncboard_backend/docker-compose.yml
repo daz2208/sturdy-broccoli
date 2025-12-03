@@ -236,6 +236,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery worker 4 (dedicated analysis worker)
   celery-worker-analysis:
@@ -269,6 +276,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery Beat - Scheduler for periodic tasks (agents)
   celery-beat:
@@ -332,6 +346,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Celery worker - Maverick Agent (continuous improvement challenger)
   celery-worker-maverick:
@@ -364,6 +385,13 @@ services:
       - ./backend:/app/backend
     networks:
       - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Flower - Celery monitoring dashboard
   flower:
