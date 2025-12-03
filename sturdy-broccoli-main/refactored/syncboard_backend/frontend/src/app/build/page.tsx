@@ -490,7 +490,7 @@ export default function BuildPage() {
   const getQuickIdeas = async (difficulty?: string) => {
     setLoadingQuick(true);
     try {
-      const data = await api.getQuickIdeas(difficulty, 10);
+      const data = await api.getQuickIdeas(difficulty, 30);
       setQuickIdeas(data.ideas);
       if (data.ideas.length === 0) {
         toast('No quick ideas available yet. Upload documents to generate idea seeds!', { icon: '💡' });
