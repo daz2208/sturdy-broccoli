@@ -324,7 +324,7 @@ export interface CloudFile {
 
 // Knowledge Bases
 export interface KnowledgeBase {
-  id: number;
+  id: string;  // UUID string from backend
   name: string;
   description?: string;
   owner_username: string;
