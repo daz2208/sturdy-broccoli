@@ -593,22 +593,22 @@ class ApiClient {
     return data;
   }
 
-  async getKnowledgeBase(kbId: number): Promise<Types.KnowledgeBase> {
+  async getKnowledgeBase(kbId: string): Promise<Types.KnowledgeBase> {
     const { data } = await this.client.get(`/knowledge-bases/${kbId}`);
     return data;
   }
 
-  async updateKnowledgeBase(kbId: number, updates: { name?: string; description?: string; is_default?: boolean }): Promise<Types.KnowledgeBase> {
+  async updateKnowledgeBase(kbId: string, updates: { name?: string; description?: string; is_default?: boolean }): Promise<Types.KnowledgeBase> {
     const { data } = await this.client.patch(`/knowledge-bases/${kbId}`, updates);
     return data;
   }
 
-  async deleteKnowledgeBase(kbId: number): Promise<{ message: string }> {
+  async deleteKnowledgeBase(kbId: string): Promise<{ message: string }> {
     const { data } = await this.client.delete(`/knowledge-bases/${kbId}`);
     return data;
   }
 
-  async getKnowledgeBaseStats(kbId: number): Promise<{ total_documents: number; total_clusters: number; total_concepts: number; disk_usage_mb: number }> {
+  async getKnowledgeBaseStats(kbId: string): Promise<{ total_documents: number; total_clusters: number; total_concepts: number; disk_usage_mb: number }> {
     const { data } = await this.client.get(`/knowledge-bases/${kbId}/stats`);
     return data;
   }
@@ -1123,17 +1123,17 @@ class ApiClient {
     return data;
   }
 
-  async linkKnowledgeBaseToTeam(teamId: number, kbId: number, permission?: string): Promise<{ message: string }> {
+  async linkKnowledgeBaseToTeam(teamId: number, kbId: string, permission?: string): Promise<{ message: string }> {
     const { data } = await this.client.post(`/teams/${teamId}/knowledge-bases`, { knowledge_base_id: kbId, permission });
     return data;
   }
 
-  async getTeamKnowledgeBases(teamId: number): Promise<{ knowledge_base_id: number; name: string; permission: string }[]> {
+  async getTeamKnowledgeBases(teamId: number): Promise<{ knowledge_base_id: string; name: string; permission: string }[]> {
     const { data } = await this.client.get(`/teams/${teamId}/knowledge-bases`);
     return data;
   }
 
-  async unlinkKnowledgeBaseFromTeam(teamId: number, kbId: number): Promise<{ message: string }> {
+  async unlinkKnowledgeBaseFromTeam(teamId: number, kbId: string): Promise<{ message: string }> {
     const { data } = await this.client.delete(`/teams/${teamId}/knowledge-bases/${kbId}`);
     return data;
   }
