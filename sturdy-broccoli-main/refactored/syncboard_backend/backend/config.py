@@ -189,12 +189,6 @@ class Settings(BaseSettings):
         validation_alias="SUMMARY_MODEL"
     )
 
-    idea_model: str = Field(
-        default="gpt-5-mini",
-        description="Model for idea generation",
-        validation_alias="IDEA_MODEL"
-    )
-
     # =============================================================================
     # AI/ML Configuration
     # =============================================================================

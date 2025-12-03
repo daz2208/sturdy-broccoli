@@ -89,7 +89,7 @@ async def generate_workflow(
 
             provider = OpenAIProvider(
                 api_key=api_key,
-                suggestion_model="gpt-4o"
+                suggestion_model="gpt-5-mini"
             )
 
             # Generate workflow

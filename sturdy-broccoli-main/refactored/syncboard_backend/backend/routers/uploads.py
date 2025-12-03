@@ -192,7 +192,7 @@ async def upload_text_content(
             output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level")},
             confidence_score=extraction.get("confidence_score", 0.5),
             knowledge_base_id=kb_id,
-            model_name="gpt-4o-mini"
+            model_name="gpt-5-mini"
         )
     except Exception as e:
         logger.warning(f"Failed to record concept extraction decision: {e}")
