@@ -92,11 +92,13 @@ class ImprovedBuildSuggester:
             )
 
             # Convert to BuildSuggestion objects
+            # Return ALL suggestions generated, not just the requested amount
+            # This gives users the full value from the AI generation
             suggestions = []
-            for data in suggestions_data[:max_suggestions]:
+            for data in suggestions_data:
                 suggestions.append(BuildSuggestion(**data))
 
-            logger.info(f"Generated {len(suggestions)} validated build suggestions")
+            logger.info(f"Generated {len(suggestions)} validated build suggestions (requested: {max_suggestions})")
             return suggestions
 
         except Exception as e:
@@ -180,8 +182,8 @@ class ImprovedBuildSuggester:
 
         Not just concept names - include actual code, examples, quotes.
         """
-        # Token budget management (GPT-5 has 272k input limit)
-        MAX_SUMMARY_TOKENS = 150000  # Conservative limit for summary
+        # Token budget management (GPT-5-mini has large context window)
+        MAX_SUMMARY_TOKENS = 250000  # Increased budget for richer context
         CHARS_PER_TOKEN = 4  # Rough estimate
         max_chars = MAX_SUMMARY_TOKENS * CHARS_PER_TOKEN
 
@@ -205,15 +207,15 @@ class ImprovedBuildSuggester:
             cluster_docs = [
                 (did, meta) for did, meta in metadata.items()
                 if meta.cluster_id == cluster_id
-            ][:5]  # Top 5 docs
+            ][:8]  # Top 8 docs (increased for richer context)
 
             lines.append(f"\n   ### Document Details:")
             for doc_id, meta in cluster_docs:
                 doc_content = documents.get(doc_id, "")
 
-                # Get actual content snippet (first 500 chars for better context)
-                snippet = doc_content[:1000].strip()
-                if len(doc_content) > 1000:
+                # Get actual content snippet (3000 chars for much richer context)
+                snippet = doc_content[:3000].strip()
+                if len(doc_content) > 3000:
                     snippet += "..."
 
                 # Get concept details
