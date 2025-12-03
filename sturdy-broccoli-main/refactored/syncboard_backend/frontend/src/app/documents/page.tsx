@@ -415,7 +415,7 @@ export default function DocumentsPage() {
             >
               <option value="all">All Knowledge Bases</option>
               {knowledgeBases.map(kb => (
-                <option key={kb.id} value={kb.id.toString()}>
+                <option key={kb.id} value={kb.id}>
                   {kb.name} {kb.is_default ? '⭐' : ''}
                 </option>
               ))}
