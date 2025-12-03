@@ -185,7 +185,7 @@ OUTPUT: Return ONLY valid JSON with no markdown formatting."""
                     },
                     {"role": "user", "content": prompt}
                 ],
-                model="gpt-4o",
+                model="gpt-5-mini",
                 temperature=0.3,
                 max_tokens=4000
             )
@@ -276,7 +276,7 @@ Provide rapid, honest assessment of project ideas.
 Return ONLY valid JSON."""},
                     {"role": "user", "content": prompt}
                 ],
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 temperature=0.3,
                 max_tokens=500
             )
@@ -356,7 +356,7 @@ RANKING CRITERIA:
 Be objective and specific. Return ONLY valid JSON."""},
                     {"role": "user", "content": prompt}
                 ],
-                model="gpt-4o",
+                model="gpt-5-mini",
                 temperature=0.3,
                 max_tokens=2000
             )

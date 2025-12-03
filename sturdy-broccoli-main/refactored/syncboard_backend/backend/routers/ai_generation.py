@@ -300,7 +300,7 @@ async def generate_enhanced(
             enable_reranking=True,
             initial_retrieval_k=50,
             rerank_top_k=10,
-            generation_model=req.model or "gpt-4o-mini"
+            generation_model=req.model or "gpt-5-mini"
         )
 
         # Create service and generate

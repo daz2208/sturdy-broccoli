@@ -324,7 +324,7 @@ async def what_can_i_build_goal_driven(
 
     provider = OpenAIProvider(
         api_key=api_key,
-        suggestion_model="gpt-4o"
+        suggestion_model="gpt-5-mini"
     )
 
     # Generate goal-driven suggestions
@@ -399,7 +399,7 @@ async def validate_market(
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 
-    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-4o")
+    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-5-mini")
     validator = MarketValidator(provider)
 
     # Perform validation
@@ -1032,7 +1032,7 @@ async def create_mega_project(
     if not api_key:
         raise HTTPException(status_code=503, detail="OpenAI API key not configured")
 
-    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-4o")
+    provider = OpenAIProvider(api_key=api_key, suggestion_model="gpt-5-mini")
 
     # Build the mega-project prompt
     ideas_summary = "\n\n".join([

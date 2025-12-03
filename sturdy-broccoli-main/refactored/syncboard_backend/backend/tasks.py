@@ -333,7 +333,7 @@ def process_multi_document_zip(
                     output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                     confidence_score=extraction.get("confidence_score", 0.5),
                     knowledge_base_id=kb_id,
-                    model_name="gpt-4o-mini"
+                    model_name="gpt-5-mini"
                 ))
                 logger.debug(f"Recorded concept extraction decision for ZIP file {doc_filename} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
             except Exception as e:
@@ -651,7 +651,7 @@ def process_file_upload(
                 output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id,
-                model_name="gpt-4o-mini"
+                model_name="gpt-5-mini"
             ))
             logger.debug(f"Recorded concept extraction decision for file {filename_safe} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
         except Exception as e:
@@ -1059,7 +1059,7 @@ def process_url_upload(
                 output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id,
-                model_name="gpt-4o-mini"
+                model_name="gpt-5-mini"
             ))
             logger.debug(f"Recorded concept extraction decision for URL {url_safe[:50]} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
         except Exception as e:
@@ -1479,7 +1479,7 @@ def process_image_upload(
                 output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                 confidence_score=extraction.get("confidence_score", 0.5),
                 knowledge_base_id=kb_id if kb_id else "default",
-                model_name="gpt-4o-mini"
+                model_name="gpt-5-mini"
             ))
             logger.debug(f"Recorded concept extraction decision for image {filename_safe} (confidence: {extraction.get('confidence_score', 0.5):.2f})")
         except Exception as e:
@@ -2092,7 +2092,7 @@ def import_github_files_task(
                         output_data={"concepts": extraction.get("concepts", []), "skill_level": extraction.get("skill_level"), "learning_applied": learning_applied},
                         confidence_score=extraction.get("confidence_score", 0.5),
                         knowledge_base_id=kb_id,
-                        model_name="gpt-4o-mini"
+                        model_name="gpt-5-mini"
                     ))
                 except Exception as e:
                     logger.warning(f"Failed to record concept extraction decision: {e}")

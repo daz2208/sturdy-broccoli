@@ -628,7 +628,7 @@ Return ONLY valid JSON:"""
         client = AsyncOpenAI(api_key=api_key)
 
         response = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "You are a concept extraction system. Return only valid JSON."},
                 {"role": "user", "content": prompt}

@@ -175,7 +175,7 @@ class KnowledgeServices:
         user_message: str,
         temperature: float = 0.7,
         max_tokens: int = 4000,
-        model: str = "gpt-4o-mini"
+        model: str = "gpt-5-mini"
     ) -> str:
         """Generic LLM call helper."""
         client = self._get_client()
@@ -965,7 +965,7 @@ Return JSON:
         response = await self._call_llm(
             system_message, user_message,
             temperature=0.7, max_tokens=8000,
-            model="gpt-4o-mini"
+            model="gpt-5-mini"
         )
 
         try:

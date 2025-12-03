@@ -62,7 +62,7 @@ class RAGConfig:
 
     # Generation
     max_context_tokens: int = 100000
-    generation_model: str = "gpt-4o-mini"
+    generation_model: str = "gpt-5-mini"
 
 
 # =============================================================================
@@ -499,7 +499,7 @@ Return ONLY the alternative queries, one per line, no numbering or explanations:
 
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-5-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_completion_tokens=5000  # Use max_completion_tokens (works for both GPT-4 and GPT-5)
