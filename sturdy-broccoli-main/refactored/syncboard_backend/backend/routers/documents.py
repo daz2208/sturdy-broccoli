@@ -81,7 +81,8 @@ async def list_documents(
             "primary_topic": getattr(meta, 'primary_topic', None) or "Uncategorized",
             "skill_level": getattr(meta, 'skill_level', None) or "unknown",
             "filename": getattr(meta, 'filename', None),
-            "owner": meta.owner  # Include owner for debugging
+            "owner": meta.owner,  # Include owner for debugging
+            "knowledge_base_id": meta.knowledge_base_id  # Required for frontend filtering
         }
         for doc_id, meta in kb_metadata.items()
         if meta.owner == user.username or meta.owner is None  # Show docs with no owner too
