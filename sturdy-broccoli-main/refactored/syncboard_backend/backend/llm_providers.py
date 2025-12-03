@@ -612,6 +612,11 @@ Be specific. Reference actual content from their knowledge. Prioritize projects 
             validation_info: Knowledge depth validation info
             max_suggestions: Number of suggestions to generate
             enable_quality_filter: If True, filter out low-coverage suggestions
+
+        Prompt optimization history:
+        - 2025-12-03: Removed Flask code example from prompt (reduced ~650 tokens per request)
+          Old version had full 50-line Flask auth example embedded in prompt.
+          If quality degrades, revert this commit.
         """
         stats = validation_info["stats"]
 
@@ -657,7 +662,7 @@ Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
       "Step 7: Deploy to cloud"
     ],
     "file_structure": "project/\\n  src/\\n    __init__.py\\n    main.py\\n    models.py\\n    routes.py\\n  tests/\\n    test_api.py\\n  requirements.txt\\n  README.md\\n  .env.example",
-    "starter_code": "# main.py - Production-ready example with auth, database, error handling\\nfrom flask import Flask, request, jsonify\\nfrom flask_sqlalchemy import SQLAlchemy\\nfrom flask_jwt_extended import JWTManager, create_access_token, jwt_required\\nimport os\\n\\napp = Flask(__name__)\\napp.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')\\napp.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-in-production')\\ndb = SQLAlchemy(app)\\njwt = JWTManager(app)\\n\\nclass User(db.Model):\\n    id = db.Column(db.Integer, primary_key=True)\\n    username = db.Column(db.String(80), unique=True, nullable=False)\\n    email = db.Column(db.String(120), unique=True, nullable=False)\\n\\n@app.route('/api/register', methods=['POST'])\\ndef register():\\n    try:\\n        data = request.get_json()\\n        user = User(username=data['username'], email=data['email'])\\n        db.session.add(user)\\n        db.session.commit()\\n        return jsonify({'message': 'User created', 'id': user.id}), 201\\n    except Exception as e:\\n        return jsonify({'error': str(e)}), 400\\n\\n@app.route('/api/login', methods=['POST'])\\ndef login():\\n    data = request.get_json()\\n    user = User.query.filter_by(username=data['username']).first()\\n    if user:\\n        token = create_access_token(identity=user.id)\\n        return jsonify({'token': token}), 200\\n    return jsonify({'error': 'Invalid credentials'}), 401\\n\\n@app.route('/api/users', methods=['GET'])\\n@jwt_required()\\ndef get_users():\\n    users = User.query.all()\\n    return jsonify([{'id': u.id, 'username': u.username} for u in users])\\n\\nif __name__ == '__main__':\\n    with app.app_context():\\n        db.create_all()\\n    app.run(debug=True)",
+    "starter_code": "Complete, working code that includes:\\n  - Main entry point with proper imports and dependencies\\n  - Database models with relationships and constraints\\n  - API routes with error handling and input validation\\n  - Authentication/authorization where relevant\\n  - Environment configuration (.env support)\\n  - Ready to run immediately (e.g., 'python main.py' or 'npm start')\\n\\nQuality standard: Production-ready, not tutorial code. Include realistic error handling, proper validation, and production-grade patterns.",
     "learning_path": [
       "Study: Flask routing and request handling (2 hours)",
       "Practice: Build a simple REST API (4 hours)",
@@ -742,8 +747,7 @@ OUTPUT: Return ONLY valid JSON with no markdown formatting."""
                     {"role": "user", "content": prompt}
                 ],
                 model=self.suggestion_model,
-                temperature=0.5,
-                max_tokens=16000  # Reduced from 32000 - still plenty for detailed suggestions
+                max_tokens=16000  # Note: temperature removed - GPT-5 models only support temperature=1 (default)
             )
 
             suggestions = json.loads(response)
