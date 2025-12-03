@@ -10,7 +10,7 @@
     "generate:api": "openapi-ts"
   },
   "dependencies": {
-    "@hey-api/client-axios": "^0.2.3",
+    "@hey-api/client-fetch": "^0.2.3",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.6",
