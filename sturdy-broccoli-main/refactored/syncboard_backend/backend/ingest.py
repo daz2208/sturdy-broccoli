@@ -1342,15 +1342,14 @@ def detect_zip_extraction_strategy(zip_file) -> str:
         code_count = sum(1 for f in files if any(f.filename.lower().endswith(ext) for ext in code_extensions))
         code_ratio = code_count / total_count
 
-        # Require a bit more heft before splitting into per-folder documents to
-        # avoid tiny archives turning into multiple docs (keeps tests happy).
-        if total_count >= 8 and code_ratio > 0.3:  # >30% code files
+        # Lower thresholds to extract more ZIPs as multiple documents
+        if total_count >= 3 and code_ratio > 0.2:  # 3+ files AND >20% code files
             logger.info(
                 f"ZIP strategy: folder-based (detected {len(unique_folders)} folders with "
                 f"{code_count} code files - likely multi-project structure; total_count={total_count})"
             )
             return 'folder-based'
-        if len(unique_folders) > 2 and total_count >= 12:
+        if len(unique_folders) > 2 and total_count >= 5:  # 3+ folders AND 5+ files
             logger.info(
                 f"ZIP strategy: folder-based (multiple folders detected without JSON bias: {len(unique_folders)}, "
                 f"total_count={total_count})"
@@ -1358,8 +1357,7 @@ def detect_zip_extraction_strategy(zip_file) -> str:
             return 'folder-based'
 
     # Rule 3: Many root-level files but no folders ? file-based to avoid a mega-document
-    # Keep the threshold higher to preserve single-document behavior for small test fixtures.
-    if not has_folders and total_count >= 25:
+    if not has_folders and total_count >= 3:  # Lower threshold from 25 to 3
         logger.info(f"ZIP strategy: file-based (root-level files without folders: {total_count})")
         return 'file-based'
 
