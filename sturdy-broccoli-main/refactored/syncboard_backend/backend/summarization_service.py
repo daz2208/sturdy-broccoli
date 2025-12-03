@@ -477,21 +477,6 @@ async def generate_hierarchical_summaries(
         "document_summary": 1
     }
 
-    # Optionally generate build idea seeds
-    if generate_ideas:
-        try:
-            from .idea_seeds_service import generate_document_idea_seeds
-            ideas_result = await generate_document_idea_seeds(
-                db=db,
-                document_id=document_id,
-                knowledge_base_id=knowledge_base_id
-            )
-            result["ideas_generated"] = ideas_result.get("ideas_generated", 0)
-            logger.info(f"Generated {result['ideas_generated']} idea seeds for document {document_id}")
-        except Exception as e:
-            logger.warning(f"Idea generation failed for doc {document_id}: {e}")
-            result["ideas_error"] = str(e)
-
     return result
 
 
