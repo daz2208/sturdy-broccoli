@@ -1361,13 +1361,12 @@ def detect_zip_extraction_strategy(zip_file) -> str:
         logger.info(f"ZIP strategy: file-based (root-level files without folders: {total_count})")
         return 'file-based'
 
-    # Default: File-based extraction (each file becomes a document)
-    # Changed from 'single-document' to 'file-based' to extract by default
+    # Default: Single document with all content concatenated
     logger.info(
-        f"ZIP strategy: file-based (default - {total_count} files, {len(unique_folders)} folders, "
+        f"ZIP strategy: single-document (default - {total_count} files, {len(unique_folders)} folders, "
         f"{json_count} JSON files)"
     )
-    return 'file-based'
+    return 'single-document'
 
 def _extract_zip_file_based(zip_file, original_filename: str, file_counter: dict) -> List[Dict]:
     """
