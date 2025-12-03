@@ -45,8 +45,6 @@ from .routers import (
     knowledge_tools,
     # Real-time WebSocket support
     websocket,
-    # Team collaboration
-    teams,
     # Usage & billing
     usage,
     # Multi-industry content generation
@@ -410,9 +408,6 @@ app.include_router(knowledge_tools.router)
 
 # Real-time WebSocket support
 app.include_router(websocket.router)
-
-# Team collaboration
-app.include_router(teams.router)
 
 # Usage & billing
 app.include_router(usage.router)

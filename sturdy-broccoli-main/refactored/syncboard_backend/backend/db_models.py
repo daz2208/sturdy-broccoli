@@ -722,148 +722,6 @@ class DBMarketValidation(Base):
         return f"<DBMarketValidation(id={self.id}, recommendation='{self.recommendation}', confidence={self.confidence_score})>"
 
 
-# =============================================================================
-# Team Collaboration Models
-# =============================================================================
-
-class DBTeam(Base):
-    """Team/Organization for collaborative knowledge management."""
-    __tablename__ = "teams"
-
-    id = Column(String(36), primary_key=True)  # UUID
-    name = Column(String(255), nullable=False, index=True)
-    slug = Column(String(100), nullable=False, unique=True, index=True)
-    description = Column(Text, nullable=True)
-    owner_username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
-
-    # Settings
-    is_public = Column(Boolean, default=False, nullable=False)
-    allow_member_invites = Column(Boolean, default=False, nullable=False)
-    max_members = Column(Integer, default=10, nullable=False)
-
-    # Stats
-    member_count = Column(Integer, default=1, nullable=False)
-    kb_count = Column(Integer, default=0, nullable=False)
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    # Relationships
-    owner = relationship("DBUser", foreign_keys=[owner_username], backref="owned_teams")
-    members = relationship("DBTeamMember", back_populates="team", cascade="all, delete-orphan")
-    invitations = relationship("DBTeamInvitation", back_populates="team", cascade="all, delete-orphan")
-    knowledge_bases = relationship("DBTeamKnowledgeBase", back_populates="team", cascade="all, delete-orphan")
-
-    __table_args__ = (
-        Index('idx_teams_owner', 'owner_username'),
-    )
-
-    def __repr__(self):
-        return f"<DBTeam(id='{self.id}', name='{self.name}', members={self.member_count})>"
-
-
-class DBTeamMember(Base):
-    """Team membership with role-based access control."""
-    __tablename__ = "team_members"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    team_id = Column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
-    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True)
-
-    # Role: owner, admin, member, viewer
-    role = Column(String(20), default="member", nullable=False)
-
-    # Permissions (can override role defaults)
-    can_invite = Column(Boolean, default=False, nullable=False)
-    can_edit_docs = Column(Boolean, default=True, nullable=False)
-    can_delete_docs = Column(Boolean, default=False, nullable=False)
-    can_manage_kb = Column(Boolean, default=False, nullable=False)
-
-    # Timestamps
-    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_active_at = Column(DateTime, nullable=True)
-
-    # Relationships
-    team = relationship("DBTeam", back_populates="members")
-    user = relationship("DBUser", backref="team_memberships")
-
-    __table_args__ = (
-        Index('idx_team_members_team_role', 'team_id', 'role'),
-        Index('idx_team_members_user', 'username'),
-    )
-
-    def __repr__(self):
-        return f"<DBTeamMember(team_id='{self.team_id}', user='{self.username}', role='{self.role}')>"
-
-
-class DBTeamInvitation(Base):
-    """Pending team invitations."""
-    __tablename__ = "team_invitations"
-
-    id = Column(String(36), primary_key=True)  # UUID
-    team_id = Column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
-    email = Column(String(255), nullable=False, index=True)
-    invited_username = Column(String(50), nullable=True)  # If user exists
-
-    # Invitation details
-    role = Column(String(20), default="member", nullable=False)
-    token = Column(String(64), nullable=False, unique=True, index=True)
-    message = Column(Text, nullable=True)
-
-    # Inviter info
-    invited_by = Column(String(50), ForeignKey("users.username", ondelete="SET NULL"), nullable=True)
-
-    # Status
-    status = Column(String(20), default="pending", nullable=False)  # pending, accepted, declined, expired
-    expires_at = Column(DateTime, nullable=False)
-    responded_at = Column(DateTime, nullable=True)
-
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    # Relationships
-    team = relationship("DBTeam", back_populates="invitations")
-    inviter = relationship("DBUser", backref="sent_invitations")
-
-    __table_args__ = (
-        Index('idx_invitations_team_status', 'team_id', 'status'),
-        Index('idx_invitations_email', 'email'),
-    )
-
-    def __repr__(self):
-        return f"<DBTeamInvitation(id='{self.id}', email='{self.email}', status='{self.status}')>"
-
-
-class DBTeamKnowledgeBase(Base):
-    """Association between teams and knowledge bases for shared access."""
-    __tablename__ = "team_knowledge_bases"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    team_id = Column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
-    knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
-
-    # Access level: read, write, admin
-    access_level = Column(String(20), default="read", nullable=False)
-
-    # Who shared it
-    shared_by = Column(String(50), ForeignKey("users.username", ondelete="SET NULL"), nullable=True)
-    shared_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    # Relationships
-    team = relationship("DBTeam", back_populates="knowledge_bases")
-    knowledge_base = relationship("DBKnowledgeBase", backref="team_shares")
-    sharer = relationship("DBUser", backref="shared_kbs")
-
-    __table_args__ = (
-        Index('idx_team_kb_team', 'team_id'),
-        Index('idx_team_kb_kb', 'knowledge_base_id'),
-    )
-
-    def __repr__(self):
-        return f"<DBTeamKnowledgeBase(team='{self.team_id}', kb='{self.knowledge_base_id}', access='{self.access_level}')>"
-
-
 class DBDocumentComment(Base):
     """Comments on documents for team collaboration."""
     __tablename__ = "document_comments"
@@ -905,17 +763,16 @@ class DBDocumentComment(Base):
 
 
 class DBActivityLog(Base):
-    """Activity log for tracking team actions."""
+    """Activity log for tracking knowledge base actions."""
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    team_id = Column(String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True)
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=True, index=True)
     username = Column(String(50), ForeignKey("users.username", ondelete="SET NULL"), nullable=True, index=True)
 
     # Activity details
-    action = Column(String(50), nullable=False)  # created, updated, deleted, shared, invited, etc.
-    resource_type = Column(String(50), nullable=False)  # document, cluster, team, knowledge_base, etc.
+    action = Column(String(50), nullable=False)  # created, updated, deleted, shared, etc.
+    resource_type = Column(String(50), nullable=False)  # document, cluster, knowledge_base, etc.
     resource_id = Column(String(50), nullable=True)
     resource_name = Column(String(255), nullable=True)
 
@@ -926,12 +783,10 @@ class DBActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     # Relationships
-    team = relationship("DBTeam", backref="activity_logs")
     knowledge_base = relationship("DBKnowledgeBase", backref="activity_logs")
     user = relationship("DBUser", backref="activity_logs")
 
     __table_args__ = (
-        Index('idx_activity_team_time', 'team_id', 'created_at'),
         Index('idx_activity_kb_time', 'knowledge_base_id', 'created_at'),
         Index('idx_activity_action', 'action'),
     )

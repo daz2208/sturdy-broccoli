@@ -53,8 +53,6 @@ from . import (
     knowledge_tools,
     # Real-time collaboration
     websocket,
-    # Team collaboration
-    teams,
     # Usage & billing
     usage,
     # Multi-industry content generation
