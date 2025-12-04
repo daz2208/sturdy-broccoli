@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum thresholds for viable build suggestions (relaxed for small KBs)
 MIN_DOCUMENTS = 1
-MIN_CONCEPTS = 2  # Reduced from 3 to be more forgiving
+MIN_CONCEPTS = 3
 MIN_CLUSTERS = 1  # At least one coherent knowledge area
 MIN_CONTENT_LENGTH = 200  # Total characters
 
