@@ -162,12 +162,54 @@ def reload_cache_from_db():
     except Exception as e:
         logger.error(f"Failed to reload cache from database: {e}")
 
+def generate_cluster_name_from_concepts(concepts_list: List[Dict], primary_topic: str = None) -> str:
+    """
+    Generate a meaningful cluster name from concepts when LLM returns 'General'.
+
+    Args:
+        concepts_list: List of concept dictionaries with 'name' and 'category'
+        primary_topic: Optional primary topic from extraction
+
+    Returns:
+        A descriptive cluster name
+    """
+    # First try primary_topic if provided
+    if primary_topic and primary_topic.lower() not in ['uncategorized', 'unknown', 'general']:
+        # Title case the topic
+        return primary_topic.replace('_', ' ').title()
+
+    # Fall back to generating name from top concepts
+    if not concepts_list:
+        return "General"
+
+    # Get top 2-3 concepts by confidence
+    sorted_concepts = sorted(
+        concepts_list,
+        key=lambda c: c.get('confidence', 0.5),
+        reverse=True
+    )[:3]
+
+    if not sorted_concepts:
+        return "General"
+
+    # Use top concept(s) to create name
+    top_names = [c.get('name', '').replace('_', ' ').title() for c in sorted_concepts if c.get('name')]
+
+    if len(top_names) >= 2:
+        return f"{top_names[0]} & {top_names[1]}"
+    elif top_names:
+        return top_names[0]
+
+    return "General"
+
+
 def find_or_create_cluster_sync(
     doc_id: int,
     suggested_cluster: str,
     concepts_list: List[Dict],
     skill_level: str,
-    kb_id: str
+    kb_id: str,
+    primary_topic: str = None
 ) -> int:
     """
     Synchronous version of find_or_create_cluster for Celery tasks.
@@ -178,10 +220,16 @@ def find_or_create_cluster_sync(
         concepts_list: List of concept dictionaries
         skill_level: Document skill level
         kb_id: Knowledge base ID
+        primary_topic: Optional primary topic for better naming
 
     Returns:
         Cluster ID
     """
+    # Fix: If suggested_cluster is "General" or empty, generate better name from concepts
+    if not suggested_cluster or suggested_cluster.lower() == 'general':
+        suggested_cluster = generate_cluster_name_from_concepts(concepts_list, primary_topic)
+        logger.info(f"Generated cluster name from concepts: '{suggested_cluster}'")
+
     # Get KB-scoped clusters
     kb_clusters = get_kb_clusters(kb_id)
 
@@ -364,7 +412,8 @@ def process_multi_document_zip(
                 suggested_cluster=extraction.get("suggested_cluster", "General"),
                 concepts_list=extraction.get("concepts", []),
                 skill_level=meta.skill_level,
-                kb_id=kb_id
+                kb_id=kb_id,
+                primary_topic=extraction.get("primary_topic")
             )
             kb_metadata[doc_id].cluster_id = cluster_id
 
@@ -697,7 +746,8 @@ def process_file_upload(
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
             skill_level=meta.skill_level,
-            kb_id=kb_id
+            kb_id=kb_id,
+            primary_topic=extraction.get("primary_topic")
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
@@ -1117,7 +1167,8 @@ def process_url_upload(
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
             skill_level=meta.skill_level,
-            kb_id=kb_id
+            kb_id=kb_id,
+            primary_topic=extraction.get("primary_topic")
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
@@ -1490,7 +1541,8 @@ def process_image_upload(
             suggested_cluster=extraction.get("suggested_cluster", "General"),
             concepts_list=extraction.get("concepts", []),
             skill_level=meta.skill_level,
-            kb_id=kb_id
+            kb_id=kb_id,
+            primary_topic=extraction.get("primary_topic")
         )
         kb_metadata[doc_id].cluster_id = cluster_id
 
@@ -2035,6 +2087,7 @@ def import_github_files_task(
                 skill_level = extraction.get("skill_level", "unknown")
                 suggested_cluster = extraction.get("suggested_cluster", "General")
                 concepts_list = extraction.get("concepts", [])
+                primary_topic = extraction.get("primary_topic")
 
                 # Add to vector store
                 doc_id = vector_store.add_document(file_content)
@@ -2046,7 +2099,8 @@ def import_github_files_task(
                     suggested_cluster=suggested_cluster,
                     concepts_list=concepts_list,
                     skill_level=skill_level,
-                    kb_id=kb_id
+                    kb_id=kb_id,
+                    primary_topic=primary_topic
                 )
 
                 # Store metadata (KB-scoped)

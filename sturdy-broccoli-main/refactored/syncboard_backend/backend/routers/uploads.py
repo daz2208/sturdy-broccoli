@@ -89,16 +89,47 @@ router = APIRouter(
 # Clustering Helper
 # =============================================================================
 
+def generate_cluster_name_from_concepts(concepts: List[Dict], primary_topic: str = None) -> str:
+    """Generate a meaningful cluster name when LLM returns 'General'."""
+    # First try primary_topic if provided
+    if primary_topic and primary_topic.lower() not in ['uncategorized', 'unknown', 'general']:
+        return primary_topic.replace('_', ' ').title()
+
+    if not concepts:
+        return "General"
+
+    # Get top concepts by confidence
+    sorted_concepts = sorted(concepts, key=lambda c: c.get('confidence', 0.5), reverse=True)[:3]
+
+    if not sorted_concepts:
+        return "General"
+
+    top_names = [c.get('name', '').replace('_', ' ').title() for c in sorted_concepts if c.get('name')]
+
+    if len(top_names) >= 2:
+        return f"{top_names[0]} & {top_names[1]}"
+    elif top_names:
+        return top_names[0]
+
+    return "General"
+
+
 async def find_or_create_cluster(
     doc_id: int,
     suggested_cluster: str,
     concepts: List[Dict],
-    kb_id: str
+    kb_id: str,
+    primary_topic: str = None
 ) -> int:
     """Find best cluster or create new one for a knowledge base."""
     kb_metadata = get_kb_metadata(kb_id)
     kb_clusters = get_kb_clusters(kb_id)
     clustering_engine = get_clustering_engine()
+
+    # Fix: If suggested_cluster is "General" or empty, generate better name
+    if not suggested_cluster or suggested_cluster.lower() == 'general':
+        suggested_cluster = generate_cluster_name_from_concepts(concepts, primary_topic)
+        logger.info(f"Generated cluster name from concepts: '{suggested_cluster}'")
 
     meta = kb_metadata[doc_id]
 
@@ -218,7 +249,8 @@ async def upload_text_content(
         doc_id=doc_id,
         suggested_cluster=extraction.get("suggested_cluster", "General"),
         concepts=extraction.get("concepts", []),
-        kb_id=kb_id
+        kb_id=kb_id,
+        primary_topic=extraction.get("primary_topic")
     )
 
     # Update metadata with cluster_id and save
