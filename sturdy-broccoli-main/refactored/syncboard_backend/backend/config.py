@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     # LLM Providers
     # =============================================================================
 
-    llm_provider: Literal["openai", "ollama", "anthropic"] = Field(
+    llm_provider: Literal["openai", "ollama"] = Field(
         default="openai",
         description="LLM provider to use",
         validation_alias="LLM_PROVIDER"
