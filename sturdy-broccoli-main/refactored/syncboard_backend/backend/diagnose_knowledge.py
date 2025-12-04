@@ -5,21 +5,15 @@ Run this inside the Docker container or locally with database access.
 
 Usage:
     # Inside Docker container:
-    docker-compose exec backend python diagnose_knowledge.py
+    docker-compose exec backend python backend/diagnose_knowledge.py
 
     # Or locally (from syncboard_backend directory):
-    python diagnose_knowledge.py
+    python backend/diagnose_knowledge.py
 """
 
-import sys
-import os
 from collections import Counter
-
-# Add backend to path
-sys.path.insert(0, os.path.dirname(__file__))
-
-from backend.database import get_db_context
-from backend.db_models import DBDocument, DBConcept, DBCluster, DBKnowledgeBase
+from database import get_db_context
+from db_models import DBDocument, DBConcept, DBCluster, DBKnowledgeBase
 from sqlalchemy.orm import joinedload
 
 # Thresholds from build_suggester.py
