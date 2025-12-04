@@ -2,8 +2,8 @@
 """
 Check where concepts are actually stored - concepts table vs document_summaries
 """
-from database import get_db_context
-from db_models import DBDocument, DBConcept, DBDocumentSummary
+from backend.database import get_db_context
+from backend.db_models import DBDocument, DBConcept, DBDocumentSummary
 
 def main():
     print("="*80)

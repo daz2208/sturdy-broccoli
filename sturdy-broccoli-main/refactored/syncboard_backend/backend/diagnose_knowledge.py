@@ -12,8 +12,8 @@ Usage:
 """
 
 from collections import Counter
-from database import get_db_context
-from db_models import DBDocument, DBConcept, DBCluster, DBKnowledgeBase
+from backend.database import get_db_context
+from backend.db_models import DBDocument, DBConcept, DBCluster, DBKnowledgeBase
 from sqlalchemy.orm import joinedload
 
 # Thresholds from build_suggester.py
