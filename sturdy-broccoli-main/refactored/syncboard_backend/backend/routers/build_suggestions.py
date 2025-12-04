@@ -227,22 +227,13 @@ async def what_can_i_build(
     if max_suggestions < 1:
         max_suggestions = 5
 
-    # Filter to user's content within their KB
-    user_clusters = {
-        cid: cluster for cid, cluster in kb_clusters.items()
-        if any(kb_metadata.get(did) and kb_metadata[did].owner == current_user.username for did in cluster.doc_ids)
-    }
+    # KB is already user-scoped via get_user_default_kb_id()
+    # No need for additional filtering - all KB documents/clusters belong to this user
+    user_clusters = kb_clusters
+    user_metadata = kb_metadata
+    user_documents = kb_documents
 
-    user_metadata = {
-        did: meta for did, meta in kb_metadata.items()
-        if meta.owner == current_user.username
-    }
-
-    user_documents = {
-        did: doc for did, doc in kb_documents.items()
-        if did in user_metadata
-    }
-    
+    # Return early if no clusters exist in the knowledge base
     if not user_clusters:
         return {
             "suggestions": [],
