@@ -55,13 +55,14 @@ class AnalyticsService:
         total_clusters = cluster_query.count()
 
         # Get concept count from DBConcept table first
-        concept_query = self.db.query(DBConcept)
+        # Count distinct concept NAMES, not distinct rows (same concept in multiple docs = 1 count)
+        concept_query = self.db.query(DBConcept.name).distinct()
         if username:
             # Count distinct concepts from user's documents
             concept_query = concept_query.join(DBDocument).filter(
                 DBDocument.owner_username == username
             )
-        total_concepts = concept_query.distinct().count()
+        total_concepts = concept_query.count()
 
         # If DBConcept is empty, fall back to counting concepts from document summaries
         # (Concepts extracted during summarization are stored in key_concepts field)
