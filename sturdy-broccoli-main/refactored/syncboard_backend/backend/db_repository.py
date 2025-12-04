@@ -241,7 +241,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         if not db_doc:
             return None
 
-        # Convert to Pydantic model
+        # Try to get concepts from concepts table first (old format)
         concepts = [
             Concept(
                 name=c.name,
@@ -250,6 +250,27 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             )
             for c in db_doc.concepts
         ]
+
+        # FALLBACK: If concepts table is empty, try document_summaries.key_concepts (new format)
+        # This handles documents that went through the hierarchical summarization pipeline
+        if not concepts:
+            from .db_models import DBDocumentSummary
+            doc_summary = self.db.query(DBDocumentSummary).filter_by(
+                document_id=db_doc.id,
+                summary_type='document'
+            ).first()
+
+            if doc_summary and doc_summary.key_concepts:
+                # Convert JSON list of concept names to Concept objects
+                concepts = [
+                    Concept(
+                        name=concept_name,
+                        category="unknown",  # document_summaries doesn't store category
+                        confidence=1.0  # document_summaries doesn't store confidence
+                    )
+                    for concept_name in doc_summary.key_concepts
+                ]
+                logger.debug(f"Loaded {len(concepts)} concepts from document_summaries for doc_id={doc_id}")
 
         return DocumentMetadata(
             doc_id=db_doc.doc_id,
