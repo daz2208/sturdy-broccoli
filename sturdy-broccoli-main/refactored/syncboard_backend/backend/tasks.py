@@ -887,6 +887,28 @@ def process_file_upload(
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
+
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
             f"to KB {kb_id} (cluster: {cluster_id}, chunks: {chunk_result.get('chunks', 0)}, "
@@ -1308,6 +1330,28 @@ def process_url_upload(
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
+
         logger.info(
             f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id} "
             f"(chunks: {chunk_result.get('chunks', 0)}, summaries: {summarization_result.get('status', 'skipped')})"
@@ -1670,6 +1714,28 @@ def process_image_upload(
                     logger.error(f"Failed to update summary status: {db_err}")
         else:
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
+
+        # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        if summarization_result.get('status') == 'success':
+            try:
+                from .idea_seeds_service import generate_document_idea_seeds
+                # Get document ID from database
+                with get_db_context() as db:
+                    db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                    if db_doc:
+                        internal_doc_id = db_doc.id
+                    else:
+                        internal_doc_id = None
+
+                # Generate ideas (manages its own db session to avoid transaction warnings)
+                if internal_doc_id:
+                    idea_result = run_async(generate_document_idea_seeds(
+                        document_id=internal_doc_id,
+                        knowledge_base_id=kb_id
+                    ))
+                    logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
+            except Exception as e:
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
 
         logger.info(
             f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} "
