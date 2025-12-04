@@ -96,7 +96,9 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         Returns:
             Dictionary mapping doc_id to metadata
         """
-        db_docs = self.db.query(DBDocument).filter_by(knowledge_base_id=kb_id).all()
+        from sqlalchemy.orm import joinedload
+
+        db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).filter_by(knowledge_base_id=kb_id).all()
         result = {}
         for db_doc in db_docs:
             meta = await self.get_document_metadata(db_doc.doc_id)
@@ -236,7 +238,9 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
 
     async def get_document_metadata(self, doc_id: int) -> Optional[DocumentMetadata]:
         """Get document metadata by ID."""
-        db_doc = self.db.query(DBDocument).filter_by(doc_id=doc_id).first()
+        from sqlalchemy.orm import joinedload
+
+        db_doc = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).filter_by(doc_id=doc_id).first()
         if not db_doc:
             return None
 
@@ -272,7 +276,9 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
 
     async def get_all_metadata(self) -> Dict[int, DocumentMetadata]:
         """Get all document metadata."""
-        db_docs = self.db.query(DBDocument).all()
+        from sqlalchemy.orm import joinedload
+
+        db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).all()
         result = {}
         for db_doc in db_docs:
             meta = await self.get_document_metadata(db_doc.doc_id)
