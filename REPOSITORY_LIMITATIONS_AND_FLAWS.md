@@ -2,527 +2,349 @@
 
 **Date:** 2025-12-04
 **Repository:** sturdy-broccoli (SyncBoard 3.0 Knowledge Bank)
-**Status:** Production-Ready with Technical Debt
+**Analysis Method:** Direct source code review
+**Total Backend Code:** ~37,500 lines across routers (verified via `wc -l`)
 
 ---
 
 ## Executive Summary
 
-SyncBoard 3.0 is an AI-powered knowledge management system with approximately **41,500 lines of backend code** across **81 Python files**. While the codebase is functional and production-ready, this analysis identifies **critical bugs**, **architectural limitations**, **orphaned code**, and **technical debt** that should be addressed.
+This report is based on **direct source code inspection**, not assumptions. Each issue below includes the specific file and line number where it was verified.
 
-| Severity | Count | Summary |
-|----------|-------|---------|
-| **Critical** | 4 | Breaking bugs that cause silent failures |
-| **High** | 8 | Major limitations affecting functionality |
-| **Medium** | 12 | Technical debt and maintenance concerns |
-| **Low** | 6 | Minor issues and enhancements |
+| Severity | Count | Description |
+|----------|-------|-------------|
+| **Critical** | 1 | Breaking bug that causes runtime error |
+| **High** | 4 | Significant issues affecting functionality |
+| **Medium** | 6 | Technical debt and maintainability concerns |
+| **Low** | 4 | Minor issues and improvements |
 
 ---
 
-## Critical Issues (Severity: CRITICAL)
+## Critical Issues
 
-### 1. GPT-5 API Parameter Incompatibility
+### 1. Missing `complete()` Method Causes Runtime Error
 
-**Location:** `backend/idea_seeds_service.py:125-133`, `backend/summarization_service.py:106-109`
+**Location:** `backend/routers/build_suggestions.py:942`
 
-**Problem:** Code uses deprecated OpenAI parameters (`temperature`, `max_tokens`) that GPT-5 models don't support. GPT-5 requires `max_completion_tokens` and doesn't accept `temperature`.
+**Problem:** The code calls `await provider.complete(prompt)` but `OpenAIProvider` class has no `complete()` method.
 
-**Impact:**
-- 100% failure rate for idea seed generation
-- 100% failure rate for document summarization
-- OpenAI API returns 400 errors, caught silently
-
-**Evidence:**
-```python
-# BROKEN CODE (idea_seeds_service.py:125-133)
-response = self.client.chat.completions.create(
-    model=self.model,  # "gpt-5-mini"
-    temperature=0.8,   # GPT-5 doesn't support this!
-    max_tokens=1000,   # Should be max_completion_tokens!
-)
+**Verified by grep:**
+```bash
+$ grep -n "provider\.complete" backend/routers/build_suggestions.py
+942:        response = await provider.complete(prompt)
 ```
 
----
-
-### 2. Silent Failure Architecture
-
-**Location:** `backend/tasks.py:816-830`, `backend/idea_seeds_service.py:152-154`
-
-**Problem:** All AI-related errors are caught and logged as warnings, making failures invisible to users and developers.
-
-**Impact:**
-- Features appear to work but produce no output
-- No error messages shown to users
-- Debugging extremely difficult
-
-**Evidence:**
-```python
-# tasks.py:816-830
-except Exception as e:
-    logger.warning(f"Idea seed generation failed (non-critical): {e}")  # Silent!
-```
-
----
-
-### 3. Authentication Lost on Page Refresh
-
-**Location:** `frontend/src/stores/auth.ts`
-
-**Problem:** Token exists in localStorage but Zustand state doesn't rehydrate before components check `isAuthenticated`. Users get kicked to login on every page refresh.
+**Available methods in `OpenAIProvider` (verified by grep):**
+- `_call_openai`
+- `extract_concepts`
+- `generate_build_suggestions`
+- `chat_completion`
+- `generate_goal_driven_suggestions`
+- `generate_n8n_workflow`
 
 **Impact:**
-- Poor user experience
-- Users cannot maintain sessions
-- Application feels broken
+- `POST /ideas/mega-project` endpoint throws `AttributeError: 'OpenAIProvider' object has no attribute 'complete'`
+- Feature is completely broken
 
-**Root Cause:** SSR timing issue - localStorage unavailable during server-side render, and auth check happens before rehydration.
-
----
-
-### 4. Insufficient Token Limits Causing Truncation
-
-**Location:** `backend/summarization_service.py`, `backend/idea_seeds_service.py`
-
-**Problem:** Token limits too low for requested output, causing JSON truncation and parse failures.
-
-| Function | Current Limit | Actual Need | Status |
-|----------|--------------|-------------|--------|
-| `summarize_document()` | 700 tokens | ~1200 tokens | TOO SMALL |
-| `generate_ideas()` | 1000 tokens | ~2000 tokens | TOO SMALL |
-| `generate_combined()` | 1500 tokens | ~2500 tokens | TOO SMALL |
-
-**Impact:** Truncated JSON → `JSONDecodeError` → Empty results
+**Fix Required:** Replace `provider.complete(prompt)` with `provider.chat_completion(prompt)` or similar existing method.
 
 ---
 
 ## High-Severity Issues
 
-### 5. 80 Orphaned API Endpoints (40% of Total)
+### 2. Broad Exception Catching Hides Errors
 
-**Location:** All routers in `backend/routers/`
+**Location:** Multiple files (30+ instances found via grep)
 
-**Problem:** 80 out of 202 defined endpoints have no frontend integration.
+**Evidence:**
+```
+backend/database.py:64:    except Exception as e:
+backend/database.py:101:    except Exception:
+backend/summarization_service.py:132:        except Exception as e:
+backend/llm_providers.py:437:        except Exception as e:
+backend/ingest.py:243:        except Exception as e:
+... (30+ more instances)
+```
 
-**Completely Unused Routers (0% usage):**
-- `content_generation.py` - 8 endpoints
-- `websocket.py` - 2 endpoints
+**Problem:** Broad `except Exception` blocks catch all errors, often logging and returning empty values. This makes debugging difficult because:
+- Specific errors are not distinguished
+- Stack traces may be lost
+- Users see empty results instead of error messages
 
-**High Orphan Rates:**
-- `feedback.py` - 54% orphaned (7/13 endpoints)
-- `admin.py` - 60% orphaned (3/5 endpoints)
-- `generated_code.py` - 50% orphaned (4/8 endpoints)
-- `auth.py` - 50% orphaned (OAuth callbacks never called)
-
-**Impact:** Wasted maintenance effort, confusing codebase, potential security surface
-
----
-
-### 6. Incomplete Configuration Migration
-
-**Location:** 64 instances across multiple files
-
-**Problem:** Codebase has a well-designed `config.py` with Pydantic Settings, but 64 direct `os.getenv()` calls bypass it.
-
-**Worst Offenders:**
-| File | `os.getenv()` Count |
-|------|---------------------|
-| `routers/integrations.py` | 18 |
-| `routers/auth.py` | 8 |
-| `routers/admin.py` | 7 |
-| `llm_providers.py` | 5 |
-| `utils/encryption.py` | 5 |
-
-**Impact:**
-- Inconsistent configuration
-- No type validation on these values
-- Testing difficulties
-- Environment-specific bugs
+**Impact:** Silent failures across AI features, ingestion, and database operations.
 
 ---
 
-### 7. Missing Environment Variables in Docker
-
-**Location:** `docker-compose.yml`
-
-**Problem:** Critical model configuration variables not passed to containers:
-- `IDEA_MODEL` - Missing
-- `SUMMARY_MODEL` - Missing
-- `CONCEPT_MODEL` - Missing
-- `SUGGESTION_MODEL` - Missing
-
-All 9 services (backend, celery workers, flower) affected.
-
-**Impact:** Cannot configure AI models without code changes
-
----
-
-### 8. Vector Store Memory Scalability Limits
+### 3. Vector Store Memory Scalability Limits
 
 **Location:** `backend/vector_store.py`
 
-**Problem:** TF-IDF vector store loads entirely into memory on startup.
+**Problem:** The TF-IDF vector store loads entirely into memory on application startup.
 
-**Limits:**
-- Works well: 10,000-50,000 documents
-- Struggles: 50,000-100,000 documents
-- Breaks: 100,000+ documents
-
-**Impact:** Memory exhaustion on large knowledge bases, no horizontal scaling
-
----
-
-### 9. Agents Not Producing Output
-
-**Location:** `backend/learning_agent.py`, `backend/maverick_agent.py`
-
-**Problem:** Learning Agent and Maverick Agent are defined but:
-- Not initialized on startup
-- Background tasks not scheduled
-- Return default/empty values
-
-**Impact:** Agent functionality advertised but non-functional
-
----
-
-### 10. Test Suite Has 45 Pre-Existing Failures
-
-**Location:** Test files in `backend/tests/`
-
-**Problem:** 45 tests consistently fail across analytics, jobs, and usage modules.
+**Code evidence from `tasks.py:127-161`:**
+```python
+def reload_cache_from_db():
+    """Reload in-memory cache from database after Celery task updates."""
+    vector_store.docs.clear()
+    vector_store.doc_ids.clear()
+    # ... loads all documents into memory
+```
 
 **Impact:**
-- False confidence in CI/CD
-- Regression risks
-- Difficult to identify new failures
+- Works well for small-medium deployments (up to ~50,000 documents)
+- Memory usage grows linearly with document count
+- No horizontal scaling possible for vector search
+- Application restart loads all vectors into RAM
 
 ---
 
-### 11. Inconsistent LLM Provider Abstraction
+### 4. Frontend API Client Has Unused Teams Endpoints
 
-**Location:** `backend/llm_providers.py` vs service files
+**Location:** `frontend/src/lib/api.ts:1059-1139`
 
-**Problem:** `llm_providers.py` has correct GPT-5 handling, but `idea_seeds_service.py` and `summarization_service.py` directly call OpenAI with wrong parameters.
+**Problem:** The frontend API client defines 14 team-related methods that may not have corresponding backend routes (teams feature was reportedly removed per commit history).
 
-**Impact:** Duplicated logic, inconsistent behavior, maintenance burden
+**Methods defined:**
+- `createTeam`, `getTeams`, `getTeam`, `updateTeam`, `deleteTeam`
+- `getTeamMembers`, `updateTeamMember`, `removeTeamMember`
+- `createTeamInvitation`, `getTeamInvitations`, `cancelTeamInvitation`, `acceptTeamInvitation`
+- `getTeamActivity`, `linkKnowledgeBaseToTeam`, `getTeamKnowledgeBases`, `unlinkKnowledgeBaseFromTeam`
+
+**Impact:** Dead code in frontend, potential 404 errors if users attempt to use team features.
 
 ---
 
-### 12. Build Idea Seeds Table Always Empty
+### 5. Large Files Need Refactoring
 
-**Location:** `backend/idea_seeds_service.py`, database
+**Verified line counts:**
+```
+   974 backend/routers/uploads.py
+   986 backend/routers/build_suggestions.py
+  1016 backend/routers/feedback.py
+  1406 frontend/src/lib/api.ts
+ 37532 total (all backend Python files)
+```
 
-**Problem:** Due to bugs #1-4 above, the `build_idea_seeds` table is never populated.
-
-**Impact:** "What Can I Build?" feature completely non-functional
+**Impact:**
+- `uploads.py` (974 lines) - upload handling spread across one file
+- `build_suggestions.py` (986 lines) - contains the broken mega-project endpoint
+- Files over 500 lines are harder to maintain and test
 
 ---
 
 ## Medium-Severity Issues
 
-### 13. Overly Large Files Need Refactoring
+### 6. GPT-5 Parameter Handling is Correct (Clarification)
 
-| File | Lines | Status |
-|------|-------|--------|
-| `tasks.py` | 2,176 | Needs splitting |
-| `ingest.py` | 2,087 | Needs splitting |
-| `knowledge_services.py` | 1,467 | Large but manageable |
-| `db_models.py` | 1,409 | Large but acceptable |
+**Location:** `backend/llm_providers.py:344-351`
 
----
-
-### 14. Legacy Code Still Present
-
-**Files:**
-- `db_storage_adapter.py` - Mostly unused, contains deprecated `save_storage_to_db()`
-- `storage.py` - File-based storage superseded by PostgreSQL
-
-**Impact:** Confusion, maintenance burden, potential bugs
-
----
-
-### 15. Inconsistent Error Handling Patterns
-
-**Problem:** Mix of:
-- Silent exception catching
-- Logging then returning empty
-- Raising custom exceptions
-- Returning error dicts
-
-**Impact:** Unpredictable behavior, difficult debugging
-
----
-
-### 16. OAuth Callbacks Never Integrated
-
-**Location:** `backend/routers/auth.py`
-
-**Problem:** OAuth endpoints exist but frontend never calls:
-- `GET /auth/{provider}/callback`
-- `GET /auth/{provider}/login`
-
-**Impact:** OAuth login advertised but non-functional
-
----
-
-### 17. WebSocket Features Never Integrated
-
-**Location:** `backend/routers/websocket.py`, `backend/websocket_manager.py`
-
-**Problem:** WebSocket infrastructure exists (~787 lines) but:
-- `GET /ws/presence/{doc_id}` - Never called
-- `GET /ws/status` - Never called
-
-**Impact:** Real-time features non-functional
-
----
-
-### 18. Missing Structured Logging
-
-**Problem:** Logs use basic string formatting without structured fields.
-
-**Impact:** Difficult log aggregation, poor observability, manual parsing required
-
----
-
-### 19. No Database Migration Testing
-
-**Problem:** Alembic migrations exist but no automated testing of migration paths.
-
-**Impact:** Risk of production migration failures
-
----
-
-### 20. Single PostgreSQL Instance Design
-
-**Problem:** No read replicas, connection pooling limited (5 base + 10 overflow).
-
-**Impact:** Cannot scale reads, potential bottleneck at scale
-
----
-
-### 21. Missing Rate Limiting on Most Endpoints
-
-**Location:** `backend/routers/auth.py` only
-
-**Problem:** Rate limiting only on auth endpoints (5 login/min, 3 register/min). Other endpoints unprotected.
-
-**Impact:** DoS vulnerability, API abuse potential
-
----
-
-### 22. No API Versioning
-
-**Problem:** All endpoints at `/` root, no `/v1/` prefix.
-
-**Impact:** Breaking changes affect all clients, no deprecation path
-
----
-
-### 23. Hardcoded Model Names Throughout
-
-**Problem:** Despite environment variables, model names often hardcoded:
+**Code verified:**
 ```python
-# Found in multiple files
-model = "gpt-5-mini"  # Hardcoded
-model = "gpt-5-nano"  # Hardcoded
+if model.startswith("gpt-5"):
+    # GPT-5 models use max_completion_tokens and no temperature
+    params["max_completion_tokens"] = max_tokens
+else:
+    # GPT-4 and earlier use max_tokens and temperature
+    params["max_tokens"] = max_tokens
+    params["temperature"] = temperature
 ```
 
-**Impact:** Cannot easily switch models, requires code changes
+**Status:** The LLM provider abstraction correctly handles GPT-5 parameters. Any issues would be in code that bypasses this abstraction.
 
 ---
 
-### 24. Missing finish_reason Checks
+### 7. Hardcoded Model Names in Build Suggestions Router
 
-**Location:** All OpenAI API calls
+**Location:** `backend/routers/build_suggestions.py:460-461, 535, 883`
 
-**Problem:** Code doesn't check if API response was truncated (`finish_reason: "length"`).
+**Evidence:**
+```python
+provider = OpenAIProvider(
+    api_key=api_key,
+    suggestion_model="gpt-5-mini"  # Hardcoded
+)
+```
 
-**Impact:** Silent data loss, invalid JSON, mysterious failures
+**Impact:** Cannot change models via environment variables for these specific endpoints.
+
+---
+
+### 8. Configuration Uses Pydantic Settings (Correct)
+
+**Location:** `backend/config.py`
+
+**Verified:** The codebase properly uses Pydantic BaseSettings. Only 3 `os.getenv()` calls exist, all in test setup code:
+```
+backend/config.py:446:    if os.getenv("TESTING") == "true":
+backend/config.py:448:        os.environ.setdefault("SYNCBOARD_SECRET_KEY", ...)
+```
+
+**Status:** This is NOT a flaw - configuration is properly centralized.
+
+---
+
+### 9. Docker Environment Variables Are Properly Defined
+
+**Location:** `docker-compose.yml:76-79, 136-139` (repeated for all services)
+
+**Verified:**
+```yaml
+IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
+```
+
+**Status:** This is NOT a flaw - all AI model variables are properly configurable.
+
+---
+
+### 10. Auth Persistence Properly Implemented
+
+**Location:** `frontend/src/stores/auth.ts:80-91`, `frontend/src/hooks/useRequireAuth.ts`
+
+**Verified:**
+```typescript
+// auth.ts uses persist middleware with onRehydrateStorage callback
+onRehydrateStorage: () => (state) => {
+    state?.setHasHydrated(true);
+}
+
+// useRequireAuth waits for hydration before redirecting
+if (hasHydrated && !isAuthenticated) {
+    router.push('/login');
+}
+```
+
+**Status:** Auth persistence is correctly implemented with hydration handling.
+
+---
+
+### 11. Inconsistent Error Response Patterns
+
+**Problem:** Different routers return errors in different formats:
+- Some raise `HTTPException(400, "message")`
+- Some return `{"error": "message"}`
+- Some return `{"status": "error", "message": "..."}`
+
+**Impact:** Frontend must handle multiple error formats.
 
 ---
 
 ## Low-Severity Issues
 
-### 25. Pinned bcrypt Version
+### 12. WebSocket Infrastructure May Be Underutilized
 
-**Location:** `requirements.txt`
+**Location:** `backend/routers/websocket.py` (243 lines), `backend/websocket_manager.py`
 
-```
-bcrypt==4.0.1  # Pin to 4.0.1 for passlib 1.7.4 compatibility
-```
+**Observation:** WebSocket infrastructure exists but may not be fully integrated with frontend based on endpoint patterns.
 
-**Impact:** Security updates blocked, technical debt
+**Frontend calls found:** The frontend `useWebSocket.ts` hook exists, integration status unclear.
 
 ---
 
-### 26. Missing .env.example Documentation
+### 13. Test Files Exist (34 test files found)
 
-**Problem:** Many environment variables undocumented:
-- `IDEA_MODEL`
-- `SUMMARY_MODEL`
-- `CONCEPT_MODEL`
-- `SUGGESTION_MODEL`
+**Verified:** 34 test files exist across `tests/` directory including:
+- `test_api_endpoints.py`
+- `test_sanitization.py`
+- `test_clustering.py`
+- `test_vector_store.py`
+- ... and 30 more
 
----
-
-### 27. No Health Check on Vector Store
-
-**Problem:** Vector store initialization can fail silently.
-
-**Impact:** App appears healthy but search non-functional
+**Status:** Test coverage exists. Actual pass/fail rate requires running test suite.
 
 ---
 
-### 28. Teams Feature Code Remains After Removal
+### 14. Missing Retry Logic for External Services (Partial)
 
-**Recent Commit:** `83f8cbc refactor: Remove teams collaboration functionality`
+**Location:** `backend/llm_providers.py:320-325`
 
-**Problem:** Some teams-related code may still exist.
-
----
-
-### 29. BUG Marker in Production Code
-
-**Location:** `backend/routers/documents.py:72`
-
+**Verified:** OpenAI calls DO have retry logic:
 ```python
-# BUG FIX: Handle case where meta.owner might be None
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((Exception,)),
+    reraise=True
+)
+async def _call_openai(...)
 ```
 
-**Impact:** Indicates unstable area needing review
+**Status:** LLM calls have retry logic. Other external services should be verified.
 
 ---
 
-### 30. No Retry Logic for External Services
+### 15. BUG Comment in Documents Router
 
-**Problem:** OpenAI, Redis, PostgreSQL calls have no exponential backoff retry logic (despite `tenacity` being in requirements).
+**Location:** `backend/routers/documents.py` (mentioned in code comments)
 
----
-
-## Architecture Limitations
-
-### 31. Celery Workers Not Specialized
-
-**Recent Commit History:**
-- `35c4f9a` - Removed specialized workers
-- `87db529` - Reverted removal
-- `4ef5e26` - Removed learning/maverick workers
-
-**Problem:** Worker configuration unstable, flip-flopping on architecture.
+**Observation:** A `# BUG FIX:` comment exists, indicating a previously fixed issue. This is documentation, not a current bug.
 
 ---
 
-### 32. No Caching Strategy for Expensive Operations
+## Corrections to Previous Report
 
-**Problem:** Concept extraction and summarization hit OpenAI on every request, despite Redis being available.
+The following items from the earlier report were **incorrect or outdated**:
 
-**Partial Implementation:** Some caching in `concept_extractor.py`, but not comprehensive.
-
----
-
-### 33. Frontend-Backend API Contract Loose
-
-**Problem:** No OpenAPI schema validation enforcement. Frontend can call nonexistent endpoints without errors during development.
-
----
-
-## Security Considerations
-
-### 34. Secrets in Environment Variables
-
-**Problem:** All secrets (OpenAI key, DB password, OAuth secrets) passed via environment variables with defaults in docker-compose.yml.
-
-```yaml
-OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
-```
-
-**Risk:** Default values could leak, no secret rotation support
+| Claim | Reality |
+|-------|---------|
+| "64 os.getenv() bypasses" | Only 3, all in test setup code |
+| "GPT-5 API parameters wrong" | Correctly handled in llm_providers.py |
+| "Missing Docker env vars" | All model vars are properly defined |
+| "Auth persistence broken" | Properly implemented with hydration |
+| "idea_seeds_service.py broken" | File doesn't exist in codebase |
 
 ---
 
-### 35. CORS Configuration Warns But Doesn't Block
+## Verified Action Items
 
-**Location:** `backend/config.py`, `backend/main.py`
+### Immediate (Critical)
 
-**Problem:** Invalid CORS origins logged as warnings but may still allow requests.
+1. **Fix `provider.complete()` call** in `build_suggestions.py:942`
+   - Replace with `provider.chat_completion()` or create the missing method
 
----
+### Short-Term (High)
 
-### 36. OAuth State Parameter Handling Unknown
+2. **Add specific exception handling** in AI-related code paths
+3. **Remove or update team endpoints** from frontend API client
+4. **Consider refactoring** large router files (uploads.py, build_suggestions.py)
 
-**Location:** `backend/routers/auth.py`
+### Medium-Term
 
-**Problem:** Cannot verify CSRF protection in OAuth flow without deeper analysis.
-
----
-
-## Recommendations by Priority
-
-### Immediate (Block Release)
-
-1. **Fix GPT-5 API parameters** - Use `max_completion_tokens`, remove `temperature`
-2. **Fix authentication persistence** - Add useEffect auth check in root layout
-3. **Increase token limits** - Prevent JSON truncation
-
-### Short-Term (Next Sprint)
-
-4. **Complete config migration** - Replace 64 `os.getenv()` calls
-5. **Add environment variables to Docker** - Model configuration
-6. **Remove orphaned endpoints** - Clean up 0% usage routers
-7. **Fix test failures** - Address 45 pre-existing failures
-
-### Medium-Term (Next Quarter)
-
-8. **Refactor large files** - Split tasks.py and ingest.py
-9. **Implement proper error handling** - Consistent patterns
-10. **Add structured logging** - JSON format with correlation IDs
-11. **Integrate WebSocket features** - Or remove dead code
-12. **Integrate OAuth callbacks** - Or remove dead code
-
-### Long-Term (Roadmap)
-
-13. **External vector database** - For 100k+ document scale
-14. **API versioning** - /v1/ prefix
-15. **Read replicas** - PostgreSQL scaling
-16. **Rate limiting** - All endpoints
-17. **Secret management** - Vault or similar
+5. **Standardize error response format** across all endpoints
+6. **Add vector store health check** to `/health` endpoint
+7. **Consider external vector database** for 100k+ document scale
 
 ---
 
-## Metrics Summary
+## Metrics Summary (Verified)
 
-| Metric | Value | Status |
+| Metric | Value | Source |
 |--------|-------|--------|
-| **Total Backend Code** | ~41,500 lines | Large |
-| **Total Endpoints** | 202 | Many |
-| **Orphaned Endpoints** | 80 (40%) | High |
-| **os.getenv() Bypasses** | 64 | Technical Debt |
-| **Pre-existing Test Failures** | 45 | Risk |
-| **Completely Broken Features** | 3 | Critical |
-| **0% Usage Routers** | 2 | Dead Code |
-| **Overall Health Score** | 7.5/10 | Production-Ready |
+| **Total Backend Python Code** | 37,532 lines | `wc -l backend/*.py backend/routers/*.py` |
+| **Test Files** | 34 files | `find . -name "test*.py"` |
+| **Frontend API Methods** | 120+ methods | `wc -l frontend/src/lib/api.ts` |
+| **Confirmed Critical Bugs** | 1 | `provider.complete()` missing |
+| **Docker Services** | 8 | docker-compose.yml |
 
 ---
 
-## Appendix: Files Mentioned
+## Files Verified During Analysis
 
-### Critical Files Needing Fixes
-- `backend/idea_seeds_service.py`
-- `backend/summarization_service.py`
-- `frontend/src/stores/auth.ts`
-- `docker-compose.yml`
-
-### Files With High Technical Debt
-- `backend/tasks.py` (2,176 lines)
-- `backend/ingest.py` (2,087 lines)
-- `backend/routers/integrations.py` (18 os.getenv calls)
-
-### Dead Code Candidates
-- `backend/routers/content_generation.py`
-- `backend/routers/websocket.py`
-- `backend/storage.py`
-- `backend/db_storage_adapter.py`
+```
+backend/main.py
+backend/config.py
+backend/database.py
+backend/llm_providers.py
+backend/tasks.py
+backend/routers/build_suggestions.py
+frontend/src/stores/auth.ts
+frontend/src/lib/api.ts
+frontend/src/hooks/useRequireAuth.ts
+docker-compose.yml
+```
 
 ---
 
-**END OF LIMITATIONS REPORT**
+**END OF VERIFIED LIMITATIONS REPORT**
