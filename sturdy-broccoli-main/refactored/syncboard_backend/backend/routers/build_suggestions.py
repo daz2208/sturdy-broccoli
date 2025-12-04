@@ -67,10 +67,12 @@ async def quick_ideas(
     db: Session = Depends(get_db)
 ):
     """
-    Get instant build ideas by analyzing documents directly (no pre-computation).
+    Get pre-computed build idea seeds from the database (INSTANT - no AI calls).
 
-    This endpoint now calls the main build suggestion logic and formats results
-    as QuickIdea objects for backward compatibility.
+    This endpoint queries the build_idea_seeds table which contains ideas
+    generated during document ingestion. This is FREE and INSTANT.
+
+    For AI-generated custom suggestions, use POST /what_can_i_build instead.
 
     Args:
         difficulty: Optional filter by difficulty (beginner, intermediate, advanced)
@@ -80,7 +82,7 @@ async def quick_ideas(
         db: Database session
 
     Returns:
-        Instant build ideas generated from knowledge bank analysis
+        Pre-computed build idea seeds from database
     """
     from datetime import datetime
 
@@ -94,38 +96,26 @@ async def quick_ideas(
     # Get user's default knowledge base ID
     kb_id = get_user_default_kb_id(current_user.username, db)
 
-    # Get KB-scoped storage from repository
-    kb_documents = await repo.get_documents_by_kb(kb_id)
-    kb_metadata = await repo.get_metadata_by_kb(kb_id)
-    kb_clusters = await repo.get_clusters_by_kb(kb_id)
-    build_suggester = get_build_suggester()
+    # Query pre-computed build idea seeds from database
+    query = db.query(DBBuildIdeaSeed).filter_by(knowledge_base_id=kb_id)
 
-    # KB is already user-scoped via get_user_default_kb_id()
-    # No need for additional filtering - all KB documents/clusters belong to this user
-    user_clusters = kb_clusters
-    user_metadata = kb_metadata
-    user_documents = kb_documents
+    # Filter by difficulty if specified
+    if difficulty:
+        query = query.filter_by(difficulty=difficulty)
 
-    # Return early if no clusters exist in the knowledge base
-    if not user_clusters:
+    # Get seed ideas ordered by created date (newest first)
+    seed_ideas = query.order_by(DBBuildIdeaSeed.created_at.desc()).limit(limit).all()
+
+    # Return early if no seed ideas exist
+    if not seed_ideas:
         return {
             "count": 0,
             "ideas": [],
             "tier": "quick",
-            "message": "No knowledge found. Upload documents to generate ideas."
+            "message": "No pre-computed ideas yet. Upload more documents to generate seed ideas, or use 'What Can I Build' for AI suggestions."
         }
 
-    # Generate suggestions using the main build suggester
-    suggestions = await build_suggester.analyze_knowledge_bank(
-        clusters=user_clusters,
-        metadata=user_metadata,
-        documents=user_documents,
-        max_suggestions=limit,
-        enable_quality_filter=True
-    )
-
-    # Map BuildSuggestion -> QuickIdea format for frontend compatibility
-    # Difficulty mapping: complexity_level -> difficulty
+    # Map database seeds to QuickIdea format
     difficulty_map = {
         "beginner": "easy",
         "intermediate": "medium",
@@ -133,50 +123,38 @@ async def quick_ideas(
     }
 
     quick_ideas = []
-    for idx, suggestion in enumerate(suggestions):
-        # Map complexity_level to difficulty
-        complexity = suggestion.complexity_level or "intermediate"
-        mapped_difficulty = difficulty_map.get(complexity, "medium")
-
-        # Filter by difficulty if specified
-        if difficulty and mapped_difficulty != difficulty.replace("easy", "beginner").replace("medium", "intermediate").replace("hard", "advanced"):
-            continue
-
-        # Get first relevant document as source (if any)
-        source_doc_id = None
+    for seed in seed_ideas:
+        # Get source document info
+        source_doc = db.query(DBDocument).filter_by(id=seed.document_id).first()
         source_filename = None
         source_type = None
-        if suggestion.relevant_clusters and len(suggestion.relevant_clusters) > 0:
-            cluster_id = suggestion.relevant_clusters[0]
-            cluster_docs = [did for did, meta in user_metadata.items() if meta.cluster_id == cluster_id]
-            if cluster_docs:
-                source_doc_id = cluster_docs[0]
-                source_meta = user_metadata.get(source_doc_id)
-                if source_meta:
-                    source_filename = source_meta.title or f"Document {source_doc_id}"
-                    source_type = source_meta.source_type
+        if source_doc:
+            source_filename = source_doc.filename or source_doc.title
+            source_type = source_doc.source_type
+
+        mapped_difficulty = difficulty_map.get(seed.difficulty, "medium")
 
         quick_ideas.append({
-            "id": idx + 1,  # Generate sequential ID
-            "title": suggestion.title,
-            "description": suggestion.description,
+            "id": seed.id,
+            "title": seed.title,
+            "description": seed.description,
             "difficulty": mapped_difficulty,
-            "feasibility": suggestion.feasibility,
-            "effort_estimate": suggestion.effort_estimate,
-            "dependencies": suggestion.required_skills or [],
+            "feasibility": seed.feasibility or "medium",
+            "effort_estimate": seed.effort_estimate or "Unknown",
+            "dependencies": seed.dependencies or [],
             "source_document": {
-                "id": str(source_doc_id) if source_doc_id else None,
+                "id": str(seed.document_id),
                 "filename": source_filename,
                 "source_type": source_type
             },
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": seed.created_at.isoformat()
         })
 
     return {
         "count": len(quick_ideas),
         "ideas": quick_ideas,
         "tier": "quick",
-        "message": f"Generated {len(quick_ideas)} ideas from document analysis"
+        "message": f"Found {len(quick_ideas)} pre-computed idea seeds"
     }
 
 
