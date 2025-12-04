@@ -204,7 +204,87 @@ services:
       retries: 3
       start_period: 30s
 
-  # Celery Beat - Scheduler for periodic tasks
+  # Celery worker 3 (dedicated uploads worker)
+  celery-worker-uploads:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-uploads
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q uploads --concurrency=2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
+    volumes:
+      - ./storage:/app/storage
+      - ./images:/app/images
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Celery worker 4 (dedicated analysis worker)
+  celery-worker-analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syncboard-celery-analysis
+    restart: unless-stopped
+    command: celery -A backend.celery_app worker --loglevel=info -Q analysis --concurrency=2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://syncboard:syncboard@db:5432/syncboard
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SYNCBOARD_SECRET_KEY: ${SYNCBOARD_SECRET_KEY:-your-secret-key-here-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-replace-with-your-key}
+      TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+      IDEA_MODEL: ${IDEA_MODEL:-gpt-5-mini}
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-gpt-5-nano}
+      OPENAI_CONCEPT_MODEL: ${OPENAI_CONCEPT_MODEL:-gpt-5-nano}
+      OPENAI_SUGGESTION_MODEL: ${OPENAI_SUGGESTION_MODEL:-gpt-5-mini}
+    volumes:
+      - ./storage:/app/storage
+      - ./images:/app/images
+      - ./backend:/app/backend
+    networks:
+      - syncboard-network
+    healthcheck:
+      # Verify worker responds to ping via broker
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$(hostname) | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Celery Beat - Scheduler for periodic tasks (agents)
   celery-beat:
     build:
       context: .
