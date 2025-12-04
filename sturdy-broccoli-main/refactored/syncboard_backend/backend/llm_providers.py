@@ -327,8 +327,8 @@ class OpenAIProvider(LLMProvider):
         self,
         messages: List[Dict],
         model: str,
-        temperature: float,
-        max_tokens: int
+        max_tokens: int,
+        temperature: float = 1.0
     ) -> str:
         """Call OpenAI API with retry logic."""
         logger.info(f"Calling OpenAI with model: {model}")
