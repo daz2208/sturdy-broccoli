@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum thresholds for viable build suggestions (relaxed for small KBs)
 MIN_DOCUMENTS = 1
-MIN_CONCEPTS = 3
+MIN_CONCEPTS = 2  # Reduced from 3 to be more forgiving
 MIN_CLUSTERS = 1  # At least one coherent knowledge area
 MIN_CONTENT_LENGTH = 200  # Total characters
 
@@ -140,6 +140,13 @@ class ImprovedBuildSuggester:
         has_advanced = skill_counter.get("advanced", 0) > 0
         has_intermediate = skill_counter.get("intermediate", 0) > 0
 
+        # Log validation details for debugging
+        logger.info(f"Knowledge validation check:")
+        logger.info(f"  Documents: {total_docs} (min: {MIN_DOCUMENTS})")
+        logger.info(f"  Unique concepts: {unique_concepts} (min: {MIN_CONCEPTS})")
+        logger.info(f"  Clusters: {total_clusters} (min: {MIN_CLUSTERS})")
+        logger.info(f"  Content length: {total_content_length} chars (min: {MIN_CONTENT_LENGTH})")
+
         # Validation checks
         reasons = []
 
@@ -147,7 +154,14 @@ class ImprovedBuildSuggester:
             reasons.append(f"Only {total_docs} documents (need {MIN_DOCUMENTS}+)")
 
         if unique_concepts < MIN_CONCEPTS:
-            reasons.append(f"Only {unique_concepts} concepts (need {MIN_CONCEPTS}+)")
+            reasons.append(f"Only {unique_concepts} unique concepts (need {MIN_CONCEPTS}+)")
+            # Debug: show what concepts we have
+            if unique_concepts == 0:
+                logger.error("CRITICAL: No concepts found in documents! Check concept extraction.")
+                logger.error(f"  Total metadata entries: {len(metadata)}")
+                logger.error(f"  Total concept list items: {len(all_concepts)}")
+            else:
+                logger.info(f"  Available concepts: {', '.join(set(all_concepts))}")
 
         if total_clusters < MIN_CLUSTERS:
             reasons.append(f"No coherent knowledge areas (need {MIN_CLUSTERS}+ cluster)")
@@ -156,6 +170,11 @@ class ImprovedBuildSuggester:
             reasons.append(f"Shallow content ({total_content_length} chars, need {MIN_CONTENT_LENGTH}+)")
 
         sufficient = len(reasons) == 0
+
+        if not sufficient:
+            logger.warning(f"Knowledge validation FAILED: {'; '.join(reasons)}")
+        else:
+            logger.info("Knowledge validation PASSED")
 
         return {
             "sufficient": sufficient,
