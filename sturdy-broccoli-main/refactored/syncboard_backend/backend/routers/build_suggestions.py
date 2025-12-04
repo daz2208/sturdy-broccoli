@@ -35,7 +35,7 @@ from ..repository_interface import KnowledgeBankRepository
 from ..database import get_db, get_db_context
 from ..sanitization import validate_positive_integer
 from ..constants import MAX_SUGGESTIONS
-from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation, DBSavedIdea, DBBuildIdeaSeed
+from ..db_models import DBProjectGoal, DBProjectAttempt, DBMarketValidation, DBSavedIdea, DBBuildIdeaSeed, DBDocument
 from ..redis_client import get_cached_build_suggestions, cache_build_suggestions
 from ..config import settings
 
