@@ -56,6 +56,139 @@ router = APIRouter(
 # Build Suggestion Endpoint
 # =============================================================================
 
+@router.get("/quick-ideas")
+@limiter.limit("30/minute")
+async def quick_ideas(
+    request: Request,
+    difficulty: str = None,
+    limit: int = 15,
+    repo: KnowledgeBankRepository = Depends(get_repository),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get instant build ideas by analyzing documents directly (no pre-computation).
+
+    This endpoint now calls the main build suggestion logic and formats results
+    as QuickIdea objects for backward compatibility.
+
+    Args:
+        difficulty: Optional filter by difficulty (beginner, intermediate, advanced)
+        limit: Maximum results (default 15, max 30)
+        current_user: Authenticated user
+        repo: Repository instance
+        db: Database session
+
+    Returns:
+        Instant build ideas generated from knowledge bank analysis
+    """
+    from datetime import datetime
+
+    # Validate difficulty
+    if difficulty and difficulty not in ["beginner", "intermediate", "advanced"]:
+        raise HTTPException(400, "Invalid difficulty. Use: beginner, intermediate, advanced")
+
+    # Validate limit
+    limit = min(max(1, limit), 30)
+
+    # Get user's default knowledge base ID
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Get KB-scoped storage from repository
+    kb_documents = await repo.get_documents_by_kb(kb_id)
+    kb_metadata = await repo.get_metadata_by_kb(kb_id)
+    kb_clusters = await repo.get_clusters_by_kb(kb_id)
+    build_suggester = get_build_suggester()
+
+    # Filter to user's content within their KB
+    user_clusters = {
+        cid: cluster for cid, cluster in kb_clusters.items()
+        if any(kb_metadata.get(did) and kb_metadata[did].owner == current_user.username for did in cluster.doc_ids)
+    }
+
+    user_metadata = {
+        did: meta for did, meta in kb_metadata.items()
+        if meta.owner == current_user.username
+    }
+
+    user_documents = {
+        did: doc for did, doc in kb_documents.items()
+        if did in user_metadata
+    }
+
+    if not user_clusters:
+        return {
+            "count": 0,
+            "ideas": [],
+            "tier": "quick",
+            "message": "No knowledge found. Upload documents to generate ideas."
+        }
+
+    # Generate suggestions using the main build suggester
+    suggestions = await build_suggester.analyze_knowledge_bank(
+        clusters=user_clusters,
+        metadata=user_metadata,
+        documents=user_documents,
+        max_suggestions=limit,
+        enable_quality_filter=True
+    )
+
+    # Map BuildSuggestion -> QuickIdea format for frontend compatibility
+    # Difficulty mapping: complexity_level -> difficulty
+    difficulty_map = {
+        "beginner": "easy",
+        "intermediate": "medium",
+        "advanced": "hard"
+    }
+
+    quick_ideas = []
+    for idx, suggestion in enumerate(suggestions):
+        # Map complexity_level to difficulty
+        complexity = suggestion.complexity_level or "intermediate"
+        mapped_difficulty = difficulty_map.get(complexity, "medium")
+
+        # Filter by difficulty if specified
+        if difficulty and mapped_difficulty != difficulty.replace("easy", "beginner").replace("medium", "intermediate").replace("hard", "advanced"):
+            continue
+
+        # Get first relevant document as source (if any)
+        source_doc_id = None
+        source_filename = None
+        source_type = None
+        if suggestion.relevant_clusters and len(suggestion.relevant_clusters) > 0:
+            cluster_id = suggestion.relevant_clusters[0]
+            cluster_docs = [did for did, meta in user_metadata.items() if meta.cluster_id == cluster_id]
+            if cluster_docs:
+                source_doc_id = cluster_docs[0]
+                source_meta = user_metadata.get(source_doc_id)
+                if source_meta:
+                    source_filename = source_meta.title or f"Document {source_doc_id}"
+                    source_type = source_meta.source_type
+
+        quick_ideas.append({
+            "id": idx + 1,  # Generate sequential ID
+            "title": suggestion.title,
+            "description": suggestion.description,
+            "difficulty": mapped_difficulty,
+            "feasibility": suggestion.feasibility,
+            "effort_estimate": suggestion.effort_estimate,
+            "dependencies": suggestion.required_skills or [],
+            "source_document": {
+                "id": str(source_doc_id) if source_doc_id else None,
+                "filename": source_filename,
+                "source_type": source_type
+            },
+            "created_at": datetime.utcnow().isoformat()
+        })
+
+    return {
+        "count": len(quick_ideas),
+        "ideas": quick_ideas,
+        "tier": "quick",
+        "message": f"Generated {len(quick_ideas)} ideas from document analysis"
+    }
+
+
 @router.post("/what_can_i_build")
 @limiter.limit("3/minute")
 async def what_can_i_build(
