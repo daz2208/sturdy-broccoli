@@ -180,15 +180,24 @@ class KnowledgeServices:
         """Generic LLM call helper."""
         client = self._get_client()
         try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[
+            # GPT-5 models use different parameters
+            params = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_message}
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
+                ]
+            }
+
+            if model.startswith("gpt-5"):
+                # GPT-5 models use max_completion_tokens and ignore temperature
+                params["max_completion_tokens"] = max_tokens
+            else:
+                # GPT-4 and earlier use max_tokens and temperature
+                params["max_tokens"] = max_tokens
+                params["temperature"] = temperature
+
+            response = await client.chat.completions.create(**params)
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"LLM call failed: {e}")
