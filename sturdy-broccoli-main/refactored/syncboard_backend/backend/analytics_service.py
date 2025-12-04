@@ -20,7 +20,8 @@ from .db_models import (
     DBCluster,
     DBConcept,
     DBUser,
-    DBVectorDocument
+    DBVectorDocument,
+    DBDocumentSummary
 )
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ class AnalyticsService:
         cluster_query = self.db.query(DBCluster)
         total_clusters = cluster_query.count()
 
-        # Get concept count
+        # Get concept count from DBConcept table first
         concept_query = self.db.query(DBConcept)
         if username:
             # Count distinct concepts from user's documents
@@ -61,6 +62,25 @@ class AnalyticsService:
                 DBDocument.owner_username == username
             )
         total_concepts = concept_query.distinct().count()
+
+        # If DBConcept is empty, fall back to counting concepts from document summaries
+        # (Concepts extracted during summarization are stored in key_concepts field)
+        if total_concepts == 0:
+            summary_query = self.db.query(DBDocumentSummary).filter(
+                DBDocumentSummary.summary_type == 'document',
+                DBDocumentSummary.key_concepts.isnot(None)
+            )
+            if username:
+                summary_query = summary_query.join(DBDocument).filter(
+                    DBDocument.owner_username == username
+                )
+
+            # Count unique concepts from all document summaries
+            all_concepts = set()
+            for summary in summary_query.all():
+                if summary.key_concepts:
+                    all_concepts.update(summary.key_concepts)
+            total_concepts = len(all_concepts)
 
         # Documents added today
         today = datetime.utcnow().date()
@@ -248,8 +268,9 @@ class AnalyticsService:
         Returns:
             List of concepts with their occurrence counts
         """
+        # First try DBConcept table
         query = self.db.query(
-            DBConcept.name,  # FIX: Field is 'name' not 'concept_text'
+            DBConcept.name,
             func.count(DBConcept.id).label('count')
         )
 
@@ -259,13 +280,36 @@ class AnalyticsService:
             )
 
         results = query.group_by(
-            DBConcept.name  # FIX: Field is 'name' not 'concept_text'
+            DBConcept.name
         ).order_by(
             func.count(DBConcept.id).desc()
         ).limit(limit).all()
 
+        # If DBConcept is empty, fall back to document summaries
+        if not results:
+            summary_query = self.db.query(DBDocumentSummary).filter(
+                DBDocumentSummary.summary_type == 'document',
+                DBDocumentSummary.key_concepts.isnot(None)
+            )
+            if username:
+                summary_query = summary_query.join(DBDocument).filter(
+                    DBDocument.owner_username == username
+                )
+
+            # Count concept frequency across all summaries
+            concept_counts = Counter()
+            for summary in summary_query.all():
+                if summary.key_concepts:
+                    concept_counts.update(summary.key_concepts)
+
+            # Return top concepts sorted by frequency
+            return [
+                {"concept": concept, "count": count}
+                for concept, count in concept_counts.most_common(limit)
+            ]
+
         return [
-            {"concept": r.name, "count": r.count}  # FIX: Field is 'name' not 'concept_text'
+            {"concept": r.name, "count": r.count}
             for r in results
         ]
 
