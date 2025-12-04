@@ -443,6 +443,56 @@ POST /expand-seed/{seed_id}
 
 ---
 
+## 📍 Implementation Status (Updated December 4, 2025)
+
+### **✅ LIVE - Track 1: Quick Ideas**
+- **Status:** Fully implemented and operational
+- **Commit:** 3f56a82 (Dec 4, 2025)
+- **Implementation:**
+  - `GET /quick-ideas` endpoint queries `build_idea_seeds` table
+  - Seed generation restored in Stage 8 (file/URL/image uploads)
+  - Service: `backend/idea_seeds_service.py` (557 lines)
+  - Cost: FREE (database query), ~$0.01/doc for generation
+  - Seeds generated using GPT-5-mini during document upload
+
+### **⏳ NOT IMPLEMENTED - Track 2: Expand Seed**
+- **Status:** Planned, not yet built
+- **Decision:** Wait for user demand before implementing
+- **Reason:** Track 1 and Track 3 should be evaluated first
+- **Timeline:** TBD based on user feedback
+
+### **✅ LIVE - Track 3: What Can I Build**
+- **Status:** Fully implemented and operational (renamed from Track 2)
+- **Implementation:**
+  - `POST /what_can_i_build` endpoint
+  - Pure KB synthesis using `document_summaries.key_concepts`
+  - NO seed injection (clean separation maintained)
+  - Cost: ~$0.02 per generation
+  - Quality: High (cross-document synthesis)
+
+### **🧪 Testing Period: December 4-11, 2025**
+
+**Hypothesis:** Keeping seeds (Track 1) and KB synthesis (Track 3) completely separate will provide good user experience.
+
+**Success Metrics:**
+- ✅ Seeds generate successfully during upload
+- ✅ Quick Ideas returns useful results
+- ✅ What Can I Build quality remains high
+- ✅ Costs stay reasonable (~$0.01/doc for seeds)
+- ✅ No user complaints about generic ideas
+
+**Decision After Week:**
+- If separation works well → Keep as-is, consider Track 2 implementation
+- If What Can I Build too generic → Consider seed-reference prompt (template ready)
+- If seeds unused → Improve seed quality and filtering
+
+**Documentation:**
+- Implementation: `SEED_RESTORATION_NOTES.md`
+- Rollback: `SEED_GENERATION_ROLLBACK.md`
+- Analysis: `SEED_GENERATION_FAILURE_ANALYSIS.md`
+
+---
+
 ## 📝 Database Schema Changes
 
 ### **New Table: `expanded_build_plans`**
