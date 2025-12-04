@@ -233,6 +233,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             self.db.flush()  # Get the database ID
 
             # Add concepts
+            logger.info(f"Saving {len(metadata.concepts)} concepts for doc_id={doc_id}, doc.id={db_doc.id}")
             for concept in metadata.concepts:
                 db_concept = DBConcept(
                     document_id=db_doc.id,
