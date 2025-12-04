@@ -96,36 +96,12 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         Returns:
             Dictionary mapping doc_id to metadata
         """
-        from sqlalchemy.orm import joinedload
-
-        db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).filter_by(knowledge_base_id=kb_id).all()
+        db_docs = self.db.query(DBDocument).filter_by(knowledge_base_id=kb_id).all()
         result = {}
         for db_doc in db_docs:
-            # Build metadata directly from eagerly-loaded db_doc to preserve concepts
-            concepts = [
-                Concept(
-                    name=c.name,
-                    category=c.category,
-                    confidence=c.confidence
-                )
-                for c in db_doc.concepts
-            ]
-
-            meta = DocumentMetadata(
-                doc_id=db_doc.doc_id,
-                owner=db_doc.owner_username,
-                source_type=db_doc.source_type,
-                source_url=db_doc.source_url,
-                filename=db_doc.filename,
-                image_path=db_doc.image_path,
-                concepts=concepts,
-                skill_level=db_doc.skill_level,
-                cluster_id=db_doc.cluster_id,
-                knowledge_base_id=db_doc.knowledge_base_id,
-                ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
-                content_length=db_doc.content_length
-            )
-            result[db_doc.doc_id] = meta
+            meta = await self.get_document_metadata(db_doc.doc_id)
+            if meta:
+                result[db_doc.doc_id] = meta
         return result
 
     async def get_clusters_by_kb(self, kb_id: str) -> Dict[int, Cluster]:
@@ -233,7 +209,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             self.db.flush()  # Get the database ID
 
             # Add concepts
-            logger.info(f"Saving {len(metadata.concepts)} concepts for doc_id={doc_id}, doc.id={db_doc.id}")
+            logger.debug(f"Saving {len(metadata.concepts)} concepts for doc_id={doc_id}, doc.id={db_doc.id}")
             for concept in metadata.concepts:
                 db_concept = DBConcept(
                     document_id=db_doc.id,
@@ -261,9 +237,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
 
     async def get_document_metadata(self, doc_id: int) -> Optional[DocumentMetadata]:
         """Get document metadata by ID."""
-        from sqlalchemy.orm import joinedload
-
-        db_doc = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).filter_by(doc_id=doc_id).first()
+        db_doc = self.db.query(DBDocument).filter_by(doc_id=doc_id).first()
         if not db_doc:
             return None
 
@@ -299,36 +273,12 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
 
     async def get_all_metadata(self) -> Dict[int, DocumentMetadata]:
         """Get all document metadata."""
-        from sqlalchemy.orm import joinedload
-
-        db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).all()
+        db_docs = self.db.query(DBDocument).all()
         result = {}
         for db_doc in db_docs:
-            # Build metadata directly from eagerly-loaded db_doc to preserve concepts
-            concepts = [
-                Concept(
-                    name=c.name,
-                    category=c.category,
-                    confidence=c.confidence
-                )
-                for c in db_doc.concepts
-            ]
-
-            meta = DocumentMetadata(
-                doc_id=db_doc.doc_id,
-                owner=db_doc.owner_username,
-                source_type=db_doc.source_type,
-                source_url=db_doc.source_url,
-                filename=db_doc.filename,
-                image_path=db_doc.image_path,
-                concepts=concepts,
-                skill_level=db_doc.skill_level,
-                cluster_id=db_doc.cluster_id,
-                knowledge_base_id=db_doc.knowledge_base_id,
-                ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
-                content_length=db_doc.content_length
-            )
-            result[db_doc.doc_id] = meta
+            meta = await self.get_document_metadata(db_doc.doc_id)
+            if meta:
+                result[db_doc.doc_id] = meta
         return result
 
     async def delete_document(self, doc_id: int) -> bool:
