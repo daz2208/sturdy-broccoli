@@ -305,19 +305,19 @@ class KnowledgeGraphService:
     def get_concept_cloud(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get top concepts across all documents."""
         concepts = [
-            {"concept": concept, "document_count": len(doc_ids)}
+            {"concept": concept, "frequency": len(doc_ids)}
             for concept, doc_ids in self._concept_index.items()
         ]
-        concepts.sort(key=lambda x: x["document_count"], reverse=True)
+        concepts.sort(key=lambda x: x["frequency"], reverse=True)
         return concepts[:limit]
 
     def get_tech_cloud(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get top technologies across all documents."""
         techs = [
-            {"technology": tech, "document_count": len(doc_ids)}
+            {"tech": tech, "frequency": len(doc_ids)}
             for tech, doc_ids in self._tech_index.items()
         ]
-        techs.sort(key=lambda x: x["document_count"], reverse=True)
+        techs.sort(key=lambda x: x["frequency"], reverse=True)
         return techs[:limit]
 
     def find_learning_path(

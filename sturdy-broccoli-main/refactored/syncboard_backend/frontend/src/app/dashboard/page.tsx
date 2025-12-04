@@ -78,7 +78,7 @@ export default function DashboardPage() {
       setStats({
         documents: healthData.statistics.documents,
         clusters: healthData.statistics.clusters,
-        concepts: analyticsData.top_concepts?.length || 0,
+        concepts: analyticsData.overview?.concepts || 0,
         health: {
           status: healthData.status,
           database: healthData.dependencies.database,
