@@ -939,7 +939,11 @@ Return a JSON object with this exact structure:
 Be creative but practical. The mega-project should feel natural, not forced."""
 
     try:
-        response = await provider.complete(prompt)
+        # Use chat_completion instead of non-existent complete() method
+        response = await provider.chat_completion([
+            {"role": "system", "content": "You are an expert project architect who creates comprehensive mega-projects."},
+            {"role": "user", "content": prompt}
+        ])
 
         # Parse the JSON response
         import json

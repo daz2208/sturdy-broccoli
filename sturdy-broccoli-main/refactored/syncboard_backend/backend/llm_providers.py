@@ -653,37 +653,35 @@ Return ONLY a JSON array with COMPREHENSIVE, ACTIONABLE project suggestions:
     "missing_knowledge": ["specific gap 1", "specific gap 2"],
     "relevant_clusters": [0, 1],
     "starter_steps": [
-      "Step 1: Set up project structure",
-      "Step 2: Create main.py with basic Flask app",
-      "Step 3: Define database models",
-      "Step 4: Create API endpoints",
-      "Step 5: Add authentication",
-      "Step 6: Write unit tests",
-      "Step 7: Deploy to cloud"
+      "Step 1: Set up project structure based on their tech stack",
+      "Step 2: Create main entry point using frameworks from their knowledge",
+      "Step 3: Define data models relevant to the project",
+      "Step 4: Implement core functionality",
+      "Step 5: Add error handling and validation",
+      "Step 6: Write tests",
+      "Step 7: Document and deploy"
     ],
-    "file_structure": "project/\\n  src/\\n    __init__.py\\n    main.py\\n    models.py\\n    routes.py\\n  tests/\\n    test_api.py\\n  requirements.txt\\n  README.md\\n  .env.example",
-    "starter_code": "Complete, working code that includes:\\n  - Main entry point with proper imports and dependencies\\n  - Database models with relationships and constraints\\n  - API routes with error handling and input validation\\n  - Authentication/authorization where relevant\\n  - Environment configuration (.env support)\\n  - Ready to run immediately (e.g., 'python main.py' or 'npm start')\\n\\nQuality standard: Production-ready, not tutorial code. Include realistic error handling, proper validation, and production-grade patterns.",
+    "file_structure": "Appropriate structure for the chosen tech stack",
+    "starter_code": "Complete, working code using technologies from their knowledge base. Must be production-ready with proper error handling, validation, and best practices for their specific stack.",
     "learning_path": [
-      "Study: Flask routing and request handling (2 hours)",
-      "Practice: Build a simple REST API (4 hours)",
-      "Learn: Database integration with SQLAlchemy (3 hours)",
-      "Master: Authentication with JWT tokens (2 hours)"
+      "Resources tailored to concepts from their knowledge base",
+      "Practical exercises building on what they already know",
+      "Advanced topics that extend their current skills"
     ],
     "recommended_resources": [
-      "Flask Official Docs: https://flask.palletsprojects.com/",
-      "Real Python - Flask Tutorial",
-      "FreeCodeCamp - REST API Guide"
+      "Official documentation for technologies in their KB",
+      "Tutorials relevant to their skill level",
+      "Community resources for their stack"
     ],
     "expected_outcomes": [
-      "Working REST API with CRUD operations",
-      "User authentication system",
-      "Database integration",
-      "Deployed application"
+      "Working implementation using their known technologies",
+      "Skills reinforced through practical application",
+      "Portfolio-ready project"
     ],
     "troubleshooting_tips": [
-      "CORS errors: Add flask-cors package",
-      "Database connection: Check .env configuration",
-      "Port conflicts: Use different port with app.run(port=5001)"
+      "Common issues specific to their tech stack",
+      "Configuration guidance for their tools",
+      "Debugging strategies for their frameworks"
     ],
     "knowledge_coverage": "high|medium|low (how much of their knowledge applies)"
   }}

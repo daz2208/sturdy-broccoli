@@ -934,6 +934,16 @@ Provide a helpful, contextual response."""
         """
         summary = self._get_kb_summary(kb_id)
 
+        # Validate KB has content before calling LLM
+        if summary['document_count'] == 0 or not summary['top_concepts']:
+            return {
+                "error": "empty_knowledge_base",
+                "message": "Your knowledge base is empty. Please upload some documents first to get personalized code suggestions.",
+                "suggestion": "Upload PDFs, code files, YouTube videos, or other content to build your knowledge base.",
+                "files": [],
+                "concepts_demonstrated": []
+            }
+
         concepts = [c['name'] for c in summary['top_concepts'][:20]]
         categories = list(set(c['category'] for c in summary['top_concepts'][:20]))
 
