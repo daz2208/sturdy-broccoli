@@ -101,9 +101,31 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).filter_by(knowledge_base_id=kb_id).all()
         result = {}
         for db_doc in db_docs:
-            meta = await self.get_document_metadata(db_doc.doc_id)
-            if meta:
-                result[db_doc.doc_id] = meta
+            # Build metadata directly from eagerly-loaded db_doc to preserve concepts
+            concepts = [
+                Concept(
+                    name=c.name,
+                    category=c.category,
+                    confidence=c.confidence
+                )
+                for c in db_doc.concepts
+            ]
+
+            meta = DocumentMetadata(
+                doc_id=db_doc.doc_id,
+                owner=db_doc.owner_username,
+                source_type=db_doc.source_type,
+                source_url=db_doc.source_url,
+                filename=db_doc.filename,
+                image_path=db_doc.image_path,
+                concepts=concepts,
+                skill_level=db_doc.skill_level,
+                cluster_id=db_doc.cluster_id,
+                knowledge_base_id=db_doc.knowledge_base_id,
+                ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
+                content_length=db_doc.content_length
+            )
+            result[db_doc.doc_id] = meta
         return result
 
     async def get_clusters_by_kb(self, kb_id: str) -> Dict[int, Cluster]:
@@ -281,9 +303,31 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
         db_docs = self.db.query(DBDocument).options(joinedload(DBDocument.concepts)).all()
         result = {}
         for db_doc in db_docs:
-            meta = await self.get_document_metadata(db_doc.doc_id)
-            if meta:
-                result[db_doc.doc_id] = meta
+            # Build metadata directly from eagerly-loaded db_doc to preserve concepts
+            concepts = [
+                Concept(
+                    name=c.name,
+                    category=c.category,
+                    confidence=c.confidence
+                )
+                for c in db_doc.concepts
+            ]
+
+            meta = DocumentMetadata(
+                doc_id=db_doc.doc_id,
+                owner=db_doc.owner_username,
+                source_type=db_doc.source_type,
+                source_url=db_doc.source_url,
+                filename=db_doc.filename,
+                image_path=db_doc.image_path,
+                concepts=concepts,
+                skill_level=db_doc.skill_level,
+                cluster_id=db_doc.cluster_id,
+                knowledge_base_id=db_doc.knowledge_base_id,
+                ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
+                content_length=db_doc.content_length
+            )
+            result[db_doc.doc_id] = meta
         return result
 
     async def delete_document(self, doc_id: int) -> bool:
