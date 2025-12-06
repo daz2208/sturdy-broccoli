@@ -65,8 +65,8 @@ celery_app.conf.update(
 
     # Task execution settings
     task_track_started=True,  # Track when tasks start (for progress)
-    task_time_limit=1800,  # Hard time limit: 30 minutes (for large ZIP files)
-    task_soft_time_limit=1680,  # Soft time limit: 28 minutes (allows cleanup)
+    task_time_limit=3600,  # Hard time limit: 60 minutes (for very large ZIP files)
+    task_soft_time_limit=3480,  # Soft time limit: 58 minutes (allows cleanup)
 
     # Worker settings
     worker_prefetch_multiplier=1,  # Only fetch one task at a time

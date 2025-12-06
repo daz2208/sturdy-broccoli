@@ -76,12 +76,12 @@ def run_async(coro):
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, coro)
-            # CRITICAL FIX: Increased timeout from 30s → 300s → 1500s (25 minutes)
-            # Supports large batch uploads (e.g., 300 n8n workflows in ZIP)
+            # CRITICAL FIX: Increased timeout from 30s → 300s → 1500s → 3300s (55 minutes)
+            # Supports very large batch uploads (e.g., 500+ documents in ZIP)
             # Upload operations include: AI extraction, clustering, DB save, chunking, summarization
-            # Stays under Celery's hard limit (1800s/30min) for safety
+            # Stays under Celery's hard limit (3600s/60min) for safety
             # Individual operations still complete in seconds; this prevents spurious timeouts on batch processing
-            return future.result(timeout=1500)
+            return future.result(timeout=3300)
 
 CONCEPT_SAMPLE_CHARS = 12_000  # limit sent to LLM for concept extraction
 MAX_SINGLE_DOCUMENT_CHARS = 200_000  # cap single-document payloads to keep processing responsive
