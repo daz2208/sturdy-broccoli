@@ -127,6 +127,42 @@ def chunk_document_sync(doc_id: int, content: str, kb_id: str) -> dict:
 # Helper Functions
 # =============================================================================
 
+def assign_document_id_from_database(user_id: str, kb_id: str, filename: str, source_type: str) -> int:
+    """
+    Get atomic doc_id from database sequence.
+
+    Database-level SERIAL ensures no race conditions between concurrent workers.
+    Each worker gets a unique ID guaranteed by PostgreSQL.
+
+    Returns:
+        doc_id: Auto-assigned unique document ID
+    """
+    try:
+        with get_db_context() as db:
+            # Create minimal DBDocument row to claim a doc_id from sequence
+            temp_doc = DBDocument(
+                # doc_id auto-assigned by sequence
+                owner_username=user_id,
+                knowledge_base_id=kb_id,
+                source_type=source_type,
+                filename=filename,
+                created_at=datetime.utcnow()
+            )
+            db.add(temp_doc)
+            db.flush()  # Get auto-assigned doc_id without committing
+
+            doc_id = temp_doc.doc_id
+            logger.info(f"[DOC_ID] Database assigned doc_id={doc_id} for {filename}")
+
+            # Remove temp row - we'll create proper one later with full metadata
+            db.expunge(temp_doc)
+            db.rollback()
+
+            return doc_id
+    except Exception as e:
+        logger.error(f"[DOC_ID] Failed to assign doc_id from database: {e}", exc_info=True)
+        raise
+
 def sync_vector_store_next_id():
     """
     Synchronize vector_store._next_id with the database MAX(doc_id) + 1.
@@ -347,11 +383,8 @@ def process_multi_document_zip(
 
     logger.info(f"Processing multi-document ZIP: {filename} with {len(documents_list)} documents")
 
-    # CRITICAL FIX: Sync vector_store._next_id with database before batch operations
-    # This prevents doc_id collisions when processing multiple documents
-    # See: Non-atomic doc_id generation bug where vector store assigns IDs in-memory
-    # but database is the source of truth. When these get out of sync, constraint violations occur.
-    sync_vector_store_next_id()
+    # NOTE: No need to sync _next_id - each document gets atomic ID from database sequence
+    # Database SERIAL prevents race conditions between concurrent workers
 
     # Get KB-scoped storage
     kb_documents = get_kb_documents(kb_id)
@@ -421,8 +454,11 @@ def process_multi_document_zip(
             except Exception as e:
                 logger.warning(f"Failed to record concept extraction decision: {e}")
 
-            # Add to vector store
-            doc_id = vector_store.add_document(document_text)
+            # Get atomic doc_id from database sequence
+            doc_id = assign_document_id_from_database(user_id, kb_id, doc_filename, "file")
+
+            # Add to vector store with pre-assigned doc_id
+            vector_store.add_document(document_text, doc_id=doc_id)
             kb_documents[doc_id] = document_text
 
             # Create metadata
@@ -755,12 +791,12 @@ def process_file_upload(
         kb_documents = get_kb_documents(kb_id)
         kb_metadata = get_kb_metadata(kb_id)
 
-        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
-        # Even single uploads need this in concurrent scenarios
-        sync_vector_store_next_id()
+        # CRITICAL FIX: Get atomic doc_id from database sequence (prevents race conditions)
+        # Database SERIAL ensures concurrent workers get unique IDs
+        doc_id = assign_document_id_from_database(user_id, kb_id, filename_safe, "file")
 
-        # Add to vector store
-        doc_id = vector_store.add_document(document_text)
+        # Add to vector store with pre-assigned doc_id
+        vector_store.add_document(document_text, doc_id=doc_id)
         kb_documents[doc_id] = document_text
 
         # Create metadata
@@ -1194,11 +1230,11 @@ def process_url_upload(
         kb_documents = get_kb_documents(kb_id)
         kb_metadata = get_kb_metadata(kb_id)
 
-        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
-        sync_vector_store_next_id()
+        # CRITICAL FIX: Get atomic doc_id from database sequence
+        doc_id = assign_document_id_from_database(user_id, kb_id, url_safe[:50], "url")
 
-        # Add to vector store
-        doc_id = vector_store.add_document(document_text)
+        # Add to vector store with pre-assigned doc_id
+        vector_store.add_document(document_text, doc_id=doc_id)
         kb_documents[doc_id] = document_text
 
         # Create metadata
@@ -1607,11 +1643,11 @@ def process_image_upload(
             kb_metadata = get_kb_metadata("default")
             kb_id = "default"
 
-        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
-        sync_vector_store_next_id()
+        # CRITICAL FIX: Get atomic doc_id from database sequence
+        doc_id = assign_document_id_from_database(user_id, kb_id, filename_safe, "image")
 
-        # Add to vector store
-        doc_id = vector_store.add_document(combined_text)
+        # Add to vector store with pre-assigned doc_id
+        vector_store.add_document(combined_text, doc_id=doc_id)
         kb_documents[doc_id] = combined_text
 
         # Store image file
@@ -2124,11 +2160,8 @@ def import_github_files_task(
             "Accept": "application/vnd.github.v3+json"
         }
 
-        # CRITICAL FIX: Sync vector_store._next_id with database before batch operations
-        # This prevents doc_id collisions when processing multiple GitHub files
-        # See: Non-atomic doc_id generation bug where vector store assigns IDs in-memory
-        # but database is the source of truth. When these get out of sync, constraint violations occur.
-        sync_vector_store_next_id()
+        # NOTE: No need to sync _next_id - each file gets atomic ID from database sequence
+        # Database SERIAL prevents race conditions
 
         # Process each file
         imported_docs = []
@@ -2235,8 +2268,11 @@ def import_github_files_task(
                 concepts_list = extraction.get("concepts", [])
                 primary_topic = extraction.get("primary_topic")
 
-                # Add to vector store
-                doc_id = vector_store.add_document(file_content)
+                # Get atomic doc_id from database sequence
+                doc_id = assign_document_id_from_database(user_id, kb_id, file_path, "github")
+
+                # Add to vector store with pre-assigned doc_id
+                vector_store.add_document(file_content, doc_id=doc_id)
                 kb_documents[doc_id] = file_content
 
                 # Find or create cluster (with kb_id)
