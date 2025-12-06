@@ -136,20 +136,24 @@ def sync_vector_store_next_id():
 
     Called before batch document operations to ensure atomic doc_id generation.
     """
+    logger.warning(f"[DOC_ID_SYNC] Starting sync, current _next_id={vector_store._next_id}")
     try:
         with get_db_context() as db:
+            logger.warning("[DOC_ID_SYNC] Database context acquired, querying MAX(doc_id)...")
             # Query MAX(doc_id) from the database
             max_doc_id = db.query(func.max(DBDocument.doc_id)).scalar()
+            logger.warning(f"[DOC_ID_SYNC] Query completed: MAX(doc_id)={max_doc_id}")
 
             if max_doc_id is not None:
                 vector_store._next_id = max_doc_id + 1
-                logger.info(f"[DOC_ID_SYNC] Synced vector_store._next_id to {vector_store._next_id} (MAX(doc_id)={max_doc_id})")
+                logger.warning(f"[DOC_ID_SYNC] ✅ SUCCESS: Synced _next_id to {vector_store._next_id} (MAX={max_doc_id})")
             else:
                 # No documents in database yet
                 vector_store._next_id = 0
-                logger.info("[DOC_ID_SYNC] No documents in database, setting _next_id to 0")
+                logger.warning("[DOC_ID_SYNC] ✅ SUCCESS: No documents, setting _next_id to 0")
     except Exception as e:
-        logger.error(f"[DOC_ID_SYNC] Failed to sync vector_store._next_id with database: {e}")
+        logger.error(f"[DOC_ID_SYNC] ❌ FAILED: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"[DOC_ID_SYNC] Continuing with current _next_id={vector_store._next_id}")
         # Don't raise - allow operation to continue with current _next_id
 
 def reload_cache_from_db():
