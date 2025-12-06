@@ -48,24 +48,20 @@ def upgrade():
         ALTER COLUMN doc_id SET DEFAULT nextval('documents_doc_id_seq');
     """)
 
-    # Same for document_vectors table
+    # Handle document_vectors table if it exists
     op.execute("""
         DO $$
         BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'document_vectors_doc_id_seq') THEN
-                CREATE SEQUENCE document_vectors_doc_id_seq;
+            -- Only create sequence if table exists
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'document_vectors') THEN
+                IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'document_vectors_doc_id_seq') THEN
+                    CREATE SEQUENCE document_vectors_doc_id_seq;
+                    PERFORM setval('document_vectors_doc_id_seq', COALESCE((SELECT MAX(doc_id) FROM document_vectors), 0) + 1, false);
+                    ALTER TABLE document_vectors ALTER COLUMN doc_id SET DEFAULT nextval('document_vectors_doc_id_seq');
+                END IF;
             END IF;
         END
         $$;
-    """)
-
-    op.execute("""
-        SELECT setval('document_vectors_doc_id_seq', COALESCE((SELECT MAX(doc_id) FROM document_vectors), 0) + 1, false);
-    """)
-
-    op.execute("""
-        ALTER TABLE document_vectors
-        ALTER COLUMN doc_id SET DEFAULT nextval('document_vectors_doc_id_seq');
     """)
 
 
@@ -81,10 +77,15 @@ def downgrade():
         ALTER COLUMN doc_id DROP DEFAULT;
     """)
 
-    # Remove default from document_vectors table
+    # Remove default from document_vectors table if it exists
     op.execute("""
-        ALTER TABLE document_vectors
-        ALTER COLUMN doc_id DROP DEFAULT;
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'document_vectors') THEN
+                ALTER TABLE document_vectors ALTER COLUMN doc_id DROP DEFAULT;
+            END IF;
+        END
+        $$;
     """)
 
     # Optionally drop sequences (commented out to preserve data)
