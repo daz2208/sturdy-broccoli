@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from celery import Task
 from celery.signals import worker_process_init
+from sqlalchemy import func
 
 from .celery_app import celery_app
 from .models import DocumentMetadata, Concept
@@ -125,6 +126,31 @@ def chunk_document_sync(doc_id: int, content: str, kb_id: str) -> dict:
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def sync_vector_store_next_id():
+    """
+    Synchronize vector_store._next_id with the database MAX(doc_id) + 1.
+
+    This prevents doc_id collisions when the in-memory counter gets out of sync
+    with the actual maximum doc_id in the PostgreSQL database.
+
+    Called before batch document operations to ensure atomic doc_id generation.
+    """
+    try:
+        with get_db_context() as db:
+            # Query MAX(doc_id) from the database
+            max_doc_id = db.query(func.max(DBDocument.doc_id)).scalar()
+
+            if max_doc_id is not None:
+                vector_store._next_id = max_doc_id + 1
+                logger.info(f"[DOC_ID_SYNC] Synced vector_store._next_id to {vector_store._next_id} (MAX(doc_id)={max_doc_id})")
+            else:
+                # No documents in database yet
+                vector_store._next_id = 0
+                logger.info("[DOC_ID_SYNC] No documents in database, setting _next_id to 0")
+    except Exception as e:
+        logger.error(f"[DOC_ID_SYNC] Failed to sync vector_store._next_id with database: {e}")
+        # Don't raise - allow operation to continue with current _next_id
 
 def reload_cache_from_db():
     """Reload in-memory cache from database after Celery task updates."""
@@ -320,6 +346,12 @@ def process_multi_document_zip(
     import asyncio
 
     logger.info(f"Processing multi-document ZIP: {filename} with {len(documents_list)} documents")
+
+    # CRITICAL FIX: Sync vector_store._next_id with database before batch operations
+    # This prevents doc_id collisions when processing multiple documents
+    # See: Non-atomic doc_id generation bug where vector store assigns IDs in-memory
+    # but database is the source of truth. When these get out of sync, constraint violations occur.
+    sync_vector_store_next_id()
 
     # Get KB-scoped storage
     kb_documents = get_kb_documents(kb_id)
@@ -722,6 +754,10 @@ def process_file_upload(
         # Get KB-scoped storage
         kb_documents = get_kb_documents(kb_id)
         kb_metadata = get_kb_metadata(kb_id)
+
+        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
+        # Even single uploads need this in concurrent scenarios
+        sync_vector_store_next_id()
 
         # Add to vector store
         doc_id = vector_store.add_document(document_text)
@@ -1158,6 +1194,9 @@ def process_url_upload(
         kb_documents = get_kb_documents(kb_id)
         kb_metadata = get_kb_metadata(kb_id)
 
+        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
+        sync_vector_store_next_id()
+
         # Add to vector store
         doc_id = vector_store.add_document(document_text)
         kb_documents[doc_id] = document_text
@@ -1567,6 +1606,9 @@ def process_image_upload(
             kb_documents = get_kb_documents("default")
             kb_metadata = get_kb_metadata("default")
             kb_id = "default"
+
+        # CRITICAL FIX: Sync vector_store._next_id with database to prevent collisions
+        sync_vector_store_next_id()
 
         # Add to vector store
         doc_id = vector_store.add_document(combined_text)
@@ -2081,6 +2123,12 @@ def import_github_files_task(
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/vnd.github.v3+json"
         }
+
+        # CRITICAL FIX: Sync vector_store._next_id with database before batch operations
+        # This prevents doc_id collisions when processing multiple GitHub files
+        # See: Non-atomic doc_id generation bug where vector store assigns IDs in-memory
+        # but database is the source of truth. When these get out of sync, constraint violations occur.
+        sync_vector_store_next_id()
 
         # Process each file
         imported_docs = []
