@@ -70,6 +70,14 @@ export default function DocumentsPage() {
     const unsubJobCompleted = on('job_completed', (event) => {
       const jobId = event.data.job_id as string;
       if (jobId) {
+        // CRITICAL FIX: Stop polling interval to prevent race condition
+        // Without this, polling continues and overwrites "success" back to "processing"
+        const interval = pollIntervalsRef.current.get(jobId);
+        if (interval) {
+          clearInterval(interval);
+          pollIntervalsRef.current.delete(jobId);
+        }
+
         setUploadJobs(prev => prev.map(job =>
           job.id === jobId ? { ...job, status: 'success', progress: 100, message: 'Completed!' } : job
         ));
@@ -80,6 +88,13 @@ export default function DocumentsPage() {
     const unsubJobFailed = on('job_failed', (event) => {
       const jobId = event.data.job_id as string;
       if (jobId) {
+        // Stop polling interval on failure too
+        const interval = pollIntervalsRef.current.get(jobId);
+        if (interval) {
+          clearInterval(interval);
+          pollIntervalsRef.current.delete(jobId);
+        }
+
         setUploadJobs(prev => prev.map(job =>
           job.id === jobId ? { ...job, status: 'failed', error: event.data.error as string } : job
         ));
