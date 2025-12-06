@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'docid_001'
-down_revision = 'teams_usage_002_add_subscription_dates'  # Latest migration
+down_revision = 'teams_usage_002'  # Latest migration
 branch_labels = None
 depends_on = None
 
