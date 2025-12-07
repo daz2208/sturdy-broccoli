@@ -470,11 +470,58 @@ async def generate_hierarchical_summaries(
         f"{len(chunk_summaries)} chunks, {len(section_summaries)} sections, 1 document"
     )
 
+    # Generate idea seeds if requested (uses same API session context)
+    ideas_generated = 0
+    if generate_ideas and section_summaries:
+        try:
+            from .idea_seeds_service import IdeaSeedsService, IdeaSeed
+            from .db_models import DBBuildIdeaSeed
+
+            idea_service = IdeaSeedsService()
+            # No separate is_available() check - if we got here, API key works
+
+            # Use the document summary we just created
+            ideas = await idea_service.generate_ideas_from_summary(
+                document_summary=doc_result.long_summary or doc_result.short_summary,
+                key_concepts=doc_result.key_concepts or [],
+                tech_stack=doc_result.tech_stack or [],
+                skill_profile=doc_result.skill_profile
+            )
+
+            if ideas:
+                # Delete existing ideas for this document
+                db.query(DBBuildIdeaSeed).filter(
+                    DBBuildIdeaSeed.document_id == document_id
+                ).delete()
+
+                # Store new ideas
+                for idea in ideas:
+                    db_idea = DBBuildIdeaSeed(
+                        document_id=document_id,
+                        knowledge_base_id=knowledge_base_id,
+                        title=idea.title,
+                        description=idea.description,
+                        difficulty=idea.difficulty,
+                        dependencies=idea.dependencies,
+                        feasibility=idea.feasibility,
+                        effort_estimate=idea.effort_estimate,
+                        referenced_sections=idea.referenced_sections
+                    )
+                    db.add(db_idea)
+
+                db.commit()
+                ideas_generated = len(ideas)
+                logger.info(f"Generated {ideas_generated} idea seeds for document {document_id}")
+
+        except Exception as e:
+            logger.warning(f"Idea seed generation failed (non-critical): {e}")
+
     result = {
         "status": "success",
         "chunk_summaries": len(chunk_summaries),
         "section_summaries": len(section_summaries),
-        "document_summary": 1
+        "document_summary": 1,
+        "ideas_generated": ideas_generated
     }
 
     return result
