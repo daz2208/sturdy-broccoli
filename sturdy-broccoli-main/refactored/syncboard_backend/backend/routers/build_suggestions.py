@@ -158,6 +158,78 @@ async def quick_ideas(
     }
 
 
+@router.get("/idea-seeds/combined")
+@limiter.limit("5/minute")
+async def get_combined_ideas(
+    request: Request,
+    max_ideas: int = 5,
+    store: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate ideas that COMBINE knowledge from multiple documents in the KB.
+
+    This creates cross-document synthesis ideas - projects that leverage
+    the user's unique combination of knowledge across their entire KB.
+
+    Unlike /quick-ideas (which shows per-document seeds), this endpoint
+    finds synergies between documents.
+
+    Args:
+        max_ideas: Maximum ideas to generate (default 5, max 10)
+        store: If True, also store ideas in DB for /quick-ideas (default False)
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        Combined project ideas synthesizing multiple documents
+    """
+    from ..idea_seeds_service import generate_kb_combined_ideas
+
+    # Validate max_ideas
+    max_ideas = min(max(1, max_ideas), 10)
+
+    # Get user's default knowledge base ID
+    kb_id = get_user_default_kb_id(current_user.username, db)
+
+    # Generate combined ideas from all KB documents
+    ideas = await generate_kb_combined_ideas(db, kb_id, max_ideas)
+
+    if not ideas:
+        return {
+            "count": 0,
+            "ideas": [],
+            "type": "combined",
+            "message": "Need at least 2 documents with summaries to generate combined ideas"
+        }
+
+    # Optionally store in DB so they appear in /quick-ideas too
+    if store and ideas:
+        for idea in ideas:
+            db_idea = DBBuildIdeaSeed(
+                document_id=None,  # Combined ideas don't belong to single doc
+                knowledge_base_id=kb_id,
+                title=idea["title"],
+                description=idea["description"],
+                difficulty=idea["difficulty"],
+                dependencies=idea.get("dependencies", []),
+                feasibility=idea["feasibility"],
+                effort_estimate=idea["effort_estimate"],
+                referenced_sections=[]
+            )
+            db.add(db_idea)
+        db.commit()
+        logger.info(f"Stored {len(ideas)} combined ideas for KB {kb_id}")
+
+    return {
+        "count": len(ideas),
+        "ideas": ideas,
+        "type": "combined",
+        "message": f"Generated {len(ideas)} ideas combining your knowledge base documents"
+    }
+
+
 @router.post("/what_can_i_build")
 @limiter.limit("3/minute")
 async def what_can_i_build(
