@@ -518,7 +518,8 @@ export default function BuildPage() {
         feasibility: idea.feasibility || 'medium',
         effort_estimate: idea.effort_estimate || 'varies',
         dependencies: idea.dependencies || [],
-        source_document: { filename: 'Combined KB Knowledge' }
+        source_document: { filename: 'Combined KB Knowledge' },
+        created_at: new Date().toISOString()
       }));
       setQuickIdeas(combinedAsQuickIdeas);
       if (data.ideas.length === 0) {
