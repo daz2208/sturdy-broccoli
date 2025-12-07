@@ -530,7 +530,9 @@ def process_multi_document_zip(
 
             # Stage: Generate idea seeds (auto-generate build ideas from summaries)
             # This was MISSING - ZIP-extracted documents weren't getting quick ideas generated!
+            logger.info(f"[DIAG] ZIP Stage: idea seeds check for {doc_filename}: chunks={chunk_result.get('chunks', 0)}, summarization_status={summarization_result.get('status')}")
             if summarization_result.get('status') == 'success':
+                logger.info(f"[DIAG] ZIP Stage: ENTERING idea seed generation for {doc_filename}")
                 try:
                     from .idea_seeds_service import generate_document_idea_seeds
                     # Get document ID from database
@@ -538,18 +540,26 @@ def process_multi_document_zip(
                         db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                         if db_doc:
                             internal_doc_id = db_doc.id
+                            logger.info(f"[DIAG] ZIP: Found internal_doc_id={internal_doc_id} for {doc_filename}")
                         else:
                             internal_doc_id = None
+                            logger.warning(f"[DIAG] ZIP: No db_doc found for doc_id={doc_id}")
 
                     # Generate ideas (manages its own db session to avoid transaction warnings)
                     if internal_doc_id:
+                        logger.info(f"[DIAG] ZIP: Calling generate_document_idea_seeds for {doc_filename}...")
                         idea_result = run_async(generate_document_idea_seeds(
                             document_id=internal_doc_id,
                             knowledge_base_id=kb_id
                         ))
+                        logger.info(f"[DIAG] ZIP: Seed result for {doc_filename}: {idea_result}")
                         logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for ZIP doc {doc_id}")
                 except Exception as e:
-                    logger.warning(f"Idea seed generation failed for ZIP doc {doc_filename}: {e}")
+                    logger.error(f"[DIAG] ZIP Stage EXCEPTION for {doc_filename}: {e}", exc_info=True)
+            else:
+                logger.warning(f"[DIAG] ZIP: SKIPPED idea seeds for {doc_filename} - summarization status='{summarization_result.get('status')}'")
+                if not summarization_result:
+                    logger.warning(f"[DIAG] ZIP: summarization_result is empty for {doc_filename} - check if chunks={chunk_result.get('chunks', 0)} > 0")
 
             # Track processed document
             processed_docs.append({
