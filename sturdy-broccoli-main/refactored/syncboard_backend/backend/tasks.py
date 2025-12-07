@@ -528,6 +528,29 @@ def process_multi_document_zip(
                 except Exception as e:
                     logger.warning(f"Summarization failed for {doc_filename}: {e}")
 
+            # Stage: Generate idea seeds (auto-generate build ideas from summaries)
+            # This was MISSING - ZIP-extracted documents weren't getting quick ideas generated!
+            if summarization_result.get('status') == 'success':
+                try:
+                    from .idea_seeds_service import generate_document_idea_seeds
+                    # Get document ID from database
+                    with get_db_context() as db:
+                        db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
+                        if db_doc:
+                            internal_doc_id = db_doc.id
+                        else:
+                            internal_doc_id = None
+
+                    # Generate ideas (manages its own db session to avoid transaction warnings)
+                    if internal_doc_id:
+                        idea_result = run_async(generate_document_idea_seeds(
+                            document_id=internal_doc_id,
+                            knowledge_base_id=kb_id
+                        ))
+                        logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for ZIP doc {doc_id}")
+                except Exception as e:
+                    logger.warning(f"Idea seed generation failed for ZIP doc {doc_filename}: {e}")
+
             # Track processed document
             processed_docs.append({
                 "doc_id": doc_id,
