@@ -333,9 +333,12 @@ async def generate_document_idea_seeds(
     from .db_models import DBDocumentSummary, DBBuildIdeaSeed
     from .database import get_db_context
 
+    logger.info(f"[DIAG] generate_document_idea_seeds(doc={document_id}, kb={knowledge_base_id})")
+
     service = IdeaSeedsService()
 
     if not service.is_available():
+        logger.warning("[DIAG] API key not configured - skipping")
         return {"status": "skipped", "reason": "API key not configured"}
 
     # Manage our own database session to avoid transaction warnings
@@ -347,7 +350,10 @@ async def generate_document_idea_seeds(
         ).first()
 
         if not doc_summary:
+            logger.warning(f"[DIAG] No level 3 summary found for doc {document_id}")
             return {"status": "skipped", "reason": "No document summary found"}
+
+        logger.info(f"[DIAG] Found summary: short={len(doc_summary.short_summary or '')} chars")
 
         # Extract data we need before exiting context
         summary_text = doc_summary.long_summary or doc_summary.short_summary
@@ -356,14 +362,17 @@ async def generate_document_idea_seeds(
         skill_profile = doc_summary.skill_profile
 
     # Generate ideas (outside of db session context)
+    logger.info(f"[DIAG] Calling generate_ideas_from_summary...")
     ideas = await service.generate_ideas_from_summary(
         document_summary=summary_text,
         key_concepts=key_concepts,
         tech_stack=tech_stack,
         skill_profile=skill_profile
     )
+    logger.info(f"[DIAG] generate_ideas_from_summary returned {len(ideas) if ideas else 0} ideas")
 
     if not ideas:
+        logger.warning("[DIAG] No ideas returned - skipping storage")
         return {"status": "skipped", "reason": "No ideas generated"}
 
     # Store ideas in a new database session
