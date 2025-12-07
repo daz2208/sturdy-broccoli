@@ -368,9 +368,6 @@ def process_multi_document_zip(
             document_text = doc_dict.get('content', '')
             doc_metadata = doc_dict.get('metadata', {})
 
-            # Log what we're processing
-            logger.info(f"[DIAG] Processing ZIP file {idx+1}/{total_docs}: {doc_filename}, content_length={len(document_text)}")
-
             # Progress update
             progress = 25 + int((idx / total_docs) * 70)  # 25% to 95%
 
@@ -530,10 +527,6 @@ def process_multi_document_zip(
                                 db.commit()
                 except Exception as e:
                     logger.warning(f"Summarization failed for {doc_filename}: {e}")
-
-            # Idea seeds are now generated inside summarization when generate_ideas=True
-            # Log the result for debugging
-            logger.info(f"[DIAG] ZIP doc {doc_filename}: chunks={chunk_result.get('chunks', 0)}, summarization={summarization_result.get('status')}, ideas={summarization_result.get('ideas_generated', 0)}")
 
             # Track processed document
             processed_docs.append({
