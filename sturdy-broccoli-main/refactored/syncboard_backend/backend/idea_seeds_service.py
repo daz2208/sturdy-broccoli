@@ -221,7 +221,7 @@ Generate 2-4 project ideas using ONLY concepts from this document:"""
         all_tech = set()
         summaries = []
 
-        for doc in documents[:15]:  # Use up to 15 documents for broader coverage
+        for doc in documents[:25]:  # Use up to 25 documents for broader coverage
             if doc.get("key_concepts"):
                 all_concepts.update(doc["key_concepts"])
             if doc.get("tech_stack"):
@@ -506,7 +506,7 @@ async def generate_kb_combined_ideas(
     db: Session,
     knowledge_base_id: str,
     max_ideas: int = 5,
-    sample_size: int = 15
+    sample_size: int = 25
 ) -> List[Dict[str, Any]]:
     """
     Generate ideas that combine multiple documents in a knowledge base.
@@ -515,7 +515,7 @@ async def generate_kb_combined_ideas(
         db: Database session
         knowledge_base_id: Knowledge base ID
         max_ideas: Maximum ideas to generate
-        sample_size: Number of docs to randomly sample from KB (default 15)
+        sample_size: Number of docs to randomly sample from KB (default 25, max 50)
 
     Returns:
         List of combined idea dicts

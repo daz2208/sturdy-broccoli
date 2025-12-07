@@ -424,6 +424,7 @@ export default function BuildPage() {
   const [loading, setLoading] = useState(false);
   const [loadingQuick, setLoadingQuick] = useState(false);
   const [loadingCombined, setLoadingCombined] = useState(false);
+  const [combinedSampleSize, setCombinedSampleSize] = useState(25);
   const [validating, setValidating] = useState(false);
   const [maxSuggestions, setMaxSuggestions] = useState(5);
   const [knowledgeSummary, setKnowledgeSummary] = useState<any>(null);
@@ -508,7 +509,7 @@ export default function BuildPage() {
   const getCombinedIdeas = async () => {
     setLoadingCombined(true);
     try {
-      const data = await api.getCombinedKBIdeas(5, true);
+      const data = await api.getCombinedKBIdeas(5, combinedSampleSize, true);
       // Transform combined ideas to match QuickIdea format
       const combinedAsQuickIdeas: QuickIdea[] = data.ideas.map((idea: any, idx: number) => ({
         id: -(idx + 1), // Negative IDs to distinguish from regular seeds
@@ -703,15 +704,29 @@ export default function BuildPage() {
               >
                 Hard
               </button>
-              <button
-                onClick={getCombinedIdeas}
-                disabled={loadingCombined || loadingQuick}
-                className="btn btn-primary flex items-center gap-2"
-                title="Generate ideas combining all documents in your KB"
-              >
-                {loadingCombined ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Combined
-              </button>
+              <div className="flex items-center gap-1">
+                <select
+                  value={combinedSampleSize}
+                  onChange={(e) => setCombinedSampleSize(Number(e.target.value))}
+                  className="bg-dark-200 border border-dark-300 rounded px-2 py-2 text-sm text-gray-300"
+                  title="Number of docs to sample from KB"
+                >
+                  <option value={10}>10 docs</option>
+                  <option value={15}>15 docs</option>
+                  <option value={25}>25 docs</option>
+                  <option value={35}>35 docs</option>
+                  <option value={50}>50 docs</option>
+                </select>
+                <button
+                  onClick={getCombinedIdeas}
+                  disabled={loadingCombined || loadingQuick}
+                  className="btn btn-primary flex items-center gap-2"
+                  title="Generate ideas combining selected docs from your KB"
+                >
+                  {loadingCombined ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  Combined
+                </button>
+              </div>
             </div>
           </div>
 
