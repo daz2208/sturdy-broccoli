@@ -472,7 +472,9 @@ async def generate_hierarchical_summaries(
 
     # Generate idea seeds if requested (uses same API session context)
     ideas_generated = 0
+    logger.info(f"[DIAG] Summarization complete for doc {document_id}: generate_ideas={generate_ideas}, section_summaries={len(section_summaries)}")
     if generate_ideas and section_summaries:
+        logger.info(f"[DIAG] Starting idea seed generation for doc {document_id}")
         try:
             from .idea_seeds_service import IdeaSeedsService, IdeaSeed
             from .db_models import DBBuildIdeaSeed
