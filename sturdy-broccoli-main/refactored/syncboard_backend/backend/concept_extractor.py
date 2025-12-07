@@ -627,14 +627,14 @@ Return ONLY valid JSON:"""
         api_key = settings.openai_api_key
         client = AsyncOpenAI(api_key=api_key)
 
+        # GPT-5 models use max_completion_tokens and don't support temperature
         response = await client.chat.completions.create(
             model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": "You are a concept extraction system. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
-            max_tokens=4000
+            max_completion_tokens=4000
         )
 
         return response.choices[0].message.content or ""
