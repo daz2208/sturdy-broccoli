@@ -275,8 +275,8 @@ class ApiClient {
    * Get ideas that combine knowledge from multiple documents in the KB
    * These are cross-document synthesis ideas that leverage unique knowledge combinations
    */
-  async getCombinedKBIdeas(maxIdeas?: number, store?: boolean): Promise<{ ideas: Types.QuickIdea[]; count: number; type: string; message: string }> {
-    const { data } = await this.client.get('/idea-seeds/combined', { params: { max_ideas: maxIdeas, store } });
+  async getCombinedKBIdeas(maxIdeas?: number, sampleSize?: number, store?: boolean): Promise<{ ideas: Types.QuickIdea[]; count: number; type: string; message: string }> {
+    const { data } = await this.client.get('/idea-seeds/combined', { params: { max_ideas: maxIdeas, sample_size: sampleSize, store } });
     return data;
   }
 

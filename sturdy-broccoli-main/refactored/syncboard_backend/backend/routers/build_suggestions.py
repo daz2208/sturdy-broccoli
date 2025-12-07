@@ -163,6 +163,7 @@ async def quick_ideas(
 async def get_combined_ideas(
     request: Request,
     max_ideas: int = 5,
+    sample_size: int = 25,
     store: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -178,6 +179,7 @@ async def get_combined_ideas(
 
     Args:
         max_ideas: Maximum ideas to generate (default 5, max 10)
+        sample_size: Number of docs to sample from KB (default 25, max 50)
         store: If True, also store ideas in DB for /quick-ideas (default False)
         current_user: Authenticated user
         db: Database session
@@ -187,14 +189,15 @@ async def get_combined_ideas(
     """
     from ..idea_seeds_service import generate_kb_combined_ideas
 
-    # Validate max_ideas
+    # Validate max_ideas and sample_size
     max_ideas = min(max(1, max_ideas), 10)
+    sample_size = min(max(5, sample_size), 50)
 
     # Get user's default knowledge base ID
     kb_id = get_user_default_kb_id(current_user.username, db)
 
     # Generate combined ideas from all KB documents
-    ideas = await generate_kb_combined_ideas(db, kb_id, max_ideas)
+    ideas = await generate_kb_combined_ideas(db, kb_id, max_ideas, sample_size)
 
     if not ideas:
         return {
