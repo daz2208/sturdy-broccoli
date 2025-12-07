@@ -926,9 +926,7 @@ def process_file_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
-        logger.info(f"[STAGE 8] Checking if idea seeds should be generated - summarization_status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
-            logger.info(f"[STAGE 8] Summarization succeeded, proceeding with seed generation for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -936,26 +934,18 @@ def process_file_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
-                        logger.info(f"[STAGE 8] Found internal doc_id={internal_doc_id} for doc_id={doc_id}")
                     else:
                         internal_doc_id = None
-                        logger.warning(f"[STAGE 8] Could not find internal document ID for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
-                    logger.info(f"[STAGE 8] Calling seed generation service...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
-                    logger.info(f"[STAGE 8] Seed generation result: status={idea_result.get('status')}, ideas_generated={idea_result.get('ideas_generated', 0)}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
-                else:
-                    logger.warning(f"[STAGE 8] Skipping seed generation - no internal doc_id found")
             except Exception as e:
-                logger.error(f"[STAGE 8] Idea seed generation EXCEPTION: {e}", exc_info=True)
-        else:
-            logger.warning(f"[STAGE 8] Skipping seed generation - summarization status is '{summarization_result.get('status')}' (expected 'success')")
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
 
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
@@ -1382,9 +1372,7 @@ def process_url_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
-        logger.info(f"[STAGE 8] Checking if idea seeds should be generated - summarization_status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
-            logger.info(f"[STAGE 8] Summarization succeeded, proceeding with seed generation for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -1392,26 +1380,18 @@ def process_url_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
-                        logger.info(f"[STAGE 8] Found internal doc_id={internal_doc_id} for doc_id={doc_id}")
                     else:
                         internal_doc_id = None
-                        logger.warning(f"[STAGE 8] Could not find internal document ID for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
-                    logger.info(f"[STAGE 8] Calling seed generation service...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
-                    logger.info(f"[STAGE 8] Seed generation result: status={idea_result.get('status')}, ideas_generated={idea_result.get('ideas_generated', 0)}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
-                else:
-                    logger.warning(f"[STAGE 8] Skipping seed generation - no internal doc_id found")
             except Exception as e:
-                logger.error(f"[STAGE 8] Idea seed generation EXCEPTION: {e}", exc_info=True)
-        else:
-            logger.warning(f"[STAGE 8] Skipping seed generation - summarization status is '{summarization_result.get('status')}' (expected 'success')")
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
 
         logger.info(
             f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id} "
@@ -1780,9 +1760,7 @@ def process_image_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
-        logger.info(f"[STAGE 8] Checking if idea seeds should be generated - summarization_status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
-            logger.info(f"[STAGE 8] Summarization succeeded, proceeding with seed generation for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -1790,26 +1768,18 @@ def process_image_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
-                        logger.info(f"[STAGE 8] Found internal doc_id={internal_doc_id} for doc_id={doc_id}")
                     else:
                         internal_doc_id = None
-                        logger.warning(f"[STAGE 8] Could not find internal document ID for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
-                    logger.info(f"[STAGE 8] Calling seed generation service...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
-                    logger.info(f"[STAGE 8] Seed generation result: status={idea_result.get('status')}, ideas_generated={idea_result.get('ideas_generated', 0)}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
-                else:
-                    logger.warning(f"[STAGE 8] Skipping seed generation - no internal doc_id found")
             except Exception as e:
-                logger.error(f"[STAGE 8] Idea seed generation EXCEPTION: {e}", exc_info=True)
-        else:
-            logger.warning(f"[STAGE 8] Skipping seed generation - summarization status is '{summarization_result.get('status')}' (expected 'success')")
+                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
 
         logger.info(
             f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} "
