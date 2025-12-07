@@ -211,7 +211,6 @@ class DocumentMetadata(BaseModel):
     ingested_at: str  # ISO timestamp
     content_length: Optional[int] = None  # Set after calculating content length
     image_path: Optional[str] = None  # For images
-    source_zip_filename: Optional[str] = None  # Parent ZIP filename if extracted from archive
 
 
 class Cluster(BaseModel):

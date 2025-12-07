@@ -656,14 +656,9 @@ export default function DocumentsPage() {
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-200">{doc.title || `Document #${doc.id}`}</h3>
-                    <div className="flex gap-2 mt-1 flex-wrap items-center">
+                    <div className="flex gap-2 mt-1">
                       <span className="badge badge-primary">{doc.source_type}</span>
                       {doc.skill_level && <span className="badge badge-success">{doc.skill_level}</span>}
-                      {doc.source_zip_filename && (
-                        <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded" title="Extracted from ZIP">
-                          📦 {doc.source_zip_filename}
-                        </span>
-                      )}
                       <span className="text-xs text-gray-500">{new Date(doc.ingested_at).toLocaleDateString()}</span>
                     </div>
                   </div>
