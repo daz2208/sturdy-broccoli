@@ -28,6 +28,7 @@ export interface Document {
   primary_topic?: string;
   skill_level?: string;
   knowledge_base_id?: string;  // UUID string from backend
+  source_zip_filename?: string;  // Parent ZIP filename if extracted from archive
 }
 
 export interface DocumentMetadata {

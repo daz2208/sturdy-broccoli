@@ -64,7 +64,8 @@ def load_storage(
             cluster_id=meta_data.get('cluster_id'),
             ingested_at=meta_data['ingested_at'],
             content_length=meta_data['content_length'],
-            image_path=meta_data.get('image_path')
+            image_path=meta_data.get('image_path'),
+            source_zip_filename=meta_data.get('source_zip_filename')
         )
         metadata[meta['doc_id']] = meta
     
