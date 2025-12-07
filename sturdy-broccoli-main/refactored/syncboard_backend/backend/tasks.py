@@ -436,8 +436,7 @@ def process_multi_document_zip(
                 cluster_id=None,
                 knowledge_base_id=kb_id,
                 ingested_at=datetime.utcnow().isoformat(),
-                content_length=len(document_text),
-                source_zip_filename=doc_metadata.get('from_zip')  # Track parent ZIP
+                content_length=len(document_text)
             )
             kb_metadata[doc_id] = meta
 

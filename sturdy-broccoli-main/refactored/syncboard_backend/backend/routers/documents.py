@@ -82,8 +82,7 @@ async def list_documents(
             "skill_level": getattr(meta, 'skill_level', None) or "unknown",
             "filename": getattr(meta, 'filename', None),
             "owner": meta.owner,  # Include owner for debugging
-            "knowledge_base_id": meta.knowledge_base_id,  # Required for frontend filtering
-            "source_zip_filename": getattr(meta, 'source_zip_filename', None)  # Parent ZIP if extracted from archive
+            "knowledge_base_id": meta.knowledge_base_id  # Required for frontend filtering
         }
         for doc_id, meta in kb_metadata.items()
         if meta.owner == user.username or meta.owner is None  # Show docs with no owner too

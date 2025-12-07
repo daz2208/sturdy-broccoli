@@ -73,7 +73,6 @@ class DBDocument(Base):
     source_url = Column(String(2048), nullable=True)
     filename = Column(String(512), nullable=True)
     image_path = Column(String(1024), nullable=True)
-    source_zip_filename = Column(String(512), nullable=True)  # Parent ZIP filename if extracted from archive
 
     # Content metadata
     content_length = Column(Integer, nullable=True)

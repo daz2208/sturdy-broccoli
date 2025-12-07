@@ -203,8 +203,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
                 image_path=metadata.image_path,
                 content_length=metadata.content_length,
                 skill_level=metadata.skill_level,
-                ingested_at=ingested_datetime,
-                source_zip_filename=metadata.source_zip_filename
+                ingested_at=ingested_datetime
             )
             self.db.add(db_doc)
             self.db.flush()  # Get the database ID
@@ -285,8 +284,7 @@ class DatabaseKnowledgeBankRepository(KnowledgeBankRepository):
             cluster_id=db_doc.cluster_id,
             knowledge_base_id=db_doc.knowledge_base_id,
             ingested_at=db_doc.ingested_at.isoformat() if db_doc.ingested_at else None,
-            content_length=db_doc.content_length,
-            source_zip_filename=db_doc.source_zip_filename
+            content_length=db_doc.content_length
         )
 
     async def get_all_documents(self) -> Dict[int, str]:
