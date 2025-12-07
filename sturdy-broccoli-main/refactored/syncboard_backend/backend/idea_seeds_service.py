@@ -221,7 +221,7 @@ Generate 2-4 project ideas using ONLY concepts from this document:"""
         all_tech = set()
         summaries = []
 
-        for doc in documents[:5]:  # Limit to 5 documents
+        for doc in documents[:15]:  # Use up to 15 documents for broader coverage
             if doc.get("key_concepts"):
                 all_concepts.update(doc["key_concepts"])
             if doc.get("tech_stack"):
@@ -505,7 +505,8 @@ async def get_user_idea_seeds(
 async def generate_kb_combined_ideas(
     db: Session,
     knowledge_base_id: str,
-    max_ideas: int = 5
+    max_ideas: int = 5,
+    sample_size: int = 15
 ) -> List[Dict[str, Any]]:
     """
     Generate ideas that combine multiple documents in a knowledge base.
@@ -514,10 +515,12 @@ async def generate_kb_combined_ideas(
         db: Database session
         knowledge_base_id: Knowledge base ID
         max_ideas: Maximum ideas to generate
+        sample_size: Number of docs to randomly sample from KB (default 15)
 
     Returns:
         List of combined idea dicts
     """
+    import random
     from .db_models import DBDocumentSummary, DBDocument
 
     service = IdeaSeedsService()
@@ -525,14 +528,23 @@ async def generate_kb_combined_ideas(
     if not service.is_available():
         return []
 
-    # Get document summaries (level 3 = document level)
-    summaries = db.query(DBDocumentSummary).filter(
+    # Get ALL document summaries (level 3 = document level)
+    all_summaries = db.query(DBDocumentSummary).filter(
         DBDocumentSummary.knowledge_base_id == knowledge_base_id,
         DBDocumentSummary.summary_level == 3
-    ).limit(10).all()
+    ).all()
 
-    if len(summaries) < 2:
+    if len(all_summaries) < 2:
         return []
+
+    # Randomly sample from all summaries for variety
+    # Each call gets a different mix of documents
+    if len(all_summaries) > sample_size:
+        summaries = random.sample(all_summaries, sample_size)
+        logger.info(f"Sampled {sample_size} docs from {len(all_summaries)} total for combined ideas")
+    else:
+        summaries = all_summaries
+        logger.info(f"Using all {len(summaries)} docs for combined ideas")
 
     # Prepare document data
     documents = []
@@ -545,7 +557,7 @@ async def generate_kb_combined_ideas(
             "tech_stack": summary.tech_stack or []
         })
 
-    # Generate combined ideas
+    # Generate combined ideas (internally limits to 5 docs for prompt)
     ideas = await service.generate_combined_ideas(documents, max_ideas)
 
     return [
