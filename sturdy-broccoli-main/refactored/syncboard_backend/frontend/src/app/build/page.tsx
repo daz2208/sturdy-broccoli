@@ -423,6 +423,7 @@ export default function BuildPage() {
   const [quickIdeas, setQuickIdeas] = useState<QuickIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingQuick, setLoadingQuick] = useState(false);
+  const [loadingCombined, setLoadingCombined] = useState(false);
   const [validating, setValidating] = useState(false);
   const [maxSuggestions, setMaxSuggestions] = useState(5);
   const [knowledgeSummary, setKnowledgeSummary] = useState<any>(null);
@@ -501,6 +502,34 @@ export default function BuildPage() {
       toast.error(err.message || 'Failed to load quick ideas');
     } finally {
       setLoadingQuick(false);
+    }
+  };
+
+  const getCombinedIdeas = async () => {
+    setLoadingCombined(true);
+    try {
+      const data = await api.getCombinedKBIdeas(5, true);
+      // Transform combined ideas to match QuickIdea format
+      const combinedAsQuickIdeas: QuickIdea[] = data.ideas.map((idea: any, idx: number) => ({
+        id: -(idx + 1), // Negative IDs to distinguish from regular seeds
+        title: idea.title,
+        description: idea.description,
+        difficulty: idea.difficulty || 'intermediate',
+        feasibility: idea.feasibility || 'medium',
+        effort_estimate: idea.effort_estimate || 'varies',
+        dependencies: idea.dependencies || [],
+        source_document: { filename: 'Combined KB Knowledge' }
+      }));
+      setQuickIdeas(combinedAsQuickIdeas);
+      if (data.ideas.length === 0) {
+        toast('Need at least 2 documents to generate combined ideas!', { icon: '📚' });
+      } else {
+        toast.success(`Generated ${data.ideas.length} cross-document ideas!`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate combined ideas');
+    } finally {
+      setLoadingCombined(false);
     }
   };
 
@@ -672,6 +701,15 @@ export default function BuildPage() {
                 className="btn btn-secondary flex items-center gap-2"
               >
                 Hard
+              </button>
+              <button
+                onClick={getCombinedIdeas}
+                disabled={loadingCombined || loadingQuick}
+                className="btn btn-primary flex items-center gap-2"
+                title="Generate ideas combining all documents in your KB"
+              >
+                {loadingCombined ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                Combined
               </button>
             </div>
           </div>
