@@ -173,16 +173,10 @@ Generate 2-4 project ideas using ONLY concepts from this document:"""
             if not self.model.startswith("gpt-5"):
                 api_params["temperature"] = 0.8  # Higher creativity
 
-            logger.info(f"[SEED GEN] Calling OpenAI API with model={self.model}, max_tokens=5000")
-
             response = self.client.chat.completions.create(**api_params)
-
-            logger.info(f"[SEED GEN] OpenAI API response received - finish_reason={response.choices[0].finish_reason}")
 
             result = json.loads(response.choices[0].message.content)
             ideas = result.get("ideas", [])
-
-            logger.info(f"[SEED GEN] Parsed {len(ideas)} ideas from API response")
 
             return [
                 IdeaSeed(
@@ -198,11 +192,10 @@ Generate 2-4 project ideas using ONLY concepts from this document:"""
             ]
 
         except json.JSONDecodeError as e:
-            logger.error(f"[SEED GEN] JSON parsing failed for model {self.model}: {e}", exc_info=True)
-            logger.error(f"[SEED GEN] Response content: {response.choices[0].message.content[:500]}...")
+            logger.error(f"JSON parsing failed for model {self.model}: {e}", exc_info=True)
             return []
         except Exception as e:
-            logger.error(f"[SEED GEN] API call failed for model {self.model}: {e}", exc_info=True)
+            logger.error(f"Idea generation failed for model {self.model}: {e}", exc_info=True)
             return []
 
     async def generate_combined_ideas(
@@ -340,15 +333,10 @@ async def generate_document_idea_seeds(
     from .db_models import DBDocumentSummary, DBBuildIdeaSeed
     from .database import get_db_context
 
-    logger.info(f"[SEED GEN] Starting seed generation for doc_id={document_id}, kb_id={knowledge_base_id}")
-
     service = IdeaSeedsService()
 
     if not service.is_available():
-        logger.warning(f"[SEED GEN] SKIPPED - API key not configured")
         return {"status": "skipped", "reason": "API key not configured"}
-
-    logger.info(f"[SEED GEN] API key available, model={service.model}")
 
     # Manage our own database session to avoid transaction warnings
     with get_db_context() as db:
@@ -359,18 +347,13 @@ async def generate_document_idea_seeds(
         ).first()
 
         if not doc_summary:
-            logger.warning(f"[SEED GEN] SKIPPED - No document summary found for doc_id={document_id}, level=3")
             return {"status": "skipped", "reason": "No document summary found"}
-
-        logger.info(f"[SEED GEN] Found document summary, extracting data...")
 
         # Extract data we need before exiting context
         summary_text = doc_summary.long_summary or doc_summary.short_summary
         key_concepts = doc_summary.key_concepts or []
         tech_stack = doc_summary.tech_stack or []
         skill_profile = doc_summary.skill_profile
-
-    logger.info(f"[SEED GEN] Calling OpenAI API - concepts={len(key_concepts)}, tech={len(tech_stack)}, summary_len={len(summary_text) if summary_text else 0}")
 
     # Generate ideas (outside of db session context)
     ideas = await service.generate_ideas_from_summary(
@@ -381,10 +364,7 @@ async def generate_document_idea_seeds(
     )
 
     if not ideas:
-        logger.warning(f"[SEED GEN] FAILED - OpenAI returned no ideas for doc_id={document_id}")
         return {"status": "skipped", "reason": "No ideas generated"}
-
-    logger.info(f"[SEED GEN] SUCCESS - Generated {len(ideas)} ideas, now storing to database...")
 
     # Store ideas in a new database session
     try:
@@ -395,7 +375,7 @@ async def generate_document_idea_seeds(
             ).delete()
 
             # Store new ideas
-            for idx, idea in enumerate(ideas):
+            for idea in ideas:
                 db_idea = DBBuildIdeaSeed(
                     document_id=document_id,
                     knowledge_base_id=knowledge_base_id,
@@ -408,13 +388,11 @@ async def generate_document_idea_seeds(
                     referenced_sections=idea.referenced_sections
                 )
                 db.add(db_idea)
-                logger.debug(f"[SEED GEN] Added idea {idx+1}/{len(ideas)}: {idea.title}")
 
             db.commit()
-            logger.info(f"[SEED GEN] COMPLETE - Stored {len(ideas)} ideas to database for doc_id={document_id}")
 
     except Exception as e:
-        logger.error(f"[SEED GEN] DATABASE ERROR - Failed to store ideas: {e}", exc_info=True)
+        logger.error(f"Failed to store ideas: {e}", exc_info=True)
         return {"status": "error", "reason": f"Database error: {str(e)}"}
 
     logger.info(f"Generated {len(ideas)} idea seeds for document {document_id}")
