@@ -425,6 +425,7 @@ export default function BuildPage() {
   const [loadingQuick, setLoadingQuick] = useState(false);
   const [loadingCombined, setLoadingCombined] = useState(false);
   const [combinedSampleSize, setCombinedSampleSize] = useState(25);
+  const [combinedMaxIdeas, setCombinedMaxIdeas] = useState(5);
   const [validating, setValidating] = useState(false);
   const [maxSuggestions, setMaxSuggestions] = useState(5);
   const [knowledgeSummary, setKnowledgeSummary] = useState<any>(null);
@@ -509,7 +510,7 @@ export default function BuildPage() {
   const getCombinedIdeas = async () => {
     setLoadingCombined(true);
     try {
-      const data = await api.getCombinedKBIdeas(5, combinedSampleSize, true);
+      const data = await api.getCombinedKBIdeas(combinedMaxIdeas, combinedSampleSize, true);
       // Transform combined ideas to match QuickIdea format
       const combinedAsQuickIdeas: QuickIdea[] = data.ideas.map((idea: any, idx: number) => ({
         id: -(idx + 1), // Negative IDs to distinguish from regular seeds
@@ -716,6 +717,17 @@ export default function BuildPage() {
                   <option value={25}>25 docs</option>
                   <option value={35}>35 docs</option>
                   <option value={50}>50 docs</option>
+                </select>
+                <select
+                  value={combinedMaxIdeas}
+                  onChange={(e) => setCombinedMaxIdeas(Number(e.target.value))}
+                  className="bg-dark-200 border border-dark-300 rounded px-2 py-2 text-sm text-gray-300"
+                  title="Number of ideas to generate"
+                >
+                  <option value={3}>3 ideas</option>
+                  <option value={5}>5 ideas</option>
+                  <option value={7}>7 ideas</option>
+                  <option value={10}>10 ideas</option>
                 </select>
                 <button
                   onClick={getCombinedIdeas}
