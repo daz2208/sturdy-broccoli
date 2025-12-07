@@ -926,7 +926,9 @@ def process_file_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        logger.info(f"[DIAG] Stage 8 check: summarization_result.status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
+            logger.info(f"[DIAG] Stage 8 ENTERED for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -934,18 +936,24 @@ def process_file_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
+                        logger.info(f"[DIAG] Found internal_doc_id={internal_doc_id}")
                     else:
                         internal_doc_id = None
+                        logger.warning(f"[DIAG] No db_doc found for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
+                    logger.info(f"[DIAG] Calling generate_document_idea_seeds...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
+                    logger.info(f"[DIAG] Seed result: {idea_result}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
-                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
+                logger.error(f"[DIAG] Stage 8 EXCEPTION: {e}", exc_info=True)
+        else:
+            logger.warning(f"[DIAG] Stage 8 SKIPPED - status='{summarization_result.get('status')}'")
 
         logger.info(
             f"Background task: User {user_id} uploaded file {filename_safe} as doc {doc_id} "
@@ -1372,7 +1380,9 @@ def process_url_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        logger.info(f"[DIAG] Stage 8 check: summarization_result.status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
+            logger.info(f"[DIAG] Stage 8 ENTERED for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -1380,18 +1390,24 @@ def process_url_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
+                        logger.info(f"[DIAG] Found internal_doc_id={internal_doc_id}")
                     else:
                         internal_doc_id = None
+                        logger.warning(f"[DIAG] No db_doc found for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
+                    logger.info(f"[DIAG] Calling generate_document_idea_seeds...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
+                    logger.info(f"[DIAG] Seed result: {idea_result}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
-                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
+                logger.error(f"[DIAG] Stage 8 EXCEPTION: {e}", exc_info=True)
+        else:
+            logger.warning(f"[DIAG] Stage 8 SKIPPED - status='{summarization_result.get('status')}'")
 
         logger.info(
             f"Background task: User {user_id} uploaded URL {url_safe} as doc {doc_id} to KB {kb_id} "
@@ -1760,7 +1776,9 @@ def process_image_upload(
             logger.info(f"Summarization skipped - no chunks created for doc {doc_id}")
 
         # Stage 8: Generate idea seeds (auto-generate build ideas from summaries)
+        logger.info(f"[DIAG] Stage 8 check: summarization_result.status={summarization_result.get('status')}")
         if summarization_result.get('status') == 'success':
+            logger.info(f"[DIAG] Stage 8 ENTERED for doc {doc_id}")
             try:
                 from .idea_seeds_service import generate_document_idea_seeds
                 # Get document ID from database
@@ -1768,18 +1786,24 @@ def process_image_upload(
                     db_doc = db.query(DBDocument).filter_by(doc_id=doc_id).first()
                     if db_doc:
                         internal_doc_id = db_doc.id
+                        logger.info(f"[DIAG] Found internal_doc_id={internal_doc_id}")
                     else:
                         internal_doc_id = None
+                        logger.warning(f"[DIAG] No db_doc found for doc_id={doc_id}")
 
                 # Generate ideas (manages its own db session to avoid transaction warnings)
                 if internal_doc_id:
+                    logger.info(f"[DIAG] Calling generate_document_idea_seeds...")
                     idea_result = run_async(generate_document_idea_seeds(
                         document_id=internal_doc_id,
                         knowledge_base_id=kb_id
                     ))
+                    logger.info(f"[DIAG] Seed result: {idea_result}")
                     logger.info(f"Generated {idea_result.get('ideas_generated', 0)} idea seeds for doc {doc_id}")
             except Exception as e:
-                logger.error(f"Idea seed generation failed: {e}", exc_info=True)
+                logger.error(f"[DIAG] Stage 8 EXCEPTION: {e}", exc_info=True)
+        else:
+            logger.warning(f"[DIAG] Stage 8 SKIPPED - status='{summarization_result.get('status')}'")
 
         logger.info(
             f"Background task: User {user_id} uploaded image {filename_safe} as doc {doc_id} to KB {kb_id} "
