@@ -493,11 +493,11 @@ class DBDocumentSummary(Base):
 
 
 class DBBuildIdeaSeed(Base):
-    """Pre-computed build ideas based on individual documents."""
+    """Pre-computed build ideas based on individual documents or combined KB knowledge."""
     __tablename__ = "build_idea_seeds"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL for combined ideas
     knowledge_base_id = Column(String(36), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=False)
