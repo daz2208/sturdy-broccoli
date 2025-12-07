@@ -107,7 +107,7 @@ async def get_job_status(
         elif task.state == "PROCESSING":
             # Task is running - return progress metadata
             if task.info and isinstance(task.info, dict):
-                response["progress"] = task.info.get("progress", 50)
+                response["progress"] = task.info.get("percent", 50)
                 if "current_step" in task.info:
                     response["current_step"] = task.info["current_step"]
                 if "message" in task.info:
